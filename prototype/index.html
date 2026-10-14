@@ -275,7 +275,7 @@ const BIOMES = {
     terrain: { amp: 20, ridge: 6, off: 2, swell: 3.2 },
     dens: { monu: 0.9, sovblock: 1.8, busstop: 0.8, stela: 0.25, factory: 0.3, church: 0.1, birch: 1.3, pylons: 0.4, lamps: 1, fence: 1, bus: 0.35, watertower: 0.25 },
     concrete: 0xd8d4c8, wall: 0xf0ece4, roof: 0x7c8a8f, dome: 0xc9a64a, dust: 0xe6e2cf, cloud: 0xffffff, leaf: 0xd8c25a, tuft: 0x8c9a58, wood: false,
-    road: 0x5c5e5f, marks: ['tower', 'rocket', 'panel', 'colossus', 'head', 'dish'], monus: ['bust', 'figure', 'obelisk', 'mosaicwall'],
+    road: 0x5c5e5f, marks: ['shukhov', 'tatlin', 'saucer', 'monolith', 'gates', 'rocket', 'colossus', 'dish', 'panel'], monus: ['bust', 'figure', 'obelisk', 'mosaicwall'],
   },
   village: {
     name: '中央アジアの田舎町', sub: '日干し煉瓦の家、ポプラ並木、青い扉',
@@ -285,7 +285,7 @@ const BIOMES = {
     terrain: { amp: 16, ridge: 70, off: 4, swell: 2.8 },
     dens: { monu: 0.6, village: 1.3, poplar: 1.2, apricot: 0.6, mosque: 0.3, mausoleum: 0.12, minaret: 0.12, busstop: 0.3, yurt: 0.1, flags: 0.1 },
     concrete: 0xd9c9a8, wall: 0xe8dcc4, roof: 0x8a6a4a, dome: 0x2a9fa8, dust: 0xe2d4b0, cloud: 0xffffff, leaf: 0x7f9a4a, tuft: 0xa59a62, wood: false,
-    road: 0xa8916a, marks: ['minaret', 'dome', 'gate', 'niche', 'hand'], monus: ['balbal', 'bust', 'obelisk'],
+    road: 0xa8916a, marks: ['minaret', 'dome', 'niche', 'hand', 'cubes', 'gates', 'rings'], monus: ['balbal', 'bust', 'obelisk'],
   },
   azure: {
     name: '青空と廃団地', sub: '東欧の団地と仏塔が混ざる丘陵',
@@ -295,7 +295,7 @@ const BIOMES = {
     terrain: { amp: 50, ridge: 22, off: 0, swell: 4 },
     dens: { monu: 0.6, panel: 0.9, church: 0.35, stupa: 0.15, pagoda: 0.06, mausoleum: 0.06, minaret: 0.12, yurt: 0, birch: 1.2, fir: 0, pylons: 0.3, flags: 0, aqueduct: 0.1 },
     concrete: 0xd8d4c8, wall: 0xf0ece4, roof: 0x7c8a8f, dome: 0x4f9a8e, dust: 0xe9e3c6, cloud: 0xffffff, leaf: 0xd5b856, tuft: 0x7f9c50, wood: false,
-    road: 0x606264, marks: ['panel', 'tower', 'stupa', 'cathedral', 'colossus'], monus: ['khachkar', 'bust', 'figure'],
+    road: 0x606264, marks: ['shukhov', 'rings', 'cathedral', 'colossus', 'tower', 'saucer'], monus: ['khachkar', 'bust', 'figure'],
   },
   steppe: {
     name: '草原の仏塔', sub: 'ゆるやかな起伏が続くステップ',
@@ -305,7 +305,7 @@ const BIOMES = {
     terrain: { amp: 26, ridge: 8, off: 4, swell: 5 },
     dens: { monu: 0.7, panel: 0.12, church: 0.05, stupa: 0.4, pagoda: 0, mausoleum: 0.2, minaret: 0.2, yurt: 0.8, birch: 0.15, fir: 0, pylons: 0.12, flags: 0.25, aqueduct: 0 },
     concrete: 0xd9d0bc, wall: 0xefe8d8, roof: 0x8a7f6a, dome: 0x2aa3a6, dust: 0xe6d9ae, cloud: 0xffffff, leaf: 0xc9b04a, tuft: 0xa89a54, wood: false,
-    road: 0xa3946a, marks: ['stupa', 'gate', 'dome', 'niche', 'head'], monus: ['balbal', 'balbal', 'obelisk'],
+    road: 0xa3946a, marks: ['monolith', 'rings', 'gates', 'stupa', 'niche', 'head'], monus: ['balbal', 'balbal', 'obelisk'],
   },
   dusk: {
     name: '黄昏の塩湖', sub: '水辺に水道橋とミナレットが残る',
@@ -315,7 +315,7 @@ const BIOMES = {
     terrain: { amp: 22, ridge: 14, off: -8, swell: 4 },
     dens: { monu: 0.5, panel: 0.25, church: 0.12, stupa: 0.06, pagoda: 0, mausoleum: 0.15, minaret: 0.3, yurt: 0, birch: 0.2, fir: 0, pylons: 0.2, flags: 0, aqueduct: 0.25 },
     concrete: 0xd8c4b2, wall: 0xeedccb, roof: 0x6f5a5a, dome: 0x3e8f95, dust: 0xf4e6d6, cloud: 0xffc6a8, leaf: 0xb7894f, tuft: 0xbfa98e, wood: false,
-    road: 0x8d7f72, marks: ['gate', 'dome', 'tower', 'hand', 'cathedral'], monus: ['obelisk', 'figure', 'khachkar'],
+    road: 0x8d7f72, marks: ['cubes', 'saucer', 'gates', 'hand', 'gate', 'monolith'], monus: ['obelisk', 'figure', 'khachkar'],
   },
   snow: {
     name: '雪の峠', sub: '木造教会と針葉樹の雪原',
@@ -325,7 +325,7 @@ const BIOMES = {
     terrain: { amp: 85, ridge: 32, off: 40, swell: 5.5 },
     dens: { monu: 0.5, panel: 0.25, church: 0.35, stupa: 0.06, pagoda: 0.12, mausoleum: 0, minaret: 0, yurt: 0, birch: 0.3, fir: 1.4, pylons: 0.25, flags: 0.08, aqueduct: 0 },
     concrete: 0xcfd3d8, wall: 0x6b4a35, roof: 0x4a3426, dome: 0x3d2c22, dust: 0xffffff, cloud: 0xffffff, leaf: 0xdfe8ee, tuft: 0xc9d3dc, wood: true,
-    road: 0xc9d1d8, marks: ['tower', 'stupa', 'panel', 'dish', 'colossus'], monus: ['khachkar', 'figure', 'obelisk'],
+    road: 0xc9d1d8, marks: ['monolith', 'tatlin', 'shukhov', 'dish', 'colossus'], monus: ['khachkar', 'figure', 'obelisk'],
   },
 };
 const BKEYS = ['soviet', 'village', 'azure', 'steppe', 'dusk', 'snow'], NB = BKEYS.length;
@@ -384,7 +384,7 @@ function heightAt(x, z) {
   // swell bands: fields of wave crests; at full speed each crest becomes a launch
   const zone = smooth(0.42, 0.68, vnoise(x / 900 + 7.7, z / 900 - 3.3, 33));
   const cr = 1 - Math.abs(vnoise(x / 80 + 13.7, z / 80 - 4.2, 34) * 2 - 1);
-  return h * amp + big * amp * 0.9 + r * r * r * ridge + off + swell * zone * cr * cr;
+  return h * amp + big * amp * 0.9 + r * r * r * ridge + off + 0.7 * swell * zone * cr * cr;
 }
 const surfaceAt = (x, z) => Math.max(heightAt(x, z), WATER);
 // endless roads: wavy rows and columns every RS metres
@@ -1057,7 +1057,7 @@ function buildChunkProps(ch, rng) {
     if (rng() > 0.45) continue;
     const i = 4 + (rng() * Math.max(1, pts.length - 9) | 0), [ax, az] = pts[i], [bx, bz] = pts[i + 1];
     if (!inChunk(ax, az)) continue;
-    const dl = Math.hypot(bx - ax, bz - az) || 1, ux = (bx - ax) / dl, uz = (bz - az) / dl, yaw = Math.atan2(ux, uz), hd = 9, rise = 3.6 + rng() * 1.4;
+    const dl = Math.hypot(bx - ax, bz - az) || 1, ux = (bx - ax) / dl, uz = (bz - az) / dl, yaw = Math.atan2(ux, uz), hd = 9, rise = 2.4 + rng() * 1.0;
     const y1 = surfaceAt(ax - ux * hd, az - uz * hd), y2 = surfaceAt(ax + ux * hd, az + uz * hd), top = Math.max(y1, y2) + rise;
     slab(ax - ux * hd, az - uz * hd, yaw, 4.8, hd, y1 - 0.2, top - y1, 1);
     slab(ax + ux * hd, az + uz * hd, yaw, 4.8, hd, y2 - 0.2, top - y2, -1);
@@ -1065,7 +1065,7 @@ function buildChunkProps(ch, rng) {
   }
   for (let i = countOf(rng, 0.7); i > 0; i--) {
     const sp = pickSpot(rng, ch, 0.88, 8); if (!sp) continue;
-    const yaw = rng() * TAU, hd = 10 + rng() * 4, rise = 4 + rng() * 2.5;
+    const yaw = rng() * TAU, hd = 10 + rng() * 4, rise = 2.8 + rng() * 1.4;
     slab(sp.x, sp.z, yaw, 4 + rng() * 2, hd, sp.y - 0.3, rise, 1);
     const c = Math.cos(yaw), sn = Math.sin(yaw);
     for (let k = 0; k < 4; k++) solid.add(G.box, M(sp.x + sn * hd * 0.85 + (rng() - 0.5) * 4, sp.y + rise * 0.4, sp.z + c * hd * 0.85 + (rng() - 0.5) * 4, rng() * TAU, 1.5 + rng() * 2, rise * 0.8, 1.2 + rng()), 0x9e9a90);
@@ -1141,7 +1141,7 @@ function buildChunkWinds(ch, rng) {
   if (rng() < 0.45) {
     const s = pickSpot(rng, ch, 0.6, 4);
     if (s) {
-      const base = surfaceAt(s.x, s.z), top = base + 55 + rng() * 35;
+      const base = surfaceAt(s.x, s.z), top = base + 18 + rng() * 8;
       addUpdraft(s.x, s.z, 7.5, base, top);
       for (let j = 0; j < 3; j++) ch.motes.push(new V3(s.x + Math.cos(j * 2.1) * 3, top - 6 + j * 4, s.z + Math.sin(j * 2.1) * 3));
       ch.cands.push(new V3(s.x, top - 3, s.z));
@@ -1283,6 +1283,69 @@ function buildLandmark(rx, rz) {
     m.part(B, G.box, 0, 30, 40, 12, 60, 12, wall); m.part(B, G.cyl, 0, 62, 40, 4, 4, 4, wall); m.part(B, G.onion, 0, 64, 40, 1.4, 1.4, 1.4, dome);
     col(0, 0, 18, 32, -5, 32); col(0, 40, 6, 6, -5, 60);
     top = 76; rad = 42;
+  } else if (type === 'shukhov' || type === 'tatlin' || type === 'saucer' || type === 'monolith' || type === 'gates' || type === 'cubes' || type === 'rings') {
+    const bar = (a, b, r, c) => { const A = new V3(...a), E = new V3(...b), d = E.clone().sub(A), L = d.length(); m.add(G.cyl, B.clone().multiply(new THREE.Matrix4().compose(A.clone().add(E).multiplyScalar(0.5), new THREE.Quaternion().setFromUnitVectors(new V3(0, 1, 0), d.normalize()), new V3(r, L, r))), c); };
+    const torus = (x, y, z, r, tb, rx, ry, rz, c, arc = TAU) => { const tg = new THREE.TorusGeometry(r, tb, 6, 48, arc); m.add(tg, B.clone().multiply(M(x, y, z, ry, 1, 1, 1, rx, rz)), c); tg.dispose(); };
+    if (type === 'shukhov') {
+      // hyperboloid steel lattice, three stacked sections
+      const IRON = 0x56585a, secs = [[0, 46, 22, 14], [46, 88, 14, 9], [88, 124, 9, 6]];
+      for (const [y0, y1, r0, r1] of secs) {
+        for (let k = 0; k < 28; k++) for (const tw of [-1, 1]) { const a0 = k / 28 * TAU, a1 = a0 + tw * 0.9; bar([Math.cos(a0) * r0, y0, Math.sin(a0) * r0], [Math.cos(a1) * r1, y1, Math.sin(a1) * r1], 0.22, IRON); }
+        torus(0, y1, 0, r1, 0.5, Math.PI / 2, 0, 0, 0x4a4c4e); torus(0, y0 + 0.4, 0, r0, 0.5, Math.PI / 2, 0, 0, 0x4a4c4e);
+      }
+      bar([0, 124, 0], [0, 150, 0], 0.5, IRON);
+      col(0, 0, 18, 18, -5, 40);
+      top = 124; rad = 26;
+    } else if (type === 'tatlin') {
+      // a leaning double spiral, slow geometric volumes caged inside
+      const Bt = B.clone().multiply(M(0, 0, 0, 0, 1, 1, 1, 0, 0.36)), RED = 0x7a3a2c, IRON = 0x4e4642;
+      const at = (h, a, r) => new V3(Math.cos(a) * r, h, Math.sin(a) * r);
+      for (const ph of [0, Math.PI]) { let prev = null; for (let i = 0; i <= 64; i++) { const h = i * 2.1, r = 28 - i * 0.32, q = at(h, ph + i * 0.32, r).applyMatrix4(new THREE.Matrix4().makeRotationZ(0.36)); if (prev) bar(prev.toArray(), q.toArray(), 0.9, i % 2 ? RED : IRON); prev = q; } }
+      bar([0, 0, 0], new V3(0, 140, 0).applyMatrix4(new THREE.Matrix4().makeRotationZ(0.36)).toArray(), 1.2, IRON);
+      m.part(Bt, G.box, 0, 22, 0, 22, 22, 22, 0x8f8a82, 0.3); m.part(Bt, G.cone, 0, 58, 0, 13, 22, 13, 0x8f8a82);
+      m.part(Bt, G.cyl, 0, 88, 0, 8, 14, 8, 0x9a958c); m.part(Bt, G.half, 0, 106, 0, 6, 6, 6, 0xa59f96);
+      col(0, 0, 26, 26, -5, 14);
+      top = 110; rad = 34;
+    } else if (type === 'saucer') {
+      // a concrete saucer crowning a hill, a slab tower with a hole beside it
+      m.part(B, G.cone, 0, 10, 0, 70, 22, 70, 0xa59d86);
+      m.part(B, G.cyl, 0, 30, 0, 34, 10, 34, 0xbdb8ad); torus(0, 35, 0, 34, 3.2, Math.PI / 2, 0, 0, 0xc9c4b9);
+      m.part(B, G.half, 0, 35, 0, 30, 7, 30, 0x7d9a8a);
+      for (let k = 0; k < 16; k++) { const a = k / 16 * TAU; m.part(B, G.box, Math.cos(a) * 34.2, 29, Math.sin(a) * 34.2, 0.6, 5, 4, 0x3d4044, -a); }
+      m.part(B, G.box, 52, 55, 0, 10, 110, 14, 0xbdb8ad); m.part(B, G.box, 52, 96, 0, 10.4, 12, 6, 0x2a2c30);
+      col(0, 0, 34, 34, -5, 35); col(52, 0, 5, 7, -5, 110);
+      top = 42; rad = 60;
+    } else if (type === 'monolith') {
+      // a black slab, a perfect round hole where the sky shows through
+      const BL = 0x26272a, Bm = B.clone().multiply(M(0, 0, 0, 0, 1, 1, 1, 0, 0.04));
+      m.part(Bm, G.box, -14, 60, 0, 12, 120, 6, BL); m.part(Bm, G.box, 14, 60, 0, 12, 120, 6, BL);
+      m.part(Bm, G.box, 0, 30, 0, 16, 60, 6, BL); m.part(Bm, G.box, 0, 105, 0, 16, 30, 6, BL);
+      { const tg = new THREE.TorusGeometry(8.3, 0.7, 8, 40); m.add(tg, Bm.clone().multiply(M(0, 75, 0)), 0xb89a5a); tg.dispose(); }
+      col(0, 0, 20, 4, -5, 120);
+      top = 120; rad = 24;
+    } else if (type === 'gates') {
+      // a corridor of square frames shrinking into the distance; ride through them
+      const ST = 0xc9c4b9;
+      for (let k = 0; k < 8; k++) {
+        const z0 = k * 34, s = 44 - k * 3.2, th = 2.6, Bk = B.clone().multiply(M(0, 0, z0, k * 0.05));
+        m.part(Bk, G.box, -s / 2, s / 2, 0, th, s, th, ST); m.part(Bk, G.box, s / 2, s / 2, 0, th, s, th, ST); m.part(Bk, G.box, 0, s, 0, s + th, th, th, shade(ST, 0.95));
+        col(-s / 2, z0, th / 2 + 0.2, th / 2 + 0.2, -5, s); col(s / 2, z0, th / 2 + 0.2, th / 2 + 0.2, -5, s);
+      }
+      top = 44; rad = 30;
+    } else if (type === 'cubes') {
+      // a vast cube balanced on one corner, lesser cubes fallen around it
+      m.part(B, G.box, 0, 2, 0, 14, 4, 14, 0xb3ada2);
+      m.part(B, G.box, 0, 4 + 34.6, 0, 40, 40, 40, 0xd8d3c9, 0, Math.atan(1 / Math.SQRT2), Math.PI / 4);
+      for (let k = 0; k < 6; k++) { const s = 4 + rng() * 9; m.part(B, G.box, (rng() - 0.5) * 120, s / 2 - 1, (rng() - 0.5) * 120, s, s, s, shade(0xd8d3c9, 0.85 + rng() * 0.15), rng(), rng(), rng() * 0.4); }
+      col(0, 0, 20, 20, 4, 72); col(0, 0, 7, 7, -5, 4);
+      top = 74; rad = 30;
+    } else {
+      // three great rings standing crosswise like a stilled gyroscope
+      for (const [r, ry, rz, c] of [[46, 0, 0, 0xc9c4b9], [38, Math.PI / 3, 0.25, 0xb89a5a], [30, -Math.PI / 4, -0.3, 0xa9a49a]]) torus(0, r + 2, 0, r, 1.8, 0, ry, rz, c);
+      m.part(B, G.box, 0, 1.5, 0, 10, 3, 10, 0xb3ada2);
+      col(0, 0, 5, 5, -5, 3);
+      top = 60; rad = 50;
+    }
   } else if (type === 'rocket') {
     m.part(B, G.box, 0, 4, 0, 26, 8, 26, 0xb9b4aa); m.part(B, G.box, 0, 9, 0, 16, 2, 16, 0xa9a49a);
     const Bt = B.clone().multiply(M(0, 10, 0, 0, 1, 1, 1, 0.22, 0));
@@ -1312,8 +1375,8 @@ function buildLandmark(rx, rz) {
   L.group.add(new THREE.Mesh(m.build(), L.mat));
   // an updraft beside it carries you to the find at the top
   const a = rng() * TAU, ux = x + Math.cos(a) * (rad + 16), uz = z + Math.sin(a) * (rad + 16), ub = surfaceAt(ux, uz);
-  addUpdraft(ux, uz, 10, ub, gy + top + 18);
-  addFind('L' + L.key, new V3(ux, gy + top + 6, uz), FIND_POOL[seedOf(rx, rz, 6) % FIND_POOL.length]);
+  addUpdraft(ux, uz, 10, ub, ub + 28);
+  addFind('L' + L.key, new V3(ux, ub + 22, uz), FIND_POOL[seedOf(rx, rz, 6) % FIND_POOL.length]);
   L.motes = [new V3(ux, gy + top * 0.5, uz), new V3(ux, gy + top * 0.75, uz)].map((p, i) => ({ p, key: 'L' + L.key + ':' + i, got: gotMotes.has('L' + L.key + ':' + i), ph: i }));
   world.add(L.group); CUR = null;
 }
@@ -1812,7 +1875,7 @@ function stepPhysics(dt) {
       const hsNow = Math.hypot(P.vel.x, P.vel.z);
       // heavy iron in the air: full weight on the way up, then a steady glider-like sink that shrinks with speed
       let g = S.gravity * 1.2;
-      if (P.vel.y > 22) P.vel.y = 22;
+      if (P.vel.y > 15 && !P.hopping) P.vel.y = 15; // terrain launches stay low; only the auto-hop may climb higher
       const sinkMax = lerp(40, 8.5, smooth(40, 170, hsNow));
       if (P.vel.y < -sinkMax) P.vel.y += (-sinkMax - P.vel.y) * (1 - Math.exp(-2.6 * dt));
       P.vel.y -= g * dt;
@@ -1873,7 +1936,7 @@ function windFields(dt) {
       P.inUpdraft = true;
       const fade = clamp((u.top - P.pos.y) / 12, 0.15, 1);
       P.vel.y += S.gravity * (1.5 + (inp.jumpHeld ? 0.3 : 0)) * fade * dt;
-      if (P.vel.y > 22) P.vel.y = 22;
+      if (P.vel.y > 12) P.vel.y = 12;
       // the column holds you: bleed horizontal speed so you don't fly straight through
       P.vel.x *= 1 - 0.6 * dt; P.vel.z *= 1 - 0.6 * dt;
       if (P.grounded) { P.grounded = false; P.vel.y = Math.max(P.vel.y, 6); P.air = 0.001; }
@@ -1916,7 +1979,7 @@ function autoHop() {
     }
     if (need > -Infinity) {
       const tq = d / hs, vy = need / tq + 0.5 * S.gravity * 1.2 * tq;
-      if (vy > 0 && vy <= 28) { P.vel.y = Math.max(P.vel.y, vy); P.grounded = false; P.air = 0.01; P.coyote = 0; P.ajCD = 0.4; landSquash = -0.3; sfx.jump(); }
+      if (vy > 0 && vy <= 28) { P.vel.y = Math.max(P.vel.y, vy); P.hopping = true; P.grounded = false; P.air = 0.01; P.coyote = 0; P.ajCD = 0.4; landSquash = -0.3; sfx.jump(); }
       return;
     }
   }
@@ -1973,7 +2036,7 @@ function resolveGround(dt) {
   const target = g.h + HOVER, gap = P.pos.y - target;
   const wasG = P.grounded;
   if (gap <= 0 || (wasG && gap < 0.7 && P.vel.dot(g.n) < 3)) {
-    if (!wasG) landing(g);
+    if (!wasG) { landing(g); P.hopping = false; }
     P.pos.y = target; P.n.copy(g.n);
     const vn = P.vel.dot(P.n); if (vn < 0) P.vel.addScaledVector(P.n, -vn);
     P.grounded = true; P.air = 0; P.onWater = g.water;
@@ -2226,18 +2289,20 @@ const forms = [], _dm = new THREE.Object3D(), _f = new V3(), _r = new V3(), _u =
 const VOLLEY_COLS = [[1, 0.5, 0.16], [0.95, 0.36, 0.58], [0.3, 0.68, 1], [1, 0.78, 0.22]];
 function slotOf(f, i, out) {
   const n = f.n, t = f.t;
-  if (f.type === 'V') { const sd = i % 2 ? 1 : -1, k = Math.ceil(i / 2); return out.set(sd * k * 7, -k * 0.9, -k * 7); }
-  if (f.type === 'ring') { const a = i / n * TAU + t * 0.9; return out.set(Math.cos(a) * 16, Math.sin(a) * 16, 0); }
-  if (f.type === 'line') return out.set(Math.sin(t * 2.2 + i * 0.55) * 8, Math.cos(t * 1.7 + i * 0.4) * 3, -i * 7);
-  const a = i * 0.7 + t * 1.6; return out.set(Math.cos(a) * 10, Math.sin(a) * 10, -i * 4.5); // helix
+  if (f.type === 'V') { const sd = i % 2 ? 1 : -1, k = Math.ceil(i / 2); return out.set(sd * k * 9, Math.sin(t * 1.2 + k * 0.5) * 1.5 - k * 0.8, -k * 8); }
+  if (f.type === 'ring') { const a = i / n * TAU + t * 0.6; return out.set(Math.cos(a) * 26, Math.sin(a) * 26, Math.sin(a * 2 + t) * 3); }
+  if (f.type === 'wave') { const x = (i - (n - 1) / 2) * 7.5; return out.set(x, Math.sin(t * 1.5 - i * 0.42) * 6, Math.cos(t * 1.1 - i * 0.3) * 4 - Math.abs(x) * 0.25); }
+  const a = Math.floor(i / 2) * 0.6 + t * 1.1 + (i % 2) * Math.PI; return out.set(Math.cos(a) * 13, Math.sin(a) * 13, -Math.floor(i / 2) * 6); // double helix
 }
-function spawnFormation() {
-  const hs = Math.hypot(P.vel.x, P.vel.z) || 1, fx = P.vel.x / hs, fz = P.vel.z / hs, mode = Math.random() < 0.55 ? 'pass' : 'chase';
-  const type = ['V', 'ring', 'line', 'helix'][Math.random() * 4 | 0], n = type === 'ring' ? 12 : type === 'V' ? 11 : 13;
-  const side = (Math.random() - 0.5) * 240, dist = mode === 'pass' ? 900 : -480;
+function spawnFormation(forceMode) {
+  const hs = Math.hypot(P.vel.x, P.vel.z) || 1, fx = P.vel.x / hs, fz = P.vel.z / hs;
+  const mode = forceMode || (hs < 80 && Math.random() < 0.45 ? 'chase' : 'pass');
+  const type = ['V', 'ring', 'wave', 'helix'][Math.random() * 4 | 0], n = type === 'ring' ? 20 : type === 'V' ? 19 : type === 'wave' ? 21 : 20;
+  // scenic approach: rise over the horizon far ahead, slightly off your line, and come on slowly
+  const side = (Math.random() - 0.5) * 320, dist = mode === 'pass' ? 1500 : -480;
   const pos = new V3(P.pos.x + fx * dist - fz * side, 0, P.pos.z + fz * dist + fx * side);
-  pos.y = surfaceAt(pos.x, pos.z) + 34 + Math.random() * 26;
-  const vel = mode === 'pass' ? new V3(-fx, 0, -fz).multiplyScalar(70) : new V3(fx, 0, fz).multiplyScalar(60);
+  pos.y = surfaceAt(pos.x, pos.z) + (mode === 'pass' ? 70 + Math.random() * 30 : 34 + Math.random() * 20);
+  const vel = mode === 'pass' ? new V3(-fx, 0, -fz).multiplyScalar(42) : new V3(fx, 0, fz).multiplyScalar(60);
   const f = { mode, type, n, pos, vel, t: 0, fireT: 1.5, volley: 0, turned: false, drones: [] };
   for (let i = 0; i < n; i++) f.drones.push(slotOf(f, i, new V3()).add(pos));
   forms.push(f);
@@ -2265,7 +2330,7 @@ function volley(f) {
 function updateDrones(dt) {
   const hs = Math.hypot(P.vel.x, P.vel.z);
   droneSpawnT -= dt;
-  if (shellsOn && !P.dead && droneSpawnT <= 0 && forms.length < 3) { spawnFormation(); droneSpawnT = hs > 110 ? 14 + Math.random() * 8 : lerp(11, 5, clamp(1 - hs / 90, 0, 1)) + Math.random() * 3; }
+  if (shellsOn && !P.dead && droneSpawnT <= 0 && forms.length < 3) { spawnFormation(); droneSpawnT = hs > 80 ? 20 + Math.random() * 10 : lerp(12, 6, clamp(1 - hs / 80, 0, 1)) + Math.random() * 3; }
   let nearest = Infinity, k = 0;
   const fx = hs > 1 ? P.vel.x / hs : fwd.x, fz = hs > 1 ? P.vel.z / hs : fwd.z;
   for (let i = forms.length - 1; i >= 0; i--) {
@@ -2276,12 +2341,13 @@ function updateDrones(dt) {
       tmp.set(P.pos.x + fx * 70, P.pos.y + 24 + Math.sin(f.t) * 4, P.pos.z + fz * 70).sub(f.pos).normalize().multiplyScalar(DRONE_MAX);
       f.vel.lerp(tmp, 1 - Math.exp(-1.1 * dt));
     }
+    if (f.mode === 'pass' && !f.turned) { const dd = Math.hypot(f.pos.x - P.pos.x, f.pos.z - P.pos.z), ty = surfaceAt(f.pos.x, f.pos.z) + 26 + 50 * clamp(dd / 1500, 0, 1); f.pos.y += (ty - f.pos.y) * (1 - Math.exp(-0.6 * dt)); }
     f.pos.addScaledVector(f.vel, dt);
     const gh = surfaceAt(f.pos.x, f.pos.z) + 16; if (f.pos.y < gh) f.pos.y = gh;
     const d = f.pos.distanceTo(P.pos); nearest = Math.min(nearest, d);
     f.fireT -= dt;
     if (d < 180 && f.fireT <= 0 && !P.dead && shellsOn) { volley(f); f.fireT = 1.0 + Math.random() * 0.8; }
-    if (d > 1300 || f.t > 70 || !shellsOn) { forms.splice(i, 1); continue; }
+    if ((d > 1300 && f.t > 20) || f.t > 90 || !shellsOn) { forms.splice(i, 1); continue; }
     // drones ease into their slots; the formation faces where it flies
     _f.copy(f.vel).normalize(); _r.crossVectors(_f, UP).normalize(); _u.crossVectors(_r, _f);
     for (let j = 0; j < f.n && k < MAXD; j++, k++) {
@@ -2289,7 +2355,7 @@ function updateDrones(dt) {
       const dp = f.drones[j], kk = 1 - Math.exp(-5 * dt); dp.x += (tx - dp.x) * kk; dp.y += (ty - dp.y) * kk; dp.z += (tz - dp.z) * kk;
       _dm.position.copy(dp); _dm.rotation.set(Math.sin(t * 3 + j) * 0.15, Math.atan2(_f.x, _f.z), Math.cos(t * 2.6 + j) * 0.15); _dm.scale.setScalar(2.6); _dm.updateMatrix();
       droneMesh.setMatrixAt(k, _dm.matrix);
-      _dm.position.addScaledVector(_f, 1.2); _dm.position.y -= 1.0; _dm.scale.setScalar(3.2); _dm.updateMatrix(); eyeMesh.setMatrixAt(k, _dm.matrix);
+      _dm.position.addScaledVector(_f, 1.2); _dm.position.y -= 1.0; _dm.scale.setScalar(2.4 + 2.6 * Math.max(0, Math.sin(t * 3.2 - j * 0.45))); _dm.updateMatrix(); eyeMesh.setMatrixAt(k, _dm.matrix);
     }
   }
   droneMesh.count = eyeMesh.count = k; droneMesh.instanceMatrix.needsUpdate = eyeMesh.instanceMatrix.needsUpdate = true;
