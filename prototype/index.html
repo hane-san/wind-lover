@@ -121,7 +121,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .eyebrow, .label { font-size: 11px; letter-spacing: 0.22em; color: var(--accent); }
 .label { color: var(--muted); letter-spacing: 0.14em; }
 .worlds { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-.worlds .world:first-child { grid-column: span 2; }
 @media (max-width: 560px) { .worlds { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .world { border: 1.5px solid transparent; border-radius: 12px; padding: 0; overflow: hidden; background: rgba(255, 255, 255, 0.06); text-align: left; display: grid; }
 .world[aria-pressed="true"] { border-color: var(--accent); }
@@ -277,6 +276,16 @@ const BIOMES = {
     concrete: 0xd8d4c8, wall: 0xf0ece4, roof: 0x7c8a8f, dome: 0xc9a64a, dust: 0xe6e2cf, cloud: 0xffffff, leaf: 0xd8c25a, tuft: 0x8c9a58, wood: false,
     road: 0x5c5e5f, marks: ['shukhov', 'tatlin', 'saucer', 'monolith', 'gates', 'rocket', 'colossus', 'dish', 'panel'], monus: ['bust', 'figure', 'obelisk', 'mosaicwall'],
   },
+  tianshan: {
+    name: '天山の峠道', sub: '尾根を貫いて登る、果てしない山道と洞門',
+    skyTop: 0x3a6fc0, skyHor: 0xdfe8ef, skyBot: 0xc8d4dc, sunCol: 0xffffff, sunDir: [-0.2, 0.55, 0.6],
+    hemiSky: 0xe4eef8, hemiGround: 0x6f7a62, hemiI: 0.95, sunI: 0.85, sunLight: 0xfff8ee,
+    low: 0x8fa86a, high: 0xe6eaee, rock: 0x7f7a74, shore: 0xc9c8b4,
+    terrain: { amp: 105, ridge: 150, off: 45, swell: 1.5 },
+    dens: { monu: 0.4, yurt: 0.4, fir: 1.6, birch: 0.2, pylons: 0.45, busstop: 0.1, flags: 0.15, stupa: 0.05 },
+    concrete: 0xcfd0cc, wall: 0xe8e2d6, roof: 0x7c8a8f, dome: 0x4f9a8e, dust: 0xe8e8e2, cloud: 0xffffff, leaf: 0xc9c06a, tuft: 0x7f9a58, wood: false,
+    road: 0x5c5e5f, marks: ['niche', 'monolith', 'dish', 'gates', 'rings', 'shukhov'], monus: ['balbal', 'obelisk'],
+  },
   village: {
     name: '中央アジアの田舎町', sub: '日干し煉瓦の家、ポプラ並木、青い扉',
     skyTop: 0x2a66c9, skyHor: 0xe9e2cf, skyBot: 0xd9cfb3, sunCol: 0xfff0d0, sunDir: [-0.3, 0.55, 0.5],
@@ -328,7 +337,7 @@ const BIOMES = {
     road: 0xc9d1d8, marks: ['monolith', 'tatlin', 'shukhov', 'dish', 'colossus'], monus: ['khachkar', 'figure', 'obelisk'],
   },
 };
-const BKEYS = ['soviet', 'village', 'azure', 'steppe', 'dusk', 'snow'], NB = BKEYS.length;
+const BKEYS = ['soviet', 'village', 'azure', 'steppe', 'dusk', 'snow', 'tianshan'], NB = BKEYS.length;
 let biomeMode = store.get('windlover.world4', 'journey');
 if (biomeMode !== 'journey' && !BIOMES[biomeMode]) biomeMode = 'journey';
 const toRGB = (h) => { const c = new THREE.Color(h); return [c.r, c.g, c.b]; };
@@ -371,7 +380,7 @@ const dominant = (w) => { let m = 0; for (let i = 1; i < NB; i++) if (w[i] > w[m
 const newW = () => new Array(NB).fill(0);
 const WATER = -18;
 const _wh = newW();
-function heightAt(x, z) {
+function rawHeight(x, z) {
   const w = biomeW(x, z, _wh);
   let amp = 0, ridge = 0, off = 0;
   let swell = 0;
@@ -385,6 +394,37 @@ function heightAt(x, z) {
   const zone = smooth(0.42, 0.68, vnoise(x / 900 + 7.7, z / 900 - 3.3, 33));
   const cr = 1 - Math.abs(vnoise(x / 80 + 13.7, z / 80 - 4.2, 34) * 2 - 1);
   return h * amp + big * amp * 0.9 + r * r * r * ridge + off + 0.45 * swell * zone * cr * cr;
+}
+// trunk highways: wide, graded roads with their own long profile. The land is cut down to them on the hills;
+// in shallow dips it is banked up, and deep valleys are spanned by viaducts.
+const HS = 3200, HW_HALF = 14;
+const hwZ = (j, x) => j * HS + 260 * Math.sin(x / 1900 + j * 1.3) + 90 * Math.sin(x / 700 + j * 2.1);
+const hwZd = (j, x) => 260 / 1900 * Math.cos(x / 1900 + j * 1.3) + 90 / 700 * Math.cos(x / 700 + j * 2.1);
+const hwX = (i, z) => i * HS + HS / 2 + 260 * Math.sin(z / 2100 + i * 0.7) + 90 * Math.sin(z / 760 + i * 1.9);
+const hwXd = (i, z) => 260 / 2100 * Math.cos(z / 2100 + i * 0.7) + 90 / 760 * Math.cos(z / 760 + i * 1.9);
+const _hw = { d: Infinity, cx: 0, cz: 0 }, _wb = [];
+function highway(x, z) {
+  const j = Math.round(z / HS), zz = hwZ(j, x), s1 = hwZd(j, x), d1 = Math.abs(z - zz) / Math.sqrt(1 + s1 * s1);
+  const i = Math.round((x - HS / 2) / HS), xx = hwX(i, z), s2 = hwXd(i, z), d2 = Math.abs(x - xx) / Math.sqrt(1 + s2 * s2);
+  if (d1 <= d2) { _hw.d = d1; _hw.cx = x; _hw.cz = zz; } else { _hw.d = d2; _hw.cx = xx; _hw.cz = z; }
+  return _hw;
+}
+// the road's own height: only the land's long swell, never below the water
+function deckAt(x, z) {
+  const w = biomeW(x, z, _wb.length ? _wb : (_wb.length = NB, _wb.fill(0)));
+  let amp = 0, off = 0; for (let i = 0; i < NB; i++) { if (!w[i]) continue; const t = BIOMES[BKEYS[i]].terrain; amp += w[i] * t.amp; off += w[i] * t.off; }
+  const big = vnoise(x / 1700 + 3.1, z / 1700 - 8.4, 61) * 2 - 1;
+  return Math.max(big * amp * 0.9 + off + 2, WATER + 6);
+}
+function heightAt(x, z) {
+  let h = rawHeight(x, z);
+  const hw = highway(x, z);
+  if (hw.d < 190) {
+    const prof = deckAt(hw.cx, hw.cz), edge = HW_HALF + 3;
+    if (h > prof) { const bank = clamp((h - prof) * 0.7, 6, 80); h = prof + (h - prof) * smooth(edge, edge + bank, hw.d); }
+    else if (prof - h < 14) { const bank = (prof - h) * 1.8 + 4; h = prof - (prof - h) * smooth(edge, edge + bank, hw.d); }
+  }
+  return h;
 }
 const surfaceAt = (x, z) => Math.max(heightAt(x, z), WATER);
 // endless roads: wavy rows and columns every RS metres
@@ -412,6 +452,15 @@ function ground(x, z, y) {
   GI.n.set(-hx, 2 * e, -hz).normalize(); GI.water = false; GI.roof = false;
   if (WATER > h) { h = WATER; GI.n.set(0, 1, 0); GI.water = true; }
   if (y !== undefined) {
+    const hw = highway(x, z);
+    if (hw.d < HW_HALF + 0.6) {
+      const dk = deckAt(hw.cx, hw.cz) + 0.25;
+      if (dk >= h - 0.05 && y >= dk - 2.5) {
+        h = dk; GI.water = false; GI.roof = true;
+        const a = highway(x + 1.5, z), dkx = deckAt(a.cx, a.cz), b = highway(x, z + 1.5), dkz = deckAt(b.cx, b.cz);
+        GI.n.set(-(dkx + 0.25 - dk) / 1.5, 1, -(dkz + 0.25 - dk) / 1.5).normalize();
+      }
+    }
     for (let i = 0; i < colliders.length; i++) {
       const c = colliders[i];
       if (c.ramp) {
@@ -652,7 +701,7 @@ function pickSpot(rng, ch, flat = 0.9, avoid = 14) {
   for (let t = 0; t < 40; t++) {
     const x = ch.x0 + 25 + rng() * (CH - 50), z = ch.z0 + 25 + rng() * (CH - 50);
     const h = heightAt(x, z); if (h < WATER + 1.5) continue;
-    if (x * x + z * z < 45 * 45 || roadDist(x, z) < 13) continue;
+    if (x * x + z * z < 45 * 45 || roadDist(x, z) < 13 || highway(x, z).d < HW_HALF + 34) continue;
     const g = ground(x, z); if (g.n.y < flat) continue;
     let ok = true; for (const c of ch.colliders) if (Math.hypot(c.x - x, c.z - z) < Math.max(c.hw, c.hd) + avoid) { ok = false; break; }
     if (ok) return { x, z, y: h };
@@ -730,6 +779,65 @@ function buildChunkRoads(ch, rng) {
   ch.roads = lines;
 }
 
+function buildChunkHighway(ch) {
+  const deckM = new Merger(), st = new Merger(), lines = [];
+  for (let j = Math.floor((ch.z0 - 400) / HS); j <= Math.ceil((ch.z0 + CH + 400) / HS); j++) {
+    const pts = []; for (let x = ch.x0; x <= ch.x0 + CH + 0.1; x += 8) pts.push([x, hwZ(j, x)]);
+    if (pts.some(([, z]) => z > ch.z0 - 30 && z < ch.z0 + CH + 30)) lines.push(pts);
+  }
+  for (let i = Math.floor((ch.x0 - HS / 2 - 400) / HS); i <= Math.ceil((ch.x0 + CH - HS / 2 + 400) / HS); i++) {
+    const pts = []; for (let z = ch.z0; z <= ch.z0 + CH + 0.1; z += 8) pts.push([hwX(i, z), z]);
+    if (pts.some(([x]) => x > ch.x0 - 30 && x < ch.x0 + CH + 30)) lines.push(pts);
+  }
+  if (!lines.length) return;
+  const ASPH = new THREE.Color(0x56585a), PAINT = new THREE.Color(0xe8e6de), CONC = 0xc4c0b6, CONC_D = 0xa9a59c;
+  const quad = (m, a, b, c, d, k) => { for (const v of [a, b, c, c, b, d]) { m.p.push(v[0], v[1], v[2]); m.c.push(k.r, k.g, k.b); } };
+  for (const pts of lines) {
+    const n = pts.length, dk = pts.map(([x, z]) => deckAt(x, z) + 0.25), raw = pts.map(([x, z]) => rawHeight(x, z));
+    const nrm = pts.map((p, i) => { const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1; return [-dz / l, dx / l, dx / l, dz / l]; });
+    const at = (i, off, dy = 0) => [pts[i][0] + nrm[i][0] * off, dk[i] + dy, pts[i][1] + nrm[i][1] * off];
+    let gal = 0;
+    for (let i = 0; i < n - 1; i++) {
+      // deck, lane dashes, edge lines, the double centre line
+      quad(deckM, at(i, HW_HALF), at(i + 1, HW_HALF), at(i, -HW_HALF), at(i + 1, -HW_HALF), ASPH);
+      for (const o of [-12.6, 12.6, -0.35, 0.35]) quad(deckM, at(i, o + 0.12, 0.02), at(i + 1, o + 0.12, 0.02), at(i, o - 0.12, 0.02), at(i + 1, o - 0.12, 0.02), PAINT);
+      if (i % 2 === 0) for (const o of [-6.5, 6.5]) quad(deckM, at(i, o + 0.12, 0.02), [lerp(at(i, o + 0.12, 0.02)[0], at(i + 1, o + 0.12, 0.02)[0], 0.5), dk[i] + 0.02, lerp(at(i, o + 0.12)[2], at(i + 1, o + 0.12)[2], 0.5)], at(i, o - 0.12, 0.02), [lerp(at(i, o - 0.12)[0], at(i + 1, o - 0.12)[0], 0.5), dk[i] + 0.02, lerp(at(i, o - 0.12)[2], at(i + 1, o - 0.12)[2], 0.5)], PAINT);
+      const span = dk[i] - raw[i] > 3 || dk[i + 1] - raw[i + 1] > 3, cutDepth = Math.min(raw[i], raw[i + 1]) - dk[i];
+      // parapets on spans; fascia under the deck edge
+      if (span) for (const sd of [-1, 1]) {
+        const c = new THREE.Color(CONC);
+        quad(st, at(i, sd * HW_HALF, -1.8), at(i + 1, sd * HW_HALF, -1.8), at(i, sd * HW_HALF, 0.05), at(i + 1, sd * HW_HALF, 0.05), c);
+        quad(st, at(i, sd * HW_HALF, 0.05), at(i + 1, sd * HW_HALF, 0.05), at(i, sd * HW_HALF, 1.0), at(i + 1, sd * HW_HALF, 1.0), new THREE.Color(CONC_D));
+      }
+      // viaduct piers every 48 m where the valley drops away
+      if (i % 6 === 0) {
+        const g = Math.max(heightAt(pts[i][0], pts[i][1]), WATER - 2), hgt = dk[i] - 1.8 - g;
+        if (hgt > 3) {
+          const yaw = Math.atan2(nrm[i][2], nrm[i][3]);
+          for (const sd of [-8, 8]) { const p = at(i, sd); st.add(G.box, M(p[0], g + hgt / 2, p[2], yaw, 3.2, hgt, 4.2), CONC_D); }
+          const c0 = at(i, 0); st.add(G.box, M(c0[0], dk[i] - 2.5, c0[2], yaw, 4, 1.6, HW_HALF * 2 + 1), CONC);
+        }
+      }
+      // deep cuts become avalanche galleries, and the deepest close into tunnels
+      if (cutDepth > 22) {
+        gal++;
+        const deep = cutDepth > 45, yaw = Math.atan2(nrm[i][2], nrm[i][3]), mid = [(at(i, 0)[0] + at(i + 1, 0)[0]) / 2, (dk[i] + dk[i + 1]) / 2, (at(i, 0)[2] + at(i + 1, 0)[2]) / 2];
+        const segL = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]) + 0.3;
+        for (const sd of [-1, 1]) {
+          const w = at(i, sd * (HW_HALF + 1.2)), w2 = at(i + 1, sd * (HW_HALF + 1.2)), wm = [(w[0] + w2[0]) / 2, (w[2] + w2[2]) / 2];
+          if (deep || sd < 0) st.add(G.box, M(wm[0], mid[1] + 5, wm[1], yaw, 1.4, 10, segL), 0xb9b4a8);
+          else if (i % 2 === 0) st.add(G.box, M(wm[0], mid[1] + 5, wm[1], yaw, 1.4, 10, 2.2), 0xb9b4a8);
+        }
+        st.add(G.box, M(mid[0], mid[1] + 10.6, mid[2], yaw, HW_HALF * 2 + 4, 1.4, segL), deep ? 0xa8a397 : 0xb4afa3);
+        if (i % 3 === 0) st.add(G.box, M(mid[0], mid[1] + 9.7, mid[2], yaw, 6, 0.25, 1.2), 0xfff0c4);
+        if (gal === 1 || cutDepth <= 22) st.add(G.box, M(mid[0], mid[1] + 6, mid[2], yaw, HW_HALF * 2 + 8, 14, 2), 0x9d988d);
+      } else if (gal) { const c0 = at(i, 0), yaw = Math.atan2(nrm[i][2], nrm[i][3]); st.add(G.box, M(c0[0], dk[i] + 6, c0[2], yaw, HW_HALF * 2 + 8, 14, 2), 0x9d988d); gal = 0; }
+    }
+  }
+  if (deckM.p.length) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(deckM.p, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(deckM.c, 3)); g.computeVertexNormals(); ch.group.add(new THREE.Mesh(g, roadMat)); }
+  if (st.p.length) { const m = new THREE.Mesh(st.build(), new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 6, side: THREE.DoubleSide })); ch.group.add(m); }
+}
+
 function buildChunkProps(ch, rng) {
   const solid = new Merger(), soft = new Merger(), D = new Proxy(T.dens, { get: (o, k) => o[k] || 0 });
   const panel = (s) => {
@@ -801,13 +909,13 @@ function buildChunkProps(ch, rng) {
     solid.part(B, G.box, 0, 0.9, 4, 1.2, 1.8, 0.3, 0xb13a2e);
     addCollider(s.x, s.z, yaw, 3.4, 3.4, s.y - 2, s.y + 2.4);
   };
-  const birch = (x, z) => {
+  const birch = (x, z) => { if (highway(x, z).d < HW_HALF + 8) return;
     const y = heightAt(x, z); if (y < WATER + 0.8) return;
     const h = 7 + rng() * 6, B = M(x, y - 0.3, z, rng() * TAU);
     solid.part(B, G.cyl, 0, h / 2, 0, 0.22, h, 0.22, 0xeeeae0);
     for (let i = 0; i < 3; i++) solid.part(B, G.ico, (rng() - 0.5) * 1.6, h * (0.6 + i * 0.14), (rng() - 0.5) * 1.6, 1.6 - i * 0.3, 1.9 - i * 0.3, 1.6 - i * 0.3, shade(T.leaf, 0.85 + rng() * 0.25));
   };
-  const fir = (x, z) => {
+  const fir = (x, z) => { if (highway(x, z).d < HW_HALF + 8) return;
     const y = heightAt(x, z); if (y < WATER + 0.8) return;
     const h = 8 + rng() * 8, B = M(x, y - 0.3, z, rng() * TAU);
     solid.part(B, G.cyl, 0, 1, 0, 0.35, 2, 0.35, 0x4a3628);
@@ -956,7 +1064,7 @@ function buildChunkProps(ch, rng) {
       solid.part(B, G.ico, 0, h * 0.58, 0, 1.3, h * 0.45, 1.3, shade(0x5b7a3e, 0.85 + rng() * 0.3));
     }
   };
-  const apricot = (x, z) => {
+  const apricot = (x, z) => { if (highway(x, z).d < HW_HALF + 8) return;
     const y = heightAt(x, z); if (y < WATER + 0.8 || roadDist(x, z) < 8) return;
     const B = M(x, y - 0.2, z, rng() * TAU);
     solid.part(B, G.cyl, 0, 1.2, 0, 0.25, 2.4, 0.25, 0x5e4a36);
@@ -1116,7 +1224,7 @@ function buildChunkProps(ch, rng) {
   // ground clutter: small rocks and tufts give the ground parallax at speed
   for (let i = LOWQ ? 70 : 120; i > 0; i--) {
     const x = ch.x0 + rng() * CH, z = ch.z0 + rng() * CH, y = heightAt(x, z);
-    if (y < WATER + 0.3) continue;
+    if (y < WATER + 0.3 || highway(x, z).d < HW_HALF + 3) continue;
     if (rng() < 0.35) solid.add(G.ico, M(x, y, z, rng() * TAU, 0.5 + rng() * 1.2, 0.3 + rng() * 0.5, 0.5 + rng() * 1.2), shade(PAL_ROCK(), 0.9 + rng() * 0.2));
     else solid.add(G.cone, M(x, y + 0.35, z, rng() * TAU, 0.35, 0.8 + rng() * 0.6, 0.35), shade(T.tuft, 0.85 + rng() * 0.3));
   }
@@ -1158,6 +1266,7 @@ function buildChunk(cx, cz) {
   const rng = mulberry(seedOf(cx, cz, 1));
   buildChunkTerrain(ch);
   buildChunkRoads(ch, rng);
+  buildChunkHighway(ch);
   buildChunkProps(ch, rng);
   buildChunkWinds(ch, rng);
   // one find in roughly every third chunk
@@ -1786,7 +1895,8 @@ const inp = { kx: 0, ky: 0, jx: 0, jy: 0, jumpHeld: false, jumpPressed: false, d
 let shake = 0, dashPunch = 0, landSquash = 0, t = 0, steerSm = 0, windAlign = 0;
 
 // start on the road through the origin, facing along it
-function startPose() { return Math.atan2(70 / 610 + 26 / 251, 1); }
+// start on the trunk highway through the origin, heading along it
+function startPose() { return Math.atan2(1, hwZd(0, 0)); }
 function placeAt(x, z, yaw, speed) {
   const g = ground(x, z, Infinity);
   P.pos.set(x, ground(x, z).h + HOVER + 0.5, z); P.yaw = yaw; P.grind = null; P.grounded = false; P.air = 0.01; P.n.copy(g.n);
@@ -1851,7 +1961,7 @@ function stepPhysics(dt) {
       if (vf < target) vf += acc * dt * (1 - clamp(vf / Math.max(target, 1), 0, 1) * 0.5);
       if (braking) vf = Math.max(0, vf - 24 * brakeAmt * dt);
       vf += S.tailwind * Math.max(0, fPl.x * windDir.x + fPl.z * windDir.z) * dt;
-      P.onRoad = roadDist(P.pos.x, P.pos.z) < 5;
+      P.onRoad = roadDist(P.pos.x, P.pos.z) < 5 || highway(P.pos.x, P.pos.z).d < HW_HALF;
       if (P.onRoad) vf += 5 * dt;
       if (vf > cruiseNow) vf -= (vf - cruiseNow) * (P.onWater ? 0.02 : P.onRoad ? 0.003 : 0.007) * dt;
       if (vf > maxNow) vf -= (vf - maxNow) * 1.5 * dt;
@@ -1868,9 +1978,9 @@ function stepPhysics(dt) {
       }
       P.vel.copy(fPl).multiplyScalar(vf).addScaledVector(side, nvs);
       P.carve = clamp(Math.abs(nvs) / 14 + Math.abs(P.yawRate) * sf * 0.45, 0, 1);
-      if (P.carve > 0.08) for (let k = Math.floor(dt * 160 * P.carve + Math.random()); k > 0; k--)
+      if (P.carve > 0.08) for (let k = Math.floor(dt * (P.onRoad ? 40 : 160) * P.carve + Math.random()); k > 0; k--)
         emitDust(tmp.copy(P.pos).addScaledVector(fwd, -0.8 + Math.random() * 1.6).addScaledVector(side, Math.sign(nvs) * -0.6).addScaledVector(UP, -HOVER + 0.15), tmp2.copy(P.vel).multiplyScalar(0.8).addScaledVector(side, -Math.sign(nvs) * (2 + 6 * P.carve)).addScaledVector(UP, 1.5 + 3 * P.carve), 1, 3 + 4 * P.carve);
-      if (speed > 20 && Math.random() < dt * 40) emitDust(tmp.copy(P.pos).addScaledVector(fwd, -0.9).addScaledVector(UP, -HOVER + 0.1), tmp2.copy(P.vel).multiplyScalar(0.9), 2, 3);
+      if (speed > 20 && !P.onRoad && Math.random() < dt * 40) emitDust(tmp.copy(P.pos).addScaledVector(fwd, -0.9).addScaledVector(UP, -HOVER + 0.1), tmp2.copy(P.vel).multiplyScalar(0.9), 2, 3);
     } else {
       const gliding = false;
       P.carve = 0;
@@ -2539,7 +2649,7 @@ function updateVisuals(dt) {
     dp[i * 3] = d.p.x; dp[i * 3 + 1] = d.p.y; dp[i * 3 + 2] = d.p.z;
   }
   dustGeo.attributes.position.needsUpdate = true;
-  dustMat.color.copy(P.onWater ? UPC : pal.dust);
+  dustMat.color.copy(P.onWater ? UPC : P.onRoad ? ROADDUST : pal.dust);
 
   const lp = lineGeo.attributes.position.array, lineSpeed = speed * 1.4 + 10;
   for (let i = 0; i < LINES; i++) {
@@ -2595,7 +2705,7 @@ function updateVisuals(dt) {
     if (dx * dx + dz * dz > 3600 * 3600) { const a = Math.atan2(dz, dx) + Math.PI + (Math.random() - 0.5); c.position.x = camera.position.x + Math.cos(a) * 3300; c.position.z = camera.position.z + Math.sin(a) * 3300; }
   }
 }
-const UPC = new THREE.Color(0xffffff);
+const UPC = new THREE.Color(0xffffff), ROADDUST = new THREE.Color(0x8f8e8a);
 
 // ---------------------------------------------------------------- audio
 const sfx = (() => {
@@ -2911,6 +3021,6 @@ function frame(now) {
 setVehicle(vehKey); applyLens();
 P.pos.set(0, 0, 0); updateChunks(true); placeAt(0, 0, startPose(), 0); updatePalette(0, true); refreshCards();
 requestAnimationFrame(frame);
-window.__wl = { spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
+window.__wl = { deckAt, rawHeight, hwZ, hwZd, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
 })();
 </script>
