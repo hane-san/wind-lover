@@ -186,10 +186,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   <div class="card">
     <div class="eyebrow">PROTOTYPE 0.7 · 止まるな</div>
     <h1 class="title">Wind Lover</h1>
-    <p>重い鉄のサイドカーで、果てのない土地を走り続けてください。道と追い風に乗り、地平線の遺構と信号を目指します。</p>
+    <p>壊れかけの鉄のサイドカーで、何かを探しに出る。止まればエンジンがかかる保証はない。遺された砲台とドローンは、遅い者だけを捕まえる。</p>
     <div class="row" id="vehCards"></div>
     <div class="worlds" id="worldCards"></div>
-    <p>画面をドラッグして操作します。上に倒すと前傾して加速、下に倒すとブレーキ、下に倒しながら曲げるとドリフト。最高速のまま段差に突っ込むと長く滑空し、越えられる障害物は自動で跳び越えます。高すぎるものにぶつかれば激突です。遅いほど砲撃が近くに落ち、止まると集中砲撃を受けます。</p>
+    <p>画面をドラッグして操作します。上に倒すと前傾して加速、下に倒すとブレーキ、下に倒しながら曲げるとドリフト。最高速のまま段差に突っ込むと長く滑空し、越えられる障害物は自動で跳び越えます。高すぎるものにぶつかれば激突です。遅いほど砲撃とドローンの弾幕が追いつき、止まればエンストして集中砲撃を受けます。</p>
     <div class="row"><button class="go" id="btnGo" type="button">走りはじめる</button><span class="label">縦画面推奨・音が出ます</span></div>
   </div>
 </section>
@@ -206,7 +206,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <div class="row">
       <button class="ghost" id="menuTune" type="button">手ざわり調整</button>
       <button class="ghost" id="menuSound" type="button">音：オン</button>
-      <button class="ghost" id="menuShells" type="button">砲撃：オン</button>
+      <button class="ghost" id="menuShells" type="button">襲撃：オン</button>
       <button class="ghost" id="menuRespawn" type="button">出発地点に戻る</button>
       <button class="go" id="menuClose" type="button">走りに戻る</button>
     </div>
@@ -1713,7 +1713,7 @@ for (let i = 0; i < LINES; i++) { const a = Math.random() * TAU, r = 2.2 + Math.
 const P = {
   pos: new V3(), vel: new V3(), yaw: 0, n: new V3(0, 1, 0), grounded: false, air: 0, coyote: 0, jumpBuf: 0,
   grind: null, gS: 0, gSpeed: 0, gDir: 1, gSeg: 0, grindCD: 0, gauge: 40, dashCD: 0, inStream: false, inUpdraft: false, onWater: false,
-  motes: 0, flow: 0, carve: 0, ajCD: 0, skipT: 0, hull: 3, braking: false, brakeHeat: 0, danger: 0, stopT: 0, dead: false, invuln: 0, found: foundKeys.size, drift: 0, drifting: false, tuck: false, yawRate: 0, onRoad: false, dist: store.get('windlover.dist4', 0),
+  motes: 0, stalled: false, crankT: 0, sputT: 0, flow: 0, carve: 0, ajCD: 0, skipT: 0, hull: 3, braking: false, brakeHeat: 0, danger: 0, stopT: 0, dead: false, invuln: 0, found: foundKeys.size, drift: 0, drifting: false, tuck: false, yawRate: 0, onRoad: false, dist: store.get('windlover.dist4', 0),
 };
 let HOVER = VEHICLES[vehKey].hover;
 const fwd = new V3(), fPl = new V3(), side = new V3(), tmp = new V3(), tmp2 = new V3(), UP = new V3(0, 1, 0), windDir = new V3(1, 0, 0);
@@ -1729,7 +1729,7 @@ function placeAt(x, z, yaw, speed) {
   camDir.copy(fwd); camPos.copy(P.pos).addScaledVector(fwd, -S.camDist).add(new V3(0, 3, 0)); lookSm.copy(P.pos);
   trailCount = 0; for (const p of scarfPts) p.copy(P.pos).add(new V3(0, 1.6, 0));
 }
-function respawn() { P.pos.set(0, 0, 0); updateChunks(true); placeAt(0, 0, startPose(), S.minSpeed); }
+function respawn() { P.pos.set(0, 0, 0); updateChunks(true); placeAt(0, 0, startPose(), S.cruise * 0.6); P.stalled = false; }
 function recover() { placeAt(P.pos.x, P.pos.z, P.yaw, Math.max(S.minSpeed, Math.hypot(P.vel.x, P.vel.z))); P.pos.y += 3; }
 
 // prevailing wind: slowly turns across the land
@@ -1777,8 +1777,8 @@ function stepPhysics(dt) {
       const nvs = vs * Math.exp(-grip * dt);
       if (vf >= 0) vf += (Math.abs(vs) - Math.abs(nvs)) * (P.drifting ? 0.9 : 0.86); else vf *= Math.exp(-3 * dt);
       const cruiseNow = S.cruise * (1 + P.flow * 1.3), maxNow = S.maxSpeed * (1 + P.flow * 0.45);
-      let target = S.auto && !braking && !P.dead ? cruiseNow : 0, acc = V.accel * (vf < 12 ? 0.45 : 1); // heavy to get rolling again
-      if (P.tuck) { target = cruiseNow * 1.35; acc *= 1.6; }
+      let target = S.auto && !braking && !P.dead && !P.stalled ? cruiseNow : 0, acc = V.accel * (vf < 12 ? 0.45 : 1); // heavy to get rolling again
+      if (P.tuck && target > 0) { target = cruiseNow * 1.35; acc *= 1.6; }
       if (vf < target) vf += acc * dt * (1 - clamp(vf / Math.max(target, 1), 0, 1) * 0.5);
       if (braking) vf = Math.max(0, vf - 24 * brakeAmt * dt);
       vf += S.tailwind * Math.max(0, fPl.x * windDir.x + fPl.z * windDir.z) * dt;
@@ -2104,7 +2104,7 @@ function die(cause = '集中砲撃') {
   setTimeout(() => { $('#overText').textContent = `旅した距離 ${(P.dist / 1000).toFixed(1)} km`; openSheet('#overSheet'); }, 1600);
 }
 function retry() {
-  closeSheet('#overSheet'); clearShells(); P.dead = false; P.barrage = false; P.hull = 3; P.stopT = 0; P.danger = 0; P.brakeHeat = 0; fireT = 4;
+  closeSheet('#overSheet'); clearShells(); P.dead = false; P.barrage = false; P.stalled = false; clearDrones(); P.hull = 3; P.stopT = 0; P.danger = 0; P.brakeHeat = 0; fireT = 4;
   P.flow = 0; placeAt(P.pos.x - fwd.x * 40, P.pos.z - fwd.z * 40, P.yaw, S.cruise * 0.7); P.invuln = 3; vignette(0);
 }
 let vigLevel = 0;
@@ -2141,6 +2141,7 @@ function updateThreat(dt) {
   // warnings: braking too hard, crawling, stopped
   let w = '';
   if (P.dead) w = '';
+  else if (P.stalled) w = 'エンジン停止 — 再始動中';
   else if (P.stopT > 0) w = '停止中 — 砲撃が来る';
   else if (shellsOn && P.brakeHeat > 0.55) w = '減速しすぎ';
   else if (shellsOn && P.danger > 0.72) w = '低速 — 狙われている';
@@ -2149,6 +2150,157 @@ function updateThreat(dt) {
   const pulse = shellsOn ? clamp((P.danger - 0.5) * 1.4, 0, 0.6) * (0.6 + 0.4 * Math.sin(t * 7)) : 0;
   vigEl.style.opacity = Math.max(vigLevel, pulse).toFixed(3);
   hullEl.forEach((e, i) => e.classList.toggle('on', i < P.hull));
+}
+
+// ---------------------------------------------------------------- the old engine: coughs when slow, stalls when stopped, may not catch again
+const SMOKE_N = 140, smoke = Array.from({ length: SMOKE_N }, () => ({ p: new V3(0, -9999, 0), v: new V3(), life: 0 }));
+const smokeGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(SMOKE_N * 3), 3));
+const smokePts = new THREE.Points(smokeGeo, new THREE.PointsMaterial({ size: 1.3, map: dotTex, transparent: true, depthWrite: false, color: 0x3a3836, opacity: 0.32 }));
+smokePts.frustumCulled = false; scene.add(smokePts);
+let smokeI = 0;
+function puff(n, dark) {
+  models[vehKey].trail.getWorldPosition(tmp);
+  for (let i = 0; i < n; i++) { const q = smoke[smokeI = (smokeI + 1) % SMOKE_N]; q.p.copy(tmp); q.v.copy(P.vel).multiplyScalar(0.85).add(tmp2.set((Math.random() - 0.5) * 1.5, 1 + Math.random() * 1.5, (Math.random() - 0.5) * 1.5)); q.life = dark ? 1.4 : 0.8; }
+}
+function backfire() {
+  models[vehKey].trail.getWorldPosition(tmp);
+  const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xffa040, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+  fl.position.copy(tmp); fl.scale.setScalar(1.6); scene.add(fl); flashes.push({ o: fl, life: 0.18 });
+  sfx.pop(); puff(4, true);
+}
+function updateEngine(dt) {
+  const v = Math.hypot(P.vel.x, P.vel.z);
+  if (!P.stalled && !P.dead && v < 3.5 && P.grounded) { P.stalled = true; P.crankT = 1.3; sfx.stall(); puff(8, true); }
+  if (P.stalled && !P.dead) {
+    P.crankT -= dt;
+    if (P.crankT <= 0) {
+      sfx.crank();
+      if (Math.random() < 0.32) { P.stalled = false; setTimeout(() => sfx.start(), 380); puff(10, true); }
+      else { P.crankT = 1.05; puff(3, true); }
+    }
+  } else if (!P.dead) {
+    // coughing below ~50 km/h; a lazy wisp otherwise
+    P.sputT -= dt;
+    if (P.sputT <= 0) {
+      if (v < 14) { if (Math.random() < 0.5) backfire(); else puff(3, true); P.sputT = 0.25 + Math.random() * 0.5; }
+      else { puff(1, false); P.sputT = 0.12 + Math.random() * 0.1; }
+    }
+  }
+  const sp = smokeGeo.attributes.position.array;
+  for (let i = 0; i < SMOKE_N; i++) {
+    const q = smoke[i];
+    if (q.life > 0) { q.life -= dt; q.v.multiplyScalar(1 - 0.9 * dt); q.v.y += 0.6 * dt; q.p.addScaledVector(q.v, dt); if (q.life <= 0) q.p.y = -9999; }
+    sp[i * 3] = q.p.x; sp[i * 3 + 1] = q.p.y; sp[i * 3 + 2] = q.p.z;
+  }
+  smokeGeo.attributes.position.needsUpdate = true;
+}
+
+// ---------------------------------------------------------------- legacy drones: flying formations that can only catch you when you are slow
+const DRONE_MAX = 90, BULLET_SPD = 62; // m/s: about 320 km/h and 220 km/h over the ground
+const droneGeo = (() => {
+  const m = new Merger(), IRON = 0x4d4a44, RUSTY = 0x7a5034;
+  m.add(G.cyl, M(0, 0, 0, 0, 0.62, 0.55, 0.62), IRON); m.add(G.cyl, M(0, 0.32, 0, 0, 0.4, 0.12, 0.4), RUSTY);
+  for (let k = 0; k < 4; k++) {
+    const a = k * Math.PI / 2 + Math.PI / 4, x = Math.cos(a) * 1.25, z = Math.sin(a) * 1.25;
+    m.add(G.box, M(x / 2, 0.05, z / 2, -a, 1.25, 0.1, 0.16), IRON);
+    const t = new THREE.TorusGeometry(0.5, 0.06, 4, 14); m.add(t, M(x, 0.08, z, 0, 1, 1, 1, Math.PI / 2), RUSTY); t.dispose();
+  }
+  m.add(G.box, M(0, -0.42, 0.2, 0, 0.3, 0.3, 0.5), IRON);
+  return m.build();
+})();
+const MAXD = 72;
+const droneMesh = new THREE.InstancedMesh(droneGeo, new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 18 }), MAXD);
+const eyeMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffb050 }), MAXD);
+for (const im of [droneMesh, eyeMesh]) { im.count = 0; im.frustumCulled = false; scene.add(im); }
+const BUL = 720, bPos = new Float32Array(BUL * 3), bVel = new Float32Array(BUL * 3), bLife = new Float32Array(BUL), bCol = new Float32Array(BUL * 3);
+const bulGeo = new THREE.BufferGeometry(); bulGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3)); bulGeo.setAttribute('color', new THREE.BufferAttribute(bCol, 3));
+const bulPts = new THREE.Points(bulGeo, new THREE.PointsMaterial({ size: 3.4, map: dotTex, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false, fog: false }));
+bulPts.frustumCulled = false; scene.add(bulPts);
+for (let i = 0; i < BUL; i++) bPos[i * 3 + 1] = -9999;
+let bulI = 0, droneSpawnT = 9;
+const forms = [], _dm = new THREE.Object3D(), _f = new V3(), _r = new V3(), _u = new V3();
+const VOLLEY_COLS = [[1, 0.5, 0.16], [0.95, 0.36, 0.58], [0.3, 0.68, 1], [1, 0.78, 0.22]];
+function slotOf(f, i, out) {
+  const n = f.n, t = f.t;
+  if (f.type === 'V') { const sd = i % 2 ? 1 : -1, k = Math.ceil(i / 2); return out.set(sd * k * 7, -k * 0.9, -k * 7); }
+  if (f.type === 'ring') { const a = i / n * TAU + t * 0.9; return out.set(Math.cos(a) * 16, Math.sin(a) * 16, 0); }
+  if (f.type === 'line') return out.set(Math.sin(t * 2.2 + i * 0.55) * 8, Math.cos(t * 1.7 + i * 0.4) * 3, -i * 7);
+  const a = i * 0.7 + t * 1.6; return out.set(Math.cos(a) * 10, Math.sin(a) * 10, -i * 4.5); // helix
+}
+function spawnFormation() {
+  const hs = Math.hypot(P.vel.x, P.vel.z) || 1, fx = P.vel.x / hs, fz = P.vel.z / hs, mode = Math.random() < 0.55 ? 'pass' : 'chase';
+  const type = ['V', 'ring', 'line', 'helix'][Math.random() * 4 | 0], n = type === 'ring' ? 12 : type === 'V' ? 11 : 13;
+  const side = (Math.random() - 0.5) * 240, dist = mode === 'pass' ? 900 : -480;
+  const pos = new V3(P.pos.x + fx * dist - fz * side, 0, P.pos.z + fz * dist + fx * side);
+  pos.y = surfaceAt(pos.x, pos.z) + 34 + Math.random() * 26;
+  const vel = mode === 'pass' ? new V3(-fx, 0, -fz).multiplyScalar(70) : new V3(fx, 0, fz).multiplyScalar(60);
+  const f = { mode, type, n, pos, vel, t: 0, fireT: 1.5, volley: 0, turned: false, drones: [] };
+  for (let i = 0; i < n; i++) f.drones.push(slotOf(f, i, new V3()).add(pos));
+  forms.push(f);
+}
+function clearDrones() { forms.length = 0; for (let i = 0; i < BUL; i++) { bLife[i] = 0; bPos[i * 3 + 1] = -9999; } droneMesh.count = eyeMesh.count = 0; }
+function shoot(p, v, c) {
+  const i = bulI = (bulI + 1) % BUL;
+  bPos[i * 3] = p.x; bPos[i * 3 + 1] = p.y; bPos[i * 3 + 2] = p.z; bVel[i * 3] = v.x; bVel[i * 3 + 1] = v.y; bVel[i * 3 + 2] = v.z; bLife[i] = 5;
+  bCol[i * 3] = c[0]; bCol[i * 3 + 1] = c[1]; bCol[i * 3 + 2] = c[2];
+}
+function volley(f) {
+  // every pattern is aimed where you are now and flies at a fixed ground speed: outrun it, or weave through it
+  const col = VOLLEY_COLS[f.volley++ % VOLLEY_COLS.length], aim = tmp.subVectors(P.pos, f.pos).normalize();
+  _r.crossVectors(aim, UP).normalize(); _u.crossVectors(_r, aim).normalize();
+  const v = new V3();
+  if (f.type === 'ring' || f.type === 'V') {
+    for (let k = 0; k < 20; k++) { const a = k / 20 * TAU + f.volley * 0.3; v.copy(aim).multiplyScalar(BULLET_SPD).addScaledVector(_r, Math.cos(a) * 15).addScaledVector(_u, Math.sin(a) * 15); shoot(f.pos, v, col); }
+  } else if (f.type === 'helix') {
+    for (let arm = 0; arm < 3; arm++) for (let k = 0; k < 5; k++) { const a = arm * TAU / 3 + k * 0.22 + f.volley * 0.5; v.copy(aim).multiplyScalar(BULLET_SPD - k * 3).addScaledVector(_r, Math.cos(a) * (6 + k * 3)).addScaledVector(_u, Math.sin(a) * (6 + k * 3)); shoot(f.pos, v, col); }
+  } else {
+    for (const d of f.drones) { v.subVectors(P.pos, d).normalize().multiplyScalar(BULLET_SPD); v.x += (Math.random() - 0.5) * 6; v.z += (Math.random() - 0.5) * 6; shoot(d, v, col); }
+  }
+  sfx.volley();
+}
+function updateDrones(dt) {
+  const hs = Math.hypot(P.vel.x, P.vel.z);
+  droneSpawnT -= dt;
+  if (shellsOn && !P.dead && droneSpawnT <= 0 && forms.length < 3) { spawnFormation(); droneSpawnT = hs > 110 ? 14 + Math.random() * 8 : lerp(11, 5, clamp(1 - hs / 90, 0, 1)) + Math.random() * 3; }
+  let nearest = Infinity, k = 0;
+  const fx = hs > 1 ? P.vel.x / hs : fwd.x, fz = hs > 1 ? P.vel.z / hs : fwd.z;
+  for (let i = forms.length - 1; i >= 0; i--) {
+    const f = forms[i]; f.t += dt;
+    if (f.mode === 'pass' && !f.turned && (P.pos.x - f.pos.x) * f.vel.x + (P.pos.z - f.pos.z) * f.vel.z < 0) f.turned = true;
+    if (f.mode === 'chase' || f.turned) {
+      // try to get ahead of the rider and hang there, as fast as old rotors allow
+      tmp.set(P.pos.x + fx * 70, P.pos.y + 24 + Math.sin(f.t) * 4, P.pos.z + fz * 70).sub(f.pos).normalize().multiplyScalar(DRONE_MAX);
+      f.vel.lerp(tmp, 1 - Math.exp(-1.1 * dt));
+    }
+    f.pos.addScaledVector(f.vel, dt);
+    const gh = surfaceAt(f.pos.x, f.pos.z) + 16; if (f.pos.y < gh) f.pos.y = gh;
+    const d = f.pos.distanceTo(P.pos); nearest = Math.min(nearest, d);
+    f.fireT -= dt;
+    if (d < 180 && f.fireT <= 0 && !P.dead && shellsOn) { volley(f); f.fireT = 1.0 + Math.random() * 0.8; }
+    if (d > 1300 || f.t > 70 || !shellsOn) { forms.splice(i, 1); continue; }
+    // drones ease into their slots; the formation faces where it flies
+    _f.copy(f.vel).normalize(); _r.crossVectors(_f, UP).normalize(); _u.crossVectors(_r, _f);
+    for (let j = 0; j < f.n && k < MAXD; j++, k++) {
+      slotOf(f, j, tmp2); const tx = f.pos.x + _r.x * tmp2.x + _u.x * tmp2.y + _f.x * tmp2.z, ty = f.pos.y + _r.y * tmp2.x + _u.y * tmp2.y + _f.y * tmp2.z, tz = f.pos.z + _r.z * tmp2.x + _u.z * tmp2.y + _f.z * tmp2.z;
+      const dp = f.drones[j], kk = 1 - Math.exp(-5 * dt); dp.x += (tx - dp.x) * kk; dp.y += (ty - dp.y) * kk; dp.z += (tz - dp.z) * kk;
+      _dm.position.copy(dp); _dm.rotation.set(Math.sin(t * 3 + j) * 0.15, Math.atan2(_f.x, _f.z), Math.cos(t * 2.6 + j) * 0.15); _dm.scale.setScalar(2.6); _dm.updateMatrix();
+      droneMesh.setMatrixAt(k, _dm.matrix);
+      _dm.position.addScaledVector(_f, 1.2); _dm.position.y -= 1.0; _dm.scale.setScalar(3.2); _dm.updateMatrix(); eyeMesh.setMatrixAt(k, _dm.matrix);
+    }
+  }
+  droneMesh.count = eyeMesh.count = k; droneMesh.instanceMatrix.needsUpdate = eyeMesh.instanceMatrix.needsUpdate = true;
+  sfx.hum(nearest < 400 ? 1 - nearest / 400 : 0);
+  // bullets
+  for (let i = 0; i < BUL; i++) {
+    if (bLife[i] <= 0) continue;
+    bLife[i] -= dt;
+    const o = i * 3; bPos[o] += bVel[o] * dt; bPos[o + 1] += bVel[o + 1] * dt; bPos[o + 2] += bVel[o + 2] * dt;
+    const dx = bPos[o] - P.pos.x, dy = bPos[o + 1] - P.pos.y, dz = bPos[o + 2] - P.pos.z;
+    if (dx * dx + dy * dy + dz * dz < 5.8 && P.invuln <= 0 && !P.dead) { bLife[i] = 0; hitByShell(); }
+    else if (bPos[o + 1] < surfaceAt(bPos[o], bPos[o + 2])) bLife[i] = 0;
+    if (bLife[i] <= 0) bPos[o + 1] = -9999;
+  }
+  bulGeo.attributes.position.needsUpdate = true; bulGeo.attributes.color.needsUpdate = true;
 }
 
 // ---------------------------------------------------------------- camera & visuals
@@ -2366,7 +2518,7 @@ const UPC = new THREE.Color(0xffffff);
 
 // ---------------------------------------------------------------- audio
 const sfx = (() => {
-  let ctx = null, master, windGain, bp, grindGain, noiseBuf, eng, carveF, carveG, on = true;
+  let ctx = null, master, windGain, bp, grindGain, noiseBuf, eng, carveF, carveG, humG = null, on = true;
   function init() {
     if (ctx) return;
     try {
@@ -2413,6 +2565,24 @@ const sfx = (() => {
     },
     whoosh() { burst(1400, 0.9, 0.55, 0.5, 260); },
     splash() { burst(1800, 0.6, 0.4, 0.35, 500); },
+    pop() { burst(160, 1.5, 0.12, 0.5); },
+    stall() { burst(120, 1.2, 0.5, 0.35, 60); },
+    crank() {
+      if (!ctx) return; const now = ctx.currentTime;
+      for (let i = 0; i < 5; i++) { const o = ctx.createOscillator(), g = ctx.createGain(), t0 = now + i * 0.11; o.type = 'square'; o.frequency.value = 38 + Math.random() * 6;
+        g.gain.setValueAtTime(0.0, t0); g.gain.linearRampToValueAtTime(0.06, t0 + 0.02); g.gain.linearRampToValueAtTime(0, t0 + 0.09); o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + 0.1); }
+    },
+    start() { burst(140, 1.0, 0.5, 0.5); burst(220, 1.2, 0.3, 0.3); },
+    volley() {
+      if (!ctx) return; const now = ctx.currentTime;
+      [0, 0.05, 0.1].forEach((dl, i) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(1600 - i * 240, now + dl); o.frequency.exponentialRampToValueAtTime(700, now + dl + 0.2);
+        g.gain.setValueAtTime(0, now + dl); g.gain.linearRampToValueAtTime(0.03, now + dl + 0.01); g.gain.exponentialRampToValueAtTime(0.001, now + dl + 0.25); o.connect(g); g.connect(master); o.start(now + dl); o.stop(now + dl + 0.3); });
+    },
+    hum(k) {
+      if (!ctx) return;
+      if (!humG) { const o = ctx.createOscillator(), o2 = ctx.createOscillator(), f = ctx.createBiquadFilter(); o.type = 'sawtooth'; o.frequency.value = 148; o2.type = 'sawtooth'; o2.frequency.value = 151.5; f.type = 'lowpass'; f.frequency.value = 900; humG = ctx.createGain(); humG.gain.value = 0; o.connect(f); o2.connect(f); f.connect(humG); humG.connect(master); o.start(); o2.start(); }
+      humG.gain.setTargetAtTime(k * 0.05, ctx.currentTime, 0.3);
+    },
     update(speed, grinding, stream, kind) {
       const bike = kind !== 'board', low = kind === 'sidecar' ? 0.72 : 1;
       if (!ctx) return; const now = ctx.currentTime;
@@ -2571,8 +2741,8 @@ $('#menuClose').addEventListener('click', () => closeSheet('#menuSheet'));
 $('#menuTune').addEventListener('click', () => { $('#menuSheet').hidden = true; buildTune(); openSheet('#tuneSheet'); });
 $('#menuSound').addEventListener('click', (e) => { const on = sfx.toggle(); e.currentTarget.textContent = on ? '音：オン' : '音：オフ'; });
 $('#menuRespawn').addEventListener('click', () => { clearShells(); respawn(); P.hull = 3; P.dead = false; closeSheet('#menuSheet'); });
-const shellsBtn = $('#menuShells'); const setShellsLabel = () => { shellsBtn.textContent = shellsOn ? '砲撃：オン' : '砲撃：オフ'; }; setShellsLabel();
-shellsBtn.addEventListener('click', () => { shellsOn = !shellsOn; store.set('windlover.shells', shellsOn); if (!shellsOn) clearShells(); setShellsLabel(); });
+const shellsBtn = $('#menuShells'); const setShellsLabel = () => { shellsBtn.textContent = shellsOn ? '襲撃：オン' : '襲撃：オフ'; }; setShellsLabel();
+shellsBtn.addEventListener('click', () => { shellsOn = !shellsOn; store.set('windlover.shells', shellsOn); if (!shellsOn) { clearShells(); clearDrones(); } setShellsLabel(); });
 $('#overRetry').addEventListener('click', retry);
 $('#tuneReset').addEventListener('click', () => { S = { ...VEHICLES[vehKey].defaults }; saveS(); buildTune(); });
 $('#tuneClose').addEventListener('click', () => closeSheet('#tuneSheet'));
@@ -2581,7 +2751,7 @@ $('#btnGo').addEventListener('click', () => {
   $('#start').hidden = true; started = true; paused = false;
   sfx.init(); sfx.resume();
   try { navigator.wakeLock && navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
-  placeAt(0, 0, startPose(), S.minSpeed); last = performance.now();
+  placeAt(0, 0, startPose(), S.cruise * 0.6); P.stalled = false; last = performance.now();
   const hint = $('#hint'); hint.hidden = false;
   hint.innerHTML = (isTouch ? 'ドラッグで操作　上で前傾・下でブレーキ・下＋左右でドリフト' : 'A・D 曲がる　W 前傾　S ブレーキ　S＋A・D ドリフト　R 立て直す') + '<br>段差は最高速で滑空、越えられる障害物は自動で跳ぶ';
   setTimeout(() => { hint.style.opacity = 0; }, 7000);
@@ -2650,8 +2820,8 @@ function frame(now) {
     const sub = clamp(Math.ceil(P.vel.length() * dt / 1.4), dt > 0.022 ? 2 : 1, 5);
     for (let i = 0; i < sub; i++) stepPhysics(dt / sub);
     updateWind(); updateChunks(false); updatePalette(dt, false);
-    sfx.update(P.vel.length(), !!P.grind, P.inStream, vehKey); sfx.carve(P.grounded ? P.carve : 0, P.onWater);
-    updateHud(); updateThreat(dt);
+    sfx.update(P.vel.length(), !!P.grind, P.inStream, P.stalled ? 'board' : vehKey); sfx.carve(P.grounded ? P.carve : 0, P.onWater);
+    updateHud(); updateEngine(dt); updateThreat(dt); updateDrones(dt);
   }
   updateVisuals(paused ? 0 : dt);
   if (window.__wlCam) window.__wlCam(camera, player); // inspection hook for close-ups
@@ -2660,6 +2830,6 @@ function frame(now) {
 setVehicle(vehKey); applyLens();
 P.pos.set(0, 0, 0); updateChunks(true); placeAt(0, 0, startPose(), 0); updatePalette(0, true); refreshCards();
 requestAnimationFrame(frame);
-window.__wl = { get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
+window.__wl = { spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
 })();
 </script>
