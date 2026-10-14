@@ -251,19 +251,19 @@ const LOWQ = isTouch;
 // ---------------------------------------------------------------- settings
 // resp: how quickly the heading answers the bars (lower = heavier)
 const VEHICLES = {
-  sidecar: { name: 'サイドカー', hover: 1.0, grip: 4.2, accel: 17, lean: 0.06, resp: 5.2, defaults: { maxSpeed: 155, cruise: 72, minSpeed: 0, inertia: 1.6, tailwind: 8, gravity: 30, glide: 0.66, turn: 1.0, jump: 13, camDist: 19, fovKick: 1.1, auto: true } },
-  bike: { name: 'チョッパー', hover: 1.0, grip: 4.5, accel: 18, lean: 0.55, resp: 7, defaults: { maxSpeed: 145, cruise: 66, minSpeed: 0, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 1.0, jump: 14, camDist: 18, fovKick: 1.1, auto: true } },
-  board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 10, defaults: { maxSpeed: 115, cruise: 48, minSpeed: 0, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 15, fovKick: 1.1, auto: true } },
+  sidecar: { name: 'サイドカー', hover: 1.0, grip: 4.2, accel: 17, lean: 0.06, resp: 5.2, roll: 2.1, defaults: { maxSpeed: 155, cruise: 72, minSpeed: 0, inertia: 1.6, tailwind: 8, gravity: 30, glide: 0.66, turn: 1.0, jump: 13, camDist: 19, fovKick: 1.1, auto: true } },
+  bike: { name: 'チョッパー', hover: 1.0, grip: 4.5, accel: 18, lean: 0.55, resp: 7, roll: 2.8, defaults: { maxSpeed: 145, cruise: 66, minSpeed: 0, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 1.0, jump: 14, camDist: 18, fovKick: 1.1, auto: true } },
+  board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 10, roll: 4.5, defaults: { maxSpeed: 115, cruise: 48, minSpeed: 0, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 15, fovKick: 1.1, auto: true } },
 };
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
 };
 let vehKey = store.get('windlover.vehicle4', 'sidecar'); if (!VEHICLES[vehKey]) vehKey = 'sidecar';
-const allS = store.get('windlover.settings.v8', {}) || {};
+const allS = store.get('windlover.settings.v9', {}) || {};
 const loadS = () => ({ ...VEHICLES[vehKey].defaults, ...(allS[vehKey] || {}) });
 let S = loadS();
-const saveS = () => { allS[vehKey] = S; store.set('windlover.settings.v8', allS); };
+const saveS = () => { allS[vehKey] = S; store.set('windlover.settings.v9', allS); };
 
 // ---------------------------------------------------------------- biomes
 const BIOMES = {
@@ -1713,7 +1713,7 @@ for (let i = 0; i < LINES; i++) { const a = Math.random() * TAU, r = 2.2 + Math.
 const P = {
   pos: new V3(), vel: new V3(), yaw: 0, n: new V3(0, 1, 0), grounded: false, air: 0, coyote: 0, jumpBuf: 0,
   grind: null, gS: 0, gSpeed: 0, gDir: 1, gSeg: 0, grindCD: 0, gauge: 40, dashCD: 0, inStream: false, inUpdraft: false, onWater: false,
-  motes: 0, stalled: false, crankT: 0, sputT: 0, flow: 0, carve: 0, ajCD: 0, skipT: 0, hull: 3, braking: false, brakeHeat: 0, danger: 0, stopT: 0, dead: false, invuln: 0, found: foundKeys.size, drift: 0, drifting: false, tuck: false, yawRate: 0, onRoad: false, dist: store.get('windlover.dist4', 0),
+  motes: 0, stalled: false, crankT: 0, sputT: 0, flow: 0, carve: 0, ajCD: 0, skipT: 0, hull: 3, braking: false, brakeHeat: 0, danger: 0, stopT: 0, dead: false, invuln: 0, found: foundKeys.size, drift: 0, drifting: false, tuck: false, yawRate: 0, lean: 0, onRoad: false, dist: store.get('windlover.dist4', 0),
 };
 let HOVER = VEHICLES[vehKey].hover;
 const fwd = new V3(), fPl = new V3(), side = new V3(), tmp = new V3(), tmp2 = new V3(), UP = new V3(0, 1, 0), windDir = new V3(1, 0, 0);
@@ -1757,8 +1757,12 @@ function stepPhysics(dt) {
 
   if (P.grind) grindStep(dt);
   else {
-    const turn = (P.grounded ? lerp(3.7, 2.6, sf) : 2.2) * S.turn * (P.drifting ? 1.4 : 1) * (P.tuck ? 0.8 : 1);
-    P.yawRate += (-steer * turn - P.yawRate) * (1 - Math.exp(-V.resp * (P.drifting ? 1.6 : 1) * dt));
+    // bike-like steering: the stick lays the machine over; the lean makes the turn (yaw = g·tan(lean)/v),
+    // so the same lean carves a much wider arc at speed. Laying over takes time: that delay is the weight.
+    const maxLean = Math.min(1.2, 0.8 * S.turn) * (P.drifting ? 1.25 : 1) * (P.tuck ? 0.85 : 1);
+    P.lean += (steer * maxLean - P.lean) * (1 - Math.exp(-V.roll * (P.drifting ? 1.4 : 1) * dt));
+    const vTurn = Math.max(Math.hypot(P.vel.x, P.vel.z), 10);
+    P.yawRate = clamp(-(P.grounded ? 55 : 44) * Math.tan(P.lean) / vTurn * (P.drifting ? 1.6 : 1), -2.2, 2.2);
     P.yaw += P.yawRate * dt;
     fwd.set(Math.sin(P.yaw), 0, Math.cos(P.yaw));
 
@@ -1773,7 +1777,7 @@ function stepPhysics(dt) {
       if (gf < 0) gf *= 0.7 / S.inertia;
       let vf = P.vel.dot(fPl), vs = P.vel.dot(side);
       vf += gf * dt; vs += gs * dt;
-      const grip = (P.drifting ? 1.3 : V.grip * lerp(1, 0.36, sf)) / S.inertia;
+      const grip = (P.drifting ? 1.3 : V.grip * lerp(1, 0.6, sf)) / S.inertia;
       const nvs = vs * Math.exp(-grip * dt);
       if (vf >= 0) vf += (Math.abs(vs) - Math.abs(nvs)) * (P.drifting ? 0.9 : 0.86); else vf *= Math.exp(-3 * dt);
       const cruiseNow = S.cruise * (1 + P.flow * 1.3), maxNow = S.maxSpeed * (1 + P.flow * 0.45);
@@ -2400,9 +2404,10 @@ function updateVisuals(dt) {
   player.quaternion.setFromRotationMatrix(basis);
   player.position.copy(P.pos).addScaledVector(UP, -HOVER + 0.28 + Math.sin(t * 3.1) * 0.05);
   const gliding = !P.grounded && !P.grind && inp.jumpHeld && P.vel.y < 1;
-  const turnK = clamp(-P.yawRate / 1.4, -1, 1);
-  let lean = P.grind ? Math.sin(t * 9) * 0.06 : turnK * (P.grounded ? (vehKey === 'sidecar' ? V.lean : 0.22 + V.lean * sf) + (P.drifting ? 0.2 : 0) : 0.25);
-  if (vehKey === 'sidecar') { lift = lerp(lift, P.grounded && turnK > 0.35 && sf > 0.3 ? (turnK - 0.35) * sf * 0.42 : 0, 1 - Math.exp(-4 * dt)); lean -= lift; }
+  const turnK = clamp(P.lean / 0.8, -1, 1);
+  // the machine shows the lean it is actually carrying; a sidecar outfit stays flat and lifts its chair instead
+  let lean = P.grind ? Math.sin(t * 9) * 0.06 : vehKey === 'sidecar' ? turnK * 0.08 : P.lean * (P.grounded ? 0.85 : 0.5);
+  if (vehKey === 'sidecar') { lift = lerp(lift, P.grounded && turnK > 0.3 && sf > 0.25 ? (turnK - 0.3) * Math.min(1, sf * 1.4) * 0.38 : 0, 1 - Math.exp(-3 * dt)); lean -= lift; }
   boardPivot.rotation.z = lerp(boardPivot.rotation.z, lean, 1 - Math.exp(-6 * dt));
   if (MD.ears) MD.ears.forEach((e, i) => { e.rotation.x = -0.3 - sf * 1.1 + Math.sin(t * 22 + i) * 0.12 * sf; });
   boardPivot.rotation.x = lerp(boardPivot.rotation.x, P.grounded ? (P.tuck ? 0.05 : 0) : clamp(-P.vel.y * 0.02, -0.35, 0.35), 1 - Math.exp(-5 * dt));
