@@ -223,19 +223,19 @@ const LOWQ = isTouch;
 // ---------------------------------------------------------------- settings
 // resp: how quickly the heading answers the bars (lower = heavier)
 const VEHICLES = {
-  sidecar: { name: 'サイドカー', hover: 1.0, grip: 4.2, accel: 17, lean: 0.06, resp: 2.6, defaults: { maxSpeed: 155, cruise: 72, minSpeed: 32, inertia: 1.6, tailwind: 8, gravity: 30, glide: 0.66, turn: 0.85, jump: 13, camDist: 7.2, fovKick: 1.1, auto: true } },
-  bike: { name: 'チョッパー', hover: 1.0, grip: 4.5, accel: 18, lean: 0.55, resp: 5, defaults: { maxSpeed: 145, cruise: 66, minSpeed: 30, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 0.9, jump: 14, camDist: 7.2, fovKick: 1.1, auto: true } },
-  board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 9, defaults: { maxSpeed: 115, cruise: 48, minSpeed: 24, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 6.5, fovKick: 1.1, auto: true } },
+  sidecar: { name: 'サイドカー', hover: 1.0, grip: 4.2, accel: 17, lean: 0.06, resp: 2.6, defaults: { maxSpeed: 155, cruise: 72, minSpeed: 32, inertia: 1.6, tailwind: 8, gravity: 30, glide: 0.66, turn: 0.85, jump: 13, camDist: 9.5, fovKick: 1.1, auto: true } },
+  bike: { name: 'チョッパー', hover: 1.0, grip: 4.5, accel: 18, lean: 0.55, resp: 5, defaults: { maxSpeed: 145, cruise: 66, minSpeed: 30, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 0.9, jump: 14, camDist: 9.5, fovKick: 1.1, auto: true } },
+  board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 9, defaults: { maxSpeed: 115, cruise: 48, minSpeed: 24, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 8, fovKick: 1.1, auto: true } },
 };
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
 };
 let vehKey = store.get('windlover.vehicle4', 'sidecar'); if (!VEHICLES[vehKey]) vehKey = 'sidecar';
-const allS = store.get('windlover.settings.v4', {}) || {};
+const allS = store.get('windlover.settings.v5', {}) || {};
 const loadS = () => ({ ...VEHICLES[vehKey].defaults, ...(allS[vehKey] || {}) });
 let S = loadS();
-const saveS = () => { allS[vehKey] = S; store.set('windlover.settings.v4', allS); };
+const saveS = () => { allS[vehKey] = S; store.set('windlover.settings.v5', allS); };
 
 // ---------------------------------------------------------------- biomes
 const BIOMES = {
@@ -397,7 +397,7 @@ app.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.3, 12000);
 scene.add(camera);
-scene.fog = new THREE.Fog(0xffffff, 260, 1150);
+scene.fog = new THREE.Fog(0xffffff, 420, 2700);
 const hemi = new THREE.HemisphereLight(0xffffff, 0x666666, 0.9); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 0.8); scene.add(sun);
 
@@ -1087,8 +1087,42 @@ function updateChunks(force) {
   for (let dx = -RAD; dx <= RAD; dx++) for (let dz = -RAD; dz <= RAD; dz++) if (!chunks.has((pcx + dx) + ',' + (pcz + dz))) need.push([pcx + dx, pcz + dz, dx * dx + dz * dz]);
   need.sort((a, b) => a[2] - b[2]);
   for (const [cx, cz] of need) { buildChunk(cx, cz); dirty = true; if (!force) break; }
+  if (force || !need.length) updateFar(force);
   if (updateLandmarks(force)) dirty = true;
   if (dirty) rebuildGlobals();
+}
+const FAR = 7600, FAR_SEG = LOWQ ? 76 : 104;
+const farMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+let farMesh = null, farKey = null;
+const WATER_RGB = toRGB(0x6f9fbf);
+function buildFar(cx, cz) {
+  const n = FAR_SEG, step = FAR / n, x0 = cx - FAR / 2, z0 = cz - FAR / 2, nv = (n + 1) * (n + 1);
+  const pos = new Float32Array(nv * 3), col = new Float32Array(nv * 3), w = newW();
+  for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
+    const v = j * (n + 1) + i, x = x0 + i * step, z = z0 + j * step, h = heightAt(x, z), wet = h < WATER;
+    pos[v * 3] = x; pos[v * 3 + 1] = (wet ? WATER - 0.6 : h) - 3; pos[v * 3 + 2] = z;
+    biomeW(x, z, w); let amp = 0, off = 0; const lo = [0, 0, 0], hi = [0, 0, 0];
+    for (let b = 0; b < NB; b++) { if (!w[b]) continue; const t = BIOMES[BKEYS[b]].terrain, p = PAL[b]; amp += w[b] * t.amp; off += w[b] * t.off; for (let k = 0; k < 3; k++) { lo[k] += w[b] * p.low[k]; hi[k] += w[b] * p.high[k]; } }
+    const th = clamp((h - off + amp * 0.3) / (amp * 1.6), 0, 1);
+    for (let k = 0; k < 3; k++) col[v * 3 + k] = wet ? WATER_RGB[k] : lerp(lo[k], hi[k], th) * 0.97;
+  }
+  const idx = [];
+  // cut out every quad that lies wholly on loaded detail chunks, so the coarse ring never pokes through
+  const loaded = (x, z) => chunks.has(Math.floor(x / CH) + ',' + Math.floor(z / CH));
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const xa = x0 + i * step, za = z0 + j * step;
+    if (loaded(xa, za) && loaded(xa + step, za) && loaded(xa, za + step) && loaded(xa + step, za + step)) continue;
+    const a = j * (n + 1) + i, b = a + 1, c = a + n + 1, d = c + 1; idx.push(a, c, b, b, c, d);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setIndex(idx); g.computeVertexNormals();
+  if (farMesh) { farMesh.geometry.dispose(); scene.remove(farMesh); }
+  farMesh = new THREE.Mesh(g, farMat); farMesh.renderOrder = -1; scene.add(farMesh);
+}
+function updateFar(force) {
+  const pcx = Math.floor(P.pos.x / CH), pcz = Math.floor(P.pos.z / CH), key = pcx + ',' + pcz;
+  if (!force && key === farKey) return false;
+  farKey = key; buildFar((pcx + 0.5) * CH, (pcz + 0.5) * CH); return true;
 }
 function rebuildGlobals() {
   colliders = []; rails = []; streams = []; updrafts = []; motes = []; finds = [];
@@ -1099,6 +1133,7 @@ function rebuildGlobals() {
   rebuildFx();
 }
 function rebuildAll() {
+  farKey = null;
   for (const c of chunks.values()) disposeGroup(c.group); chunks.clear();
   for (const L of landmarks.values()) disposeGroup(L.group); landmarks.clear();
   lastRX = lastRZ = null; updateChunks(true);
@@ -1214,99 +1249,158 @@ function limb(parent, a, b, r, mat) {
   boardPivot.add(g);
 })();
 (() => {
+  // Heavy Soviet outfit (Ural/Dnepr military pattern): flat sheet steel, box beams, matte khaki,
+  // blued pipes, rust and road dirt. Static parts are merged into one flat-shaded mesh.
   const g = new THREE.Group(), rig = new THREE.Group(), rider = new THREE.Group(); g.add(rig); rig.add(rider);
-  // mirrored so the chair rides on the right, as on a Ural/Dnepr; centred on the hover line
-  rig.scale.x = -1; rig.position.x = 0.5;
-  const olive = new THREE.MeshPhongMaterial({ color: 0x56603f, shininess: 18, specular: 0x333a2a });
-  const alu = new THREE.MeshPhongMaterial({ color: 0x9b9d95, shininess: 40, specular: 0x777777 });
-  const chrome = new THREE.MeshPhongMaterial({ color: 0xb8bec6, shininess: 90, specular: 0xffffff });
-  const dark = lam(0x23262a), rubber = lam(0x161819), leather = lam(0x2d2420), canvas = lam(0x8a7d5c);
-  const glowRing = new THREE.MeshBasicMaterial({ color: 0xbff6ff });
-  const glowDisc = new THREE.MeshBasicMaterial({ color: 0xbff6ff, transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false });
-  const mesh = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1, parent = rig) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.scale.set(sx, sy, sz); parent.add(m); return m; };
-  const ring = (x, z, y, r) => {
-    mesh(new THREE.TorusGeometry(r, 0.09, 8, 28), dark, x, y, z, 0, Math.PI / 2);
-    mesh(new THREE.TorusGeometry(r - 0.1, 0.035, 6, 28), glowRing, x, y, z, 0, Math.PI / 2);
-    mesh(new THREE.CircleGeometry(r - 0.12, 24), glowDisc, x, y, z, 0, Math.PI / 2);
-    mesh(new THREE.BoxGeometry(0.24, 0.03, r * 1.5), glowRing, x, y - r - 0.06, z);
+  rig.scale.x = -1; rig.position.x = 0.5; // chair on the right, outfit centred on the hover line
+  const KH = 0x4e5435, KHD = 0x3f4430, BLK = 0x1b1c1e, STL = 0x585b5e, STD = 0x36393c, BLUED = 0x2e3236, RUST = 0x7a4529, DIRT = 0x6a6650, CANV = 0x6b6450, RUB = 0x141516, LTH = 0x241c17;
+  const m = new Merger();
+  const geo = { c4: new THREE.CylinderGeometry(1, 1, 1, 4), c6: new THREE.CylinderGeometry(1, 1, 1, 6), c8: new THREE.CylinderGeometry(1, 1, 1, 8) };
+  const box = (x, y, z, sx, sy, sz, c, rx = 0, ry = 0, rz = 0) => m.add(G.box, M(x, y, z, ry, sx, sy, sz, rx, rz), c);
+  const bar = (a, b, r, c, seg = 'c6') => {
+    const A = new V3(...a), B = new V3(...b), d = B.clone().sub(A), L = d.length();
+    const q = new THREE.Quaternion().setFromUnitVectors(new V3(0, 1, 0), d.normalize());
+    m.add(geo[seg], new THREE.Matrix4().compose(A.clone().add(B).multiplyScalar(0.5), q, new V3(r, L, r)), c);
   };
-  ring(0, -1.0, 0.5, 0.46); ring(0, 1.25, 0.5, 0.46); ring(1.6, -0.1, 0.46, 0.43);
-  // frame: double cradle
-  limb(rig, [0, 0.95, -0.9], [0, 1.02, 0.85], 0.055, dark);
-  for (const sx of [-1, 1]) { limb(rig, [sx * 0.1, 0.4, -0.75], [sx * 0.1, 0.4, 0.7], 0.04, dark); limb(rig, [sx * 0.1, 0.4, 0.7], [0, 1.0, 0.85], 0.04, dark); }
-  // tank with rubber knee pads and filler cap
-  mesh(new THREE.SphereGeometry(1, 18, 12), olive, 0, 1.07, 0.42, 0.1, 0, 0, 0.27, 0.2, 0.5);
-  for (const sx of [-1, 1]) mesh(new THREE.BoxGeometry(0.03, 0.13, 0.22), rubber, sx * 0.255, 1.02, 0.32);
-  mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 10), chrome, 0, 1.28, 0.5);
-  // boxer twin: crankcase, finned cylinders sticking out sideways, heads
-  mesh(new THREE.BoxGeometry(0.36, 0.32, 0.5), alu, 0, 0.62, 0.36);
+  const path = (pts, r, c, seg) => { for (let i = 0; i < pts.length - 1; i++) bar(pts[i], pts[i + 1], r, c, seg); };
+  const arc = (x, y, z, r, tube, a, rz, c) => { const t = new THREE.TorusGeometry(r, tube, 4, 10, a); m.add(t, M(x, y, z, Math.PI / 2, 1, 1, 1, 0, rz), c); t.dispose(); };
+  const glowAmber = new THREE.MeshBasicMaterial({ color: 0xffb862 });
+  const glowSoft = new THREE.MeshBasicMaterial({ color: 0xffa24a, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false });
+  const add = (gm, mat, x, y, z, rx = 0, ry = 0, rz = 0, parent = rig) => { const o = new THREE.Mesh(gm, mat); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); parent.add(o); return o; };
+
+  // hover hoops: bolted iron rims with spokes, a hot amber seam inside
+  const hoop = (x, z, y, r) => {
+    const t = new THREE.TorusGeometry(r, 0.11, 6, 22); m.add(t, M(x, y, z, Math.PI / 2), STL); t.dispose();
+    for (let k = 0; k < 10; k++) { const a = k / 10 * TAU; box(x, y + Math.sin(a) * r, z + Math.cos(a) * r, 0.26, 0.05, 0.05, STD); }
+    bar([x - 0.09, y, z], [x + 0.09, y, z], 0.12, BLK, 'c8');
+    for (let k = 0; k < 6; k++) { const a = k / 6 * TAU; bar([x, y, z], [x, y + Math.sin(a) * (r - 0.08), z + Math.cos(a) * (r - 0.08)], 0.022, STD, 'c4'); }
+    add(new THREE.TorusGeometry(r - 0.1, 0.022, 4, 28), glowAmber, x, y, z, 0, Math.PI / 2);
+    add(new THREE.CircleGeometry(r - 0.11, 22), glowSoft, x, y, z, 0, Math.PI / 2);
+    add(new THREE.BoxGeometry(0.2, 0.025, r * 1.4), glowAmber, x, y - r - 0.08, z);
+  };
+  hoop(0, -1.0, 0.5, 0.46); hoop(0, 1.3, 0.5, 0.46); hoop(1.9, -0.1, 0.46, 0.42);
+
+  // frame: box-section backbone and double cradle, all black steel
+  bar([0, 0.98, -0.95], [0, 1.03, 0.86], 0.055, BLK, 'c4');
   for (const sx of [-1, 1]) {
-    limb(rig, [sx * 0.15, 0.68, 0.5], [sx * 0.5, 0.72, 0.5], 0.1, alu);
-    for (let k = 0; k < 6; k++) { const x = sx * (0.22 + k * 0.05); limb(rig, [x - 0.01, 0.685 + k * 0.006, 0.5], [x + 0.01, 0.687 + k * 0.006, 0.5], 0.145, alu); }
-    mesh(new THREE.BoxGeometry(0.1, 0.2, 0.22), lam(0x7d7f78), sx * 0.55, 0.73, 0.5);
-    // exhaust: down from the head, back along the frame, fishtail muffler
-    limb(rig, [sx * 0.5, 0.64, 0.6], [sx * 0.3, 0.42, 0.3], 0.042, chrome);
-    limb(rig, [sx * 0.3, 0.42, 0.3], [sx * 0.31, 0.46, -0.8], 0.042, chrome);
-    limb(rig, [sx * 0.31, 0.47, -0.75], [sx * 0.32, 0.53, -1.35], 0.075, chrome);
-    mesh(new THREE.BoxGeometry(0.03, 0.12, 0.14), chrome, sx * 0.32, 0.54, -1.42);
-    // fork, handlebar risers and grips
-    limb(rig, [sx * 0.12, 0.5, 1.25], [sx * 0.1, 1.15, 0.92], 0.045, dark);
-    limb(rig, [sx * 0.08, 1.15, 0.86], [sx * 0.12, 1.3, 0.76], 0.022, chrome);
-    limb(rig, [sx * 0.32, 1.3, 0.74], [sx * 0.44, 1.3, 0.72], 0.04, rubber);
-    // saddle springs
-    limb(rig, [sx * 0.08, 0.97, -0.27], [sx * 0.08, 0.82, -0.3], 0.03, chrome);
+    bar([sx * 0.1, 0.38, -0.78], [sx * 0.1, 0.38, 0.72], 0.04, BLK, 'c4');
+    bar([sx * 0.1, 0.38, 0.72], [0, 1.0, 0.88], 0.04, BLK, 'c4');
+    bar([sx * 0.1, 0.38, -0.78], [sx * 0.06, 0.97, -0.95], 0.035, BLK, 'c4');
   }
-  limb(rig, [-0.34, 1.3, 0.74], [0.34, 1.3, 0.74], 0.022, chrome);
-  // deep fenders
-  mesh(new THREE.TorusGeometry(0.56, 0.07, 6, 18, Math.PI * 0.9), olive, 0, 0.5, 1.25, 0, Math.PI / 2, Math.PI * 0.08);
-  mesh(new THREE.TorusGeometry(0.56, 0.07, 6, 18, Math.PI * 0.85), olive, 0, 0.5, -1.0, 0, Math.PI / 2, Math.PI * 0.12);
-  // round headlamp with visor
-  limb(rig, [0, 1.12, 0.96], [0, 1.12, 1.12], 0.16, olive);
-  mesh(new THREE.CircleGeometry(0.13, 18), new THREE.MeshBasicMaterial({ color: 0xfff1c8 }), 0, 1.12, 1.125);
-  mesh(new THREE.BoxGeometry(0.3, 0.02, 0.12), olive, 0, 1.29, 1.1, -0.2);
-  // sprung solo saddle, pillion pad, rack with a bedroll, toolbox, tail lamp, plate
-  mesh(new THREE.BoxGeometry(0.3, 0.08, 0.34), leather, 0, 1.0, -0.15);
-  mesh(new THREE.BoxGeometry(0.28, 0.07, 0.3), leather, 0, 0.95, -0.6);
-  mesh(new THREE.BoxGeometry(0.34, 0.03, 0.36), dark, 0, 1.0, -0.98);
-  mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.52, 10), lam(0x8a3a2e), 0, 1.14, -0.98, 0, 0, Math.PI / 2);
-  for (const sx of [-0.13, 0.13]) mesh(new THREE.TorusGeometry(0.135, 0.015, 4, 12), dark, sx, 1.14, -0.98, 0, Math.PI / 2);
-  mesh(new THREE.BoxGeometry(0.08, 0.18, 0.3), olive, -0.22, 0.8, -0.5);
-  mesh(new THREE.BoxGeometry(0.14, 0.07, 0.05), new THREE.MeshBasicMaterial({ color: 0xff4a3a }), 0, 0.98, -1.44);
-  mesh(new THREE.BoxGeometry(0.24, 0.13, 0.02), lam(0xe8e4d8), 0, 0.84, -1.44);
-  // sidecar: boat-shaped tub, cockpit, screen, spare ring, struts, chrome rail
+  // slab tank with welded seam, knee rubbers, big cap, a rust bloom
+  box(0, 1.05, 0.4, 0.44, 0.24, 0.68, KH);
+  box(0, 1.19, 0.4, 0.34, 0.05, 0.58, KHD);
+  box(0, 1.05, 0.4, 0.45, 0.02, 0.69, KHD);
+  for (const sx of [-1, 1]) box(sx * 0.225, 1.02, 0.3, 0.03, 0.14, 0.24, RUB);
+  bar([0, 1.21, 0.55], [0, 1.27, 0.55], 0.065, STL, 'c8');
+  box(0.222, 0.97, 0.64, 0.01, 0.06, 0.12, RUST);
+  // boxer twin: blocky crankcase and sump, finned barrels jutting sideways, square heads with bolts
+  box(0, 0.62, 0.36, 0.38, 0.34, 0.5, STL); box(0, 0.43, 0.36, 0.3, 0.08, 0.42, STD);
+  for (const sx of [-1, 1]) {
+    bar([sx * 0.17, 0.68, 0.5], [sx * 0.5, 0.72, 0.5], 0.1, STL, 'c8');
+    for (let k = 0; k < 6; k++) { const x = sx * (0.23 + k * 0.05); bar([x - 0.011, 0.69, 0.5], [x + 0.011, 0.69, 0.5], 0.155, STD, 'c8'); }
+    box(sx * 0.56, 0.73, 0.5, 0.12, 0.23, 0.25, STL); box(sx * 0.635, 0.73, 0.5, 0.05, 0.17, 0.2, STD);
+    for (const [dy, dz] of [[0.07, 0.07], [-0.07, 0.07], [0.07, -0.07], [-0.07, -0.07]]) box(sx * 0.665, 0.73 + dy, 0.5 + dz, 0.02, 0.03, 0.03, BLK);
+    // crash bar wrapped round the barrel
+    path([[sx * 0.12, 1.0, 0.82], [sx * 0.66, 0.8, 0.76], [sx * 0.68, 0.45, 0.66], [sx * 0.12, 0.38, 0.62]], 0.032, BLK, 'c6');
+    // blued exhaust and long dull silencer
+    path([[sx * 0.55, 0.6, 0.64], [sx * 0.33, 0.42, 0.3], [sx * 0.33, 0.45, -0.72]], 0.045, BLUED, 'c6');
+    bar([sx * 0.34, 0.47, -0.68], [sx * 0.35, 0.52, -1.4], 0.085, STD, 'c8'); box(sx * 0.35, 0.53, -1.44, 0.1, 0.1, 0.03, BLK);
+    // girder fork: square bars and a cross link
+    bar([sx * 0.14, 0.5, 1.3], [sx * 0.12, 1.17, 0.93], 0.04, BLK, 'c4');
+    bar([sx * 0.14, 0.62, 1.22], [sx * 0.12, 1.05, 0.98], 0.025, STD, 'c4');
+    // bars, grips, saddle springs
+    bar([sx * 0.08, 1.16, 0.86], [sx * 0.14, 1.31, 0.77], 0.025, BLK, 'c6');
+    bar([sx * 0.34, 1.31, 0.75], [sx * 0.46, 1.31, 0.73], 0.042, RUB, 'c6');
+    bar([sx * 0.08, 0.97, -0.27], [sx * 0.08, 0.82, -0.3], 0.032, STD, 'c6');
+    for (let k = 0; k < 3; k++) { const t = new THREE.TorusGeometry(0.035, 0.008, 3, 8); m.add(t, M(sx * 0.08, 0.84 + k * 0.045, -0.29, 0, 1, 1, 1, Math.PI / 2), STL); t.dispose(); }
+  }
+  box(0, 0.62, 1.22, 0.3, 0.03, 0.05, STD);
+  bar([-0.36, 1.31, 0.75], [0.36, 1.31, 0.75], 0.026, BLK, 'c6');
+  // flat-edged sheet fenders with dirt and rust along the lip
+  arc(0, 0.5, 1.3, 0.58, 0.085, Math.PI * 0.9, Math.PI * 0.08, KH); arc(0, 0.5, 1.3, 0.62, 0.03, Math.PI * 0.55, Math.PI * 0.05, DIRT);
+  arc(0, 0.5, -1.0, 0.58, 0.085, Math.PI * 0.85, Math.PI * 0.12, KH); arc(0, 0.5, -1.0, 0.62, 0.03, Math.PI * 0.4, Math.PI * 0.55, RUST);
+  // headlamp: deep khaki shell, blackout cover with a slit, wire guard
+  bar([0, 1.12, 0.93], [0, 1.12, 1.15], 0.18, KH, 'c8');
+  bar([0, 1.12, 1.15], [0, 1.12, 1.17], 0.165, BLK, 'c8');
+  add(new THREE.BoxGeometry(0.17, 0.025, 0.01), glowAmber, 0, 1.115, 1.178);
+  box(0, 1.12, 1.24, 0.02, 0.34, 0.02, STD); box(0, 1.12, 1.24, 0.34, 0.02, 0.02, STD);
+  bar([0, 1.12, 1.17], [0, 1.12, 1.24], 0.17, STD, 'c8'); // guard ring
+  box(0, 1.29, 1.08, 0.3, 0.02, 0.14, KH, -0.2);
+  // sprung saddle, pillion pad, flat-bar rack with an ammo box and a bedroll
+  box(0, 1.0, -0.15, 0.3, 0.09, 0.36, LTH); box(0, 0.95, -0.6, 0.28, 0.07, 0.3, LTH);
+  for (const sx of [-1, 1]) box(sx * 0.19, 1.0, -0.98, 0.03, 0.03, 0.46, BLK);
+  for (const dz of [-0.18, 0, 0.18]) box(0, 1.0, -0.98 + dz, 0.4, 0.025, 0.03, BLK);
+  box(0, 1.13, -0.98, 0.36, 0.22, 0.26, KH); box(0, 1.245, -0.98, 0.37, 0.03, 0.27, KHD); box(0, 1.27, -0.98, 0.12, 0.02, 0.03, BLK);
+  bar([-0.22, 1.36, -0.98], [0.22, 1.36, -0.98], 0.1, CANV, 'c8');
+  box(-0.22, 0.8, -0.5, 0.08, 0.18, 0.3, KH); box(-0.265, 0.84, -0.5, 0.01, 0.03, 0.06, STL);
+  box(0, 0.84, -1.45, 0.26, 0.15, 0.02, 0xd9d4c4);
+  add(new THREE.BoxGeometry(0.14, 0.06, 0.04), new THREE.MeshBasicMaterial({ color: 0xc8321f }), 0, 0.98, -1.44);
+
+  // sidecar: angular welded tub, sloped nose, canvas tonneau, riveted rims, spare hoop, shovel, jerrycan
   const cx = 1.25;
-  mesh(new THREE.SphereGeometry(1, 20, 12), olive, cx, 0.8, 0.0, 0, 0, 0, 0.43, 0.32, 0.98);
-  mesh(new THREE.SphereGeometry(1, 16, 8), lam(0x1e2218), cx, 0.98, -0.18, 0, 0, 0, 0.32, 0.12, 0.5);
-  mesh(new THREE.PlaneGeometry(0.62, 0.32), new THREE.MeshPhongMaterial({ color: 0xcfe6f0, transparent: true, opacity: 0.35, shininess: 100, side: THREE.DoubleSide }), cx, 1.15, 0.42, -0.55);
-  mesh(new THREE.TorusGeometry(0.33, 0.07, 6, 18), rubber, cx, 0.9, -1.0);
-  limb(rig, [cx + 0.42, 0.86, 0.55], [cx + 0.42, 0.86, -0.6], 0.02, chrome);
-  limb(rig, [0.15, 0.5, 0.45], [cx - 0.3, 0.62, 0.4], 0.035, dark); limb(rig, [0.15, 0.5, -0.6], [cx - 0.3, 0.62, -0.55], 0.035, dark);
-  limb(rig, [cx + 0.2, 0.6, -0.1], [1.6, 0.46, -0.1], 0.04, dark);
-  mesh(new THREE.BoxGeometry(0.2, 0.3, 0.26), lam(0x3e5233), cx + 0.08, 1.06, -0.58);
-  mesh(new THREE.BoxGeometry(0.32, 0.14, 0.24), canvas, cx - 0.06, 1.0, -0.36);
+  box(cx, 0.82, -0.05, 0.78, 0.4, 1.5, KH);
+  box(cx, 0.65, -0.05, 0.8, 0.07, 1.52, DIRT);
+  box(cx, 0.78, 0.84, 0.76, 0.32, 0.5, KH, 0.55);
+  box(cx, 0.66, 1.0, 0.5, 0.05, 0.2, RUST, 0.55);
+  box(cx, 1.04, 0.36, 0.7, 0.05, 0.62, CANV, -0.04);
+  box(cx, 1.025, -0.32, 0.6, 0.02, 0.56, 0x16180f);
+  for (const sx of [-1, 1]) {
+    box(cx + sx * 0.395, 1.04, -0.05, 0.05, 0.05, 1.5, KHD);
+    for (let z = -0.72; z <= 0.7; z += 0.14) box(cx + sx * 0.4, 0.95, z, 0.02, 0.025, 0.025, STD);
+  }
+  box(cx, 1.04, -0.79, 0.8, 0.05, 0.05, KHD);
+  // small framed screen
+  box(cx, 1.17, 0.66, 0.6, 0.025, 0.025, BLK); box(cx - 0.3, 1.1, 0.67, 0.025, 0.16, 0.025, BLK); box(cx + 0.3, 1.1, 0.67, 0.025, 0.16, 0.025, BLK);
+  add(new THREE.PlaneGeometry(0.58, 0.15), new THREE.MeshPhongMaterial({ color: 0xb9c9cc, transparent: true, opacity: 0.3, side: THREE.DoubleSide }), cx, 1.1, 0.67);
+  { const t = new THREE.TorusGeometry(0.33, 0.085, 6, 16); m.add(t, M(cx, 0.9, -0.88), STL); t.dispose(); }
+  bar([cx, 0.9, -0.82], [cx, 0.9, -0.86], 0.1, BLK, 'c8');
+  bar([cx + 0.43, 0.97, -0.6], [cx + 0.43, 0.99, 0.38], 0.022, 0x6b5236, 'c6'); box(cx + 0.43, 0.98, 0.52, 0.02, 0.2, 0.24, STL);
+  for (const z of [-0.4, 0.2]) box(cx + 0.42, 0.98, z, 0.03, 0.06, 0.03, BLK);
+  box(cx - 0.24, 1.2, -0.6, 0.13, 0.32, 0.24, KH); box(cx - 0.24, 1.2, -0.6, 0.135, 0.02, 0.2, KHD, 0.6); box(cx - 0.24, 1.2, -0.6, 0.135, 0.02, 0.2, KHD, -0.6); bar([cx - 0.24, 1.37, -0.66], [cx - 0.24, 1.37, -0.54], 0.015, BLK, 'c4');
+  box(cx + 0.06, 1.1, -0.38, 0.3, 0.14, 0.24, CANV);
+  arc(1.9, 0.46, -0.1, 0.54, 0.08, Math.PI * 0.8, Math.PI * 0.1, KH);
+  for (const [a, b] of [[[0.15, 0.5, 0.45], [cx - 0.36, 0.64, 0.4]], [[0.15, 0.5, -0.6], [cx - 0.36, 0.64, -0.55]], [[cx + 0.36, 0.62, -0.1], [1.9, 0.46, -0.1]]]) bar(a, b, 0.04, BLK, 'c4');
+  rig.add(new THREE.Mesh(m.build(), new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 10, specular: 0x262626 })));
+  // stencilled hull number on the chair's outer flank (drawn mirrored so it reads correctly after the rig flip)
+  const stencil = canvasTex(128, 48, (c, w, h) => {
+    c.clearRect(0, 0, w, h); c.translate(w, 0); c.scale(-1, 1);
+    c.fillStyle = 'rgba(232,228,214,0.92)'; c.font = '700 30px "Saira Semi Condensed", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('Б-07', w / 2, h / 2 + 2);
+    c.globalCompositeOperation = 'destination-out'; for (let i = 0; i < 4; i++) c.fillRect(30 + i * 22, 0, 2, h);
+  });
+  add(new THREE.PlaneGeometry(0.42, 0.16), new THREE.MeshLambertMaterial({ map: stencil, transparent: true, side: THREE.DoubleSide }), cx + 0.392, 0.85, 0.1, 0, Math.PI / 2);
+
   // the dog riding in the chair
   const fur = lam(0xb08a5a), furD = lam(0x5a4430);
-  mesh(new THREE.BoxGeometry(0.22, 0.26, 0.34), fur, cx, 1.08, 0.08);
-  const dogHead = new THREE.Group(); dogHead.position.set(cx, 1.3, 0.2); rig.add(dogHead);
-  mesh(new THREE.BoxGeometry(0.2, 0.18, 0.2), fur, 0, 0, 0, 0, 0, 0, 1, 1, 1, dogHead);
-  mesh(new THREE.BoxGeometry(0.11, 0.09, 0.14), fur, 0, -0.03, 0.15, 0, 0, 0, 1, 1, 1, dogHead);
-  mesh(new THREE.BoxGeometry(0.05, 0.04, 0.03), rubber, 0, -0.01, 0.23, 0, 0, 0, 1, 1, 1, dogHead);
-  const ears = [-1, 1].map((sx) => mesh(new THREE.BoxGeometry(0.05, 0.14, 0.09), furD, sx * 0.09, 0.09, -0.02, -0.3, 0, sx * 0.25, 1, 1, 1, dogHead));
-  // rider: upright on the sprung saddle, long coat, leather helmet and goggles
-  const coat = lam(0x5c6150), boots = lam(0x1f1d1b), helm = lam(0x6a4a32);
-  limb(rider, [0, 1.0, -0.2], [0, 1.6, -0.16], 0.19, coat);
-  mesh(new THREE.ConeGeometry(0.3, 0.5, 10, 1, true), coat, 0, 1.02, -0.22, 0, 0, 0, 1, 1, 1, rider);
-  mesh(new THREE.SphereGeometry(0.17, 12, 10), helm, 0, 1.86, -0.12, 0, 0, 0, 1, 1, 1, rider);
-  mesh(new THREE.BoxGeometry(0.27, 0.07, 0.05), lam(0x1d2226), 0, 1.88, 0.03, 0, 0, 0, 1, 1, 1, rider);
+  add(new THREE.BoxGeometry(0.22, 0.26, 0.34), fur, cx, 1.1, 0.0);
+  const dogHead = new THREE.Group(); dogHead.position.set(cx, 1.32, 0.12); rig.add(dogHead);
+  add(new THREE.BoxGeometry(0.2, 0.18, 0.2), fur, 0, 0, 0, 0, 0, 0, dogHead);
+  add(new THREE.BoxGeometry(0.11, 0.09, 0.14), fur, 0, -0.03, 0.15, 0, 0, 0, dogHead);
+  add(new THREE.BoxGeometry(0.05, 0.04, 0.03), lam(RUB), 0, -0.01, 0.23, 0, 0, 0, dogHead);
+  const ears = [-1, 1].map((sx) => add(new THREE.BoxGeometry(0.05, 0.14, 0.09), furD, sx * 0.09, 0.09, -0.02, -0.3, 0, sx * 0.25, dogHead));
+
+  // rider: quilted telogreika, tanker's leather helmet, goggles, felt-lined boots
+  const coat = lam(0x3d4236), coatD = lam(0x2c3027), helm = lam(0x3a2a1e), boots = lam(0x1a1918);
+  // torso leans into the wind; arms bend at the elbow down to the wide bars
+  limb(rider, [0, 1.0, -0.2], [0, 1.58, 0.0], 0.2, coat);
+  for (let k = 0; k < 4; k++) add(new THREE.TorusGeometry(0.2, 0.012, 4, 14), coatD, 0, 1.1 + k * 0.12, -0.16 + k * 0.042, Math.PI / 2 + 0.33, 0, 0, rider);
+  add(new THREE.ConeGeometry(0.31, 0.5, 8, 1, true), coat, 0, 1.02, -0.22, 0, 0, 0, rider);
+  add(new THREE.SphereGeometry(0.175, 10, 8), helm, 0, 1.84, 0.05, 0, 0, 0, rider);
+  for (const sx of [-1, 1]) add(new THREE.BoxGeometry(0.05, 0.12, 0.16), helm, sx * 0.17, 1.78, 0.05, 0, 0, 0, rider);
+  add(new THREE.BoxGeometry(0.27, 0.07, 0.05), lam(0x1d2226), 0, 1.86, 0.2, 0, 0, 0, rider);
   for (const sx of [-1, 1]) {
-    mesh(new THREE.CircleGeometry(0.035, 10), new THREE.MeshBasicMaterial({ color: 0x9fd4e8 }), sx * 0.06, 1.88, 0.06, 0, 0, 0, 1, 1, 1, rider);
-    limb(rider, [sx * 0.21, 1.5, -0.15], [sx * 0.38, 1.3, 0.72], 0.06, coat);
-    limb(rider, [sx * 0.14, 0.98, -0.12], [sx * 0.2, 0.93, 0.3], 0.085, coat);
-    limb(rider, [sx * 0.2, 0.93, 0.3], [sx * 0.24, 0.52, 0.4], 0.075, coat);
-    mesh(new THREE.BoxGeometry(0.11, 0.1, 0.24), boots, sx * 0.24, 0.47, 0.45, 0, 0, 0, 1, 1, 1, rider);
+    add(new THREE.CircleGeometry(0.035, 10), new THREE.MeshBasicMaterial({ color: 0x8fb4bf }), sx * 0.06, 1.86, 0.226, 0, 0, 0, rider);
+    limb(rider, [sx * 0.22, 1.5, 0.0], [sx * 0.33, 1.24, 0.3], 0.062, coat);
+    limb(rider, [sx * 0.33, 1.24, 0.3], [sx * 0.4, 1.31, 0.72], 0.055, coat);
+    add(new THREE.BoxGeometry(0.09, 0.08, 0.1), lam(0x2a2420), sx * 0.4, 1.31, 0.73, 0, 0, 0, rider);
+    limb(rider, [sx * 0.14, 0.98, -0.12], [sx * 0.2, 0.93, 0.3], 0.09, coat);
+    limb(rider, [sx * 0.2, 0.93, 0.3], [sx * 0.24, 0.52, 0.4], 0.08, coatD);
+    add(new THREE.BoxGeometry(0.12, 0.11, 0.25), boots, sx * 0.24, 0.47, 0.45, 0, 0, 0, rider);
   }
-  mesh(new THREE.BoxGeometry(0.36, 0.42, 0.2), canvas, 0, 1.3, -0.4, -0.05, 0, 0, 1, 1, 1, rider);
-  const scarfA = new THREE.Object3D(); scarfA.position.set(0, 1.68, -0.24); rider.add(scarfA);
+  add(new THREE.BoxGeometry(0.36, 0.42, 0.2), lam(CANV), 0, 1.3, -0.3, 0.3, 0, 0, rider);
+  add(new THREE.BoxGeometry(0.2, 0.16, 0.08), lam(0x4e5435), 0.16, 1.06, -0.36, 0, 0, 0, rider);
+  const scarfA = new THREE.Object3D(); scarfA.position.set(0, 1.66, -0.08); rider.add(scarfA);
   const trailA = new THREE.Object3D(); trailA.position.set(0.6, 0.1, -1.2); rig.add(trailA);
   models.sidecar = { group: g, rider, scarf: scarfA, trail: trailA, arms: null, ears };
   boardPivot.add(g);
@@ -1661,7 +1755,7 @@ function collectFinds() {
 const camDir = new V3(0, 0, 1), camPos = new V3(), lookSm = new V3(), visN = new V3(0, 1, 0), camOff = new V3(0, 3, -7);
 let camBaseY = 0, lift = 0;
 function applyLens() {
-  const w = innerWidth, h = innerHeight, shift = w < h ? 0.17 : 0.1;
+  const w = innerWidth, h = innerHeight, shift = w < h ? 0.07 : 0.04;
   camera.aspect = w / h; camera.setViewOffset(w, h, 0, -h * shift, w, h); camera.updateProjectionMatrix();
 }
 const basis = new THREE.Matrix4(), bx = new V3(), bz = new V3();
@@ -1708,7 +1802,7 @@ function updateVisuals(dt) {
     tmp.lerp(fwd, 0.2).normalize();
     camDir.lerp(tmp, 1 - Math.exp(-3.2 * dt)).normalize();
     // offset-based follow: the camera keeps its place relative to the rider at any speed
-    const dist = S.camDist * (1 + sf * 0.18), height = 1.9 + (P.grounded ? 0 : 0.6) + (P.tuck ? -0.25 : 0);
+    const dist = S.camDist * (1 + sf * 0.15), height = 3.1 + (P.grounded ? 0 : 0.6) + (P.tuck ? -0.3 : 0);
     tmp2.copy(camDir).multiplyScalar(-dist); tmp2.y = height;
     camOff.lerp(tmp2, 1 - Math.exp(-7 * dt));
     camBaseY += (P.pos.y - camBaseY) * (1 - Math.exp(-14 * dt));
@@ -1718,12 +1812,12 @@ function updateVisuals(dt) {
     const rumble = sf * sf * 0.045 + shake;
     if (rumble > 0) { camera.position.x += (Math.random() - 0.5) * rumble; camera.position.y += (Math.random() - 0.5) * rumble; }
     shake = Math.max(0, shake - dt * 1.5);
-    lookSm.set(P.pos.x + camDir.x * 16, camBaseY + 1.5, P.pos.z + camDir.z * 16);
+    lookSm.set(P.pos.x + camDir.x * 30, camBaseY + 0.4, P.pos.z + camDir.z * 30);
     camera.lookAt(lookSm);
     camera.rotateZ(clamp(P.yawRate, -1.5, 1.5) * 0.05 * sf);
   }
   dashPunch = Math.max(0, dashPunch - dt * 2.2);
-  const fov = (portrait ? 74 : 58) + (started ? sf * 24 * S.fovKick + dashPunch * 9 : 0);
+  const fov = (portrait ? 70 : 56) + (started ? sf * 20 * S.fovKick + dashPunch * 8 : 0);
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = lerp(camera.fov, fov, 1 - Math.exp(-6 * dt)); applyLens(); }
   sky.position.copy(camera.position);
 
@@ -2109,6 +2203,7 @@ function frame(now) {
     updateHud(); updateRadar(dt);
   }
   updateVisuals(paused ? 0 : dt);
+  if (window.__wlCam) window.__wlCam(camera, player); // inspection hook for close-ups
   renderer.render(scene, camera);
 }
 setVehicle(vehKey); applyLens();
