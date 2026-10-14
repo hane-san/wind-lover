@@ -185,7 +185,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   <div class="card">
     <div class="eyebrow">PROTOTYPE 0.7 · 止まるな</div>
     <h1 class="title">Wind Lover</h1>
-    <p>壊れかけの鉄のサイドカーで、何かを探しに出る。止まればエンジンがかかる保証はない。遺された砲台とドローンは、遅い者だけを捕まえる。</p>
+    <p>壊れかけの鉄のサイドカーで、太陽の方角へ。真ん中は天山の峠道、脇は低地の街道。止まればエンジンがかかる保証はない。遺された砲台とドローンは、遅い者だけを捕まえる。</p>
     <div class="row" id="vehCards"></div>
     <div class="worlds" id="worldCards"></div>
     <p>画面をドラッグして操作します。上に倒すと前傾して加速、下に倒すとブレーキ、下に倒しながら曲げるとドリフト。最高速のまま段差に突っ込むと長く滑空し、越えられる障害物は自動で跳び越えます。高すぎるものにぶつかれば激突です。遅いほど砲撃とドローンの弾幕が追いつき、止まればエンストして集中砲撃を受けます。</p>
@@ -363,6 +363,28 @@ const CELL = 3200, _cd = new Float32Array(9), _cb = new Int8Array(9);
 function biomeW(x, z, out) {
   for (let i = 0; i < NB; i++) out[i] = 0;
   if (biomeMode !== 'journey') { out[BKEYS.indexOf(biomeMode)] = 1; return out; }
+  return journeyW(x, z, out);
+}
+const BI = (k) => BKEYS.indexOf(k);
+const mountainBelt = (x, z) => (1 - smooth(1500, 3300, Math.abs(z))) * smooth(1500, 5500, x);
+const lowlandZone = (z) => smooth(1800, 3600, Math.abs(z));
+function journeyW(x, z, out) {
+  const belt = mountainBelt(x, z), soviet = 1 - smooth(2500, 14000, x);
+  // lowlands beyond the Soviet fringe: a slow patchwork of village, steppe, salt lakes and birch hills
+  const a = smooth(0.38, 0.62, vnoise(x / 2600 + 11.3, z / 2600 - 7.1, 501)), b = smooth(0.38, 0.62, vnoise(x / 2600 - 23.7, z / 2600 + 5.9, 502));
+  const rest = (1 - belt) * (1 - soviet);
+  out[BI('soviet')] = (1 - belt) * soviet;
+  out[BI('village')] = rest * (1 - a) * (1 - b) + rest * a * b * 0.5;
+  out[BI('steppe')] = rest * a * (1 - b);
+  out[BI('dusk')] = rest * (1 - a) * b;
+  out[BI('azure')] = rest * a * b * 0.5 * (1 - smooth(8000, 20000, x));
+  out[BI('village')] += rest * a * b * 0.5 * smooth(8000, 20000, x);
+  out[BI('tianshan')] = belt;
+  let sum = 0; for (let i = 0; i < NB; i++) sum += out[i];
+  for (let i = 0; i < NB; i++) out[i] /= sum || 1;
+  return out;
+}
+function cellW(x, z, out) {
   const ci = Math.floor(x / CELL + 0.5), cj = Math.floor(z / CELL + 0.5);
   let dmin = Infinity, k = 0;
   for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++, k++) {
@@ -393,7 +415,16 @@ function rawHeight(x, z) {
   // swell bands: fields of wave crests; at full speed each crest becomes a launch
   const zone = smooth(0.42, 0.68, vnoise(x / 900 + 7.7, z / 900 - 3.3, 33));
   const cr = 1 - Math.abs(vnoise(x / 80 + 13.7, z / 80 - 4.2, 34) * 2 - 1);
-  return h * amp + big * amp * 0.9 + r * r * r * ridge + off + 0.45 * swell * zone * cr * cr;
+  return h * amp + big * amp * 0.9 + r * r * r * ridge + off + 0.45 * swell * zone * cr * cr + relief(x, z);
+}
+// the massif lifts the middle belt as you go east; edge ranges close the world to the north, south and behind
+const EDGE_Z = 10500, EDGE_BACK = -4500;
+function relief(x, z) {
+  if (biomeMode !== 'journey') return 0;
+  const az = Math.abs(z);
+  const massif = 230 * (1 - smooth(1100, 3600, az)) * smooth(2500, 11000, x) * (0.75 + 0.25 * Math.sin(x / 2300));
+  const wallN = Math.pow(smooth(8200, 11200, az), 2) * 1700, wallB = Math.pow(smooth(-2200, EDGE_BACK - 600, x), 2) * 1700;
+  return massif + wallN + wallB;
 }
 // trunk highways: wide, graded roads with their own long profile. The land is cut down to them on the hills;
 // in shallow dips it is banked up, and deep valleys are spanned by viaducts.
@@ -404,7 +435,7 @@ const hwX = (i, z) => i * HS + HS / 2 + 260 * Math.sin(z / 2100 + i * 0.7) + 90 
 const hwXd = (i, z) => 260 / 2100 * Math.cos(z / 2100 + i * 0.7) + 90 / 760 * Math.cos(z / 760 + i * 1.9);
 const _hw = { d: Infinity, cx: 0, cz: 0 }, _wb = [];
 function highway(x, z) {
-  const j = Math.round(z / HS), zz = hwZ(j, x), s1 = hwZd(j, x), d1 = Math.abs(z - zz) / Math.sqrt(1 + s1 * s1);
+  const j = clamp(Math.round(z / HS), -2, 2), zz = hwZ(j, x), s1 = hwZd(j, x), d1 = Math.abs(z - zz) / Math.sqrt(1 + s1 * s1);
   const i = Math.round((x - HS / 2) / HS), xx = hwX(i, z), s2 = hwXd(i, z), d2 = Math.abs(x - xx) / Math.sqrt(1 + s2 * s2);
   if (d1 <= d2) { _hw.d = d1; _hw.cx = x; _hw.cz = zz; } else { _hw.d = d2; _hw.cx = xx; _hw.cz = z; }
   return _hw;
@@ -414,7 +445,7 @@ function deckAt(x, z) {
   const w = biomeW(x, z, _wb.length ? _wb : (_wb.length = NB, _wb.fill(0)));
   let amp = 0, off = 0; for (let i = 0; i < NB; i++) { if (!w[i]) continue; const t = BIOMES[BKEYS[i]].terrain; amp += w[i] * t.amp; off += w[i] * t.off; }
   const big = vnoise(x / 1700 + 3.1, z / 1700 - 8.4, 61) * 2 - 1;
-  return Math.max(big * amp * 0.9 + off + 2, WATER + 6);
+  return Math.max(big * amp * 0.9 + off + 2 + relief(x, z), WATER + 6);
 }
 function heightAt(x, z) {
   let h = rawHeight(x, z);
@@ -1138,7 +1169,7 @@ function buildChunkProps(ch, rng) {
       addCollider(sp.x, sp.z, yaw, 5.6, 0.5, sp.y - 2, sp.y + 6.4);
     },
   };
-  for (let i = countOf(rng, D.monu); i > 0; i--) { const sp = pickSpot(rng, ch, 0.9, 10); if (sp && T.monus) MONU[T.monus[rng() * T.monus.length | 0]](sp); }
+  for (let i = countOf(rng, D.monu * (biomeMode === 'journey' ? 0.6 + 1.6 * smooth(3000, 25000, ch.x0) : 1)); i > 0; i--) { const sp = pickSpot(rng, ch, 0.9, 10); if (sp && T.monus) MONU[T.monus[rng() * T.monus.length | 0]](sp); }
   place(D.sovblock, sovblock, 0.92, 10); place(D.stela, stela); place(D.factory, factory, 0.9, 16); place(D.village, village, 0.85, 30); place(D.mosque, mosque);
   for (let i = countOf(rng, D.poplar); i > 0; i--) poplarRow();
   const inChunk = (x, z) => x >= ch.x0 && x < ch.x0 + CH && z >= ch.z0 && z < ch.z0 + CH;
@@ -1295,12 +1326,16 @@ function buildLandmark(rx, rz) {
   const L = { key: rx + ',' + rz, group: new THREE.Group(), colliders: [], rails: [], streams: [], updrafts: [], motes: [], finds: [], mat: null, x: 0, z: 0 };
   landmarks.set(L.key, L);
   const rng = mulberry(seedOf(rx, rz, 9));
-  if (rng() < 0.1) return;
+  const far = biomeMode === 'journey' ? smooth(2000, 22000, (rx + 0.5) * RG) : 0.6;
+  if (rng() < lerp(0.45, 0.0, far)) return;
   let x = (rx + 0.2 + rng() * 0.6) * RG, z = (rz + 0.2 + rng() * 0.6) * RG;
+  if (biomeMode === 'journey' && Math.abs(z) > EDGE_Z - 1200) return;
+  { const hw = highway(x, z); if (hw.d < 140) { const dz = (z - hw.cz) || 1; z = hw.cz + Math.sign(dz) * 160; } }
   const d0 = Math.hypot(x, z); if (d0 < 700) { const k = 700 / Math.max(d0, 1); x = d0 < 1 ? 700 : x * k; z *= k; }
   L.x = x; L.z = z; CUR = L;
   const dom = BKEYS[dominant(biomeW(x, z, newW()))]; T = BIOMES[dom];
-  const type = T.marks[rng() * T.marks.length | 0], yaw = rng() * TAU;
+  const UNCANNY = ['monolith', 'rings', 'cubes', 'gates', 'niche', 'saucer', 'hand', 'colossus', 'tatlin', 'head'];
+  const type = rng() < far * 0.6 ? UNCANNY[rng() * UNCANNY.length | 0] : T.marks[rng() * T.marks.length | 0], yaw = rng() * TAU;
   L.type = type;
   const LS = 1.6; // giants at true scale
   const gy = Math.max(heightAt(x, z), WATER) - 3, B = M(x, gy, z, yaw, LS, LS, LS), m = new Merger();
@@ -1509,6 +1544,7 @@ function updateChunks(force) {
   need.sort((a, b) => a[2] - b[2]);
   for (const [cx, cz] of need) { buildChunk(cx, cz); dirty = true; if (!force) break; }
   if (force || !need.length) updateFar(force);
+  if (force || rangeX === null || Math.abs(P.pos.x - rangeX) > 5000) buildRanges(Math.round(P.pos.x / 1000) * 1000);
   if (updateLandmarks(force)) dirty = true;
   if (dirty) rebuildGlobals();
 }
@@ -1544,6 +1580,26 @@ function updateFar(force) {
   const pcx = Math.floor(P.pos.x / CH), pcz = Math.floor(P.pos.z / CH), key = pcx + ',' + pcz;
   if (!force && key === farKey) return false;
   farKey = key; buildFar((pcx + 0.5) * CH, (pcz + 0.5) * CH); return true;
+}
+const rangeMat = new THREE.MeshLambertMaterial({ vertexColors: true, fog: false, emissive: 0x000000 });
+let rangeMesh = null, rangeX = null;
+function buildRanges(cx) {
+  const seg = 160, span = 30000, pos = [], col = [], rock = new THREE.Color(0x6f7684), snow = new THREE.Color(0xf2f4f6), c = new THREE.Color();
+  for (const side of [-1, 1]) {
+    const zb = side * (EDGE_Z + 800);
+    for (let i = 0; i < seg; i++) {
+      const x0 = cx - span / 2 + i * span / seg, x1 = x0 + span / seg;
+      const pk = (x) => 1200 + 1300 * Math.pow(vnoise(x / 1400 + side * 9, 3.3, 77), 1.6) + 500 * vnoise(x / 420, side * 5, 78);
+      const h0 = pk(x0), h1 = pk(x1), xm = (x0 + x1) / 2, hm = (h0 + h1) / 2 + 120 * (vnoise(xm / 200, side, 79) - 0.3);
+      const zf = zb - side * 400, zbk = zb + side * 2600;
+      const tri = (a, b, d) => { for (const v of [a, b, d]) { pos.push(v[0], v[1], v[2]); const k = clamp((v[1] - 900) / 1300, 0, 1); c.copy(rock).lerp(snow, k * k); col.push(c.r, c.g, c.b); } };
+      tri([x0, 0, zf], [x1, 0, zf], [x0, h0, zb]); tri([x1, 0, zf], [x1, h1, zb], [x0, h0, zb]);
+      tri([x0, h0, zb], [x1, h1, zb], [xm, hm + 200, zbk]);
+    }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
+  if (rangeMesh) { rangeMesh.geometry.dispose(); scene.remove(rangeMesh); }
+  rangeMat.side = THREE.DoubleSide; rangeMesh = new THREE.Mesh(g, rangeMat); rangeMesh.frustumCulled = false; rangeMesh.visible = biomeMode === 'journey'; scene.add(rangeMesh); rangeX = cx;
 }
 function rebuildGlobals() {
   colliders = []; rails = []; streams = []; updrafts = []; motes = []; finds = [];
@@ -1585,6 +1641,13 @@ for (let i = 0; i < (LOWQ ? 20 : 30); i++) {
   sp.position.set(Math.cos(a) * r, 240 + Math.random() * 280, Math.sin(a) * r);
   const sc = 300 + Math.random() * 420; sp.scale.set(sc, sc * 0.5, 1);
   scene.add(sp); clouds.push(sp);
+}
+// cloud sea: a layer of soft clouds below the passes, seen only from up high
+const cloudSea = [];
+for (let i = 0; i < (LOWQ ? 26 : 40); i++) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, color: 0xffffff, transparent: true, depthWrite: false, fog: false, opacity: 0 }));
+  const a = Math.random() * TAU, r = 250 + Math.random() * 2600; sp.position.set(Math.cos(a) * r, 150 + Math.random() * 40, Math.sin(a) * r);
+  const sc = 380 + Math.random() * 420; sp.scale.set(sc, sc * 0.42, 1); sp.visible = false; scene.add(sp); cloudSea.push(sp);
 }
 // wind seeds: drift with the prevailing wind around the rider
 const SEEDS = LOWQ ? 90 : 140, seedPos = new Float32Array(SEEDS * 3), seeds = [];
@@ -2016,6 +2079,10 @@ function stepPhysics(dt) {
   P.dist += Math.hypot(P.vel.x, P.vel.z) * dt;
   P.ajCD -= dt; P.skipT -= dt;
   if (!P.dead) { if (braking) P.flow = Math.max(0, P.flow - dt * 0.3); else if (speed > S.cruise * 0.8) P.flow = Math.min(1, P.flow + dt / 55); }
+  if (biomeMode === 'journey') {
+    if (Math.abs(P.pos.z) > EDGE_Z - 300) { const sg = Math.sign(P.pos.z); P.pos.z = sg * (EDGE_Z - 300); if (P.vel.z * sg > 0) P.vel.z *= -0.3; }
+    if (P.pos.x < EDGE_BACK) { P.pos.x = EDGE_BACK; if (P.vel.x < 0) P.vel.x *= -0.3; }
+  }
   if (!isFinite(P.pos.x + P.pos.y + P.pos.z + P.vel.x + P.vel.y + P.vel.z)) respawn();
   collectMotes(); collectFinds();
   P.gauge = clamp(P.gauge, 0, 100);
@@ -2103,11 +2170,17 @@ function nearMiss() {
   sfx.whoosh();
 }
 function crash() {
-  if (P.dead) return;
-  shake = 1.4; P.vel.multiplyScalar(0.15); P.vel.y = 6; P.grounded = false; P.air = 0.01;
-  tmp.copy(P.pos); emitDust(tmp, tmp2.set(0, 6, 0), 40, 14); sfx.boom(1);
-  if (navigator.vibrate) try { navigator.vibrate([60, 40, 120]); } catch (e) {}
-  die('激突');
+  if (P.dead || P.invuln > 0) return;
+  shake = 1.6; P.vel.multiplyScalar(0.04); P.vel.y = 5; P.grounded = false; P.air = 0.01; P.flow = 0; P.invuln = 0.8;
+  tmp.copy(P.pos); emitDust(tmp, tmp2.set(0, 8, 0), 60, 18); sfx.boom(1); sfx.boom(0.7); vignette(0.9);
+  const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xffb070, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  fl.position.copy(P.pos); fl.scale.setScalar(22); scene.add(fl); flashes.push({ o: fl, life: 0.6 });
+  puff(20, true);
+  if (navigator.vibrate) try { navigator.vibrate([80, 40, 160]); } catch (e) {}
+  P.hull--; if (P.hull <= 0) { die('激突'); return; }
+  // the engine dies on impact; the hunters close in while it cranks
+  P.stalled = true; P.crankT = 0.9; sfx.stall(); toast('激突', `装甲 残り${P.hull}`, 1400);
+  if (shellsOn) { spawnFormation('chase'); const f = forms[forms.length - 1]; f.pos.set(P.pos.x - fwd.x * 260, P.pos.y + 40, P.pos.z - fwd.z * 260); for (const d of f.drones) d.copy(f.pos); }
 }
 function collide() {
   for (const c of colliders) {
@@ -2289,6 +2362,8 @@ function retry() {
 }
 let vigLevel = 0;
 function vignette(v) { vigLevel = Math.max(vigLevel, v); }
+// 0 in the mountain belt, 1 out on the lowlands
+const routeHeat = () => biomeMode === 'journey' ? lowlandZone(P.pos.z) * smooth(1500, 5000, P.pos.x) + 0.35 * (1 - smooth(1500, 5000, P.pos.x)) : 0.5;
 function updateThreat(dt) {
   const v = Math.hypot(P.vel.x, P.vel.z);
   P.brakeHeat = clamp(P.brakeHeat + (P.braking && v > 3 ? dt * 0.75 : -dt * 0.3), 0, 1);
@@ -2300,9 +2375,9 @@ function updateThreat(dt) {
       const d = P.danger;
       fireShell(lerp(12, 4, d), 1.6, 8);
       if (d > 0.55 && Math.random() < d) fireShell(16, 1.9, 8);
-      fireT = v > SAFE ? 3.5 + Math.random() * 3 : lerp(2.8, 0.42, d * d) * (0.7 + Math.random() * 0.6);
+      fireT = (v > SAFE ? 3.5 + Math.random() * 3 : lerp(2.8, 0.42, d * d) * (0.7 + Math.random() * 0.6)) * lerp(1.6, 0.6, routeHeat());
     }
-    if (v < 2.5 && (P.grounded || P.inUpdraft === false)) { P.stopT += dt; if (P.stopT > 0.7 && !P.barrage) startBarrage(); }
+    if (v < 2.5 && (P.grounded || P.inUpdraft === false)) { P.stopT += dt; if (P.stopT > 2.1 && !P.barrage) startBarrage(); }
     else { P.stopT = 0; if (v > 8) P.barrage = false; }
     if (v > SAFE && P.hull < 3) { regenT += dt; if (regenT > 22) { regenT = 0; P.hull++; toast('装甲を叩き直した', `装甲 ${P.hull}`, 1400); } } else regenT = 0;
   }
@@ -2355,8 +2430,8 @@ function updateEngine(dt) {
     P.crankT -= dt;
     if (P.crankT <= 0) {
       sfx.crank();
-      if (Math.random() < 0.32) { P.stalled = false; setTimeout(() => sfx.start(), 380); puff(10, true); }
-      else { P.crankT = 1.05; puff(3, true); }
+      if (Math.random() < 0.36) { P.stalled = false; setTimeout(() => sfx.start(), 380); puff(10, true); }
+      else { P.crankT = 0.85; puff(3, true); }
     }
   } else if (!P.dead) {
     // coughing below ~50 km/h; a lazy wisp otherwise
@@ -2448,8 +2523,8 @@ function updateDrones(dt) {
   const hs = Math.hypot(P.vel.x, P.vel.z);
   droneSpawnT -= dt;
   if (!P.dead && droneSpawnT <= 0 && forms.length < 4) {
-    const r = Math.random(), mode = !shellsOn ? 'flyby' : hs < 30 && r < 0.4 ? 'chase' : r < 0.5 ? 'flyby' : 'pass';
-    spawnFormation(mode); droneSpawnT = hs > 50 ? 7 + Math.random() * 6 : 5 + Math.random() * 4;
+    const r = Math.random(), heat = routeHeat(), mode = !shellsOn ? 'flyby' : hs < 30 && r < 0.4 ? 'chase' : r < lerp(0.7, 0.3, heat) ? 'flyby' : 'pass';
+    spawnFormation(mode); droneSpawnT = (hs > 50 ? 7 + Math.random() * 6 : 5 + Math.random() * 4) * lerp(1.3, 0.65, heat);
   }
   let nearest = Infinity, k = 0;
   const fx = hs > 1 ? P.vel.x / hs : fwd.x, fz = hs > 1 ? P.vel.z / hs : fwd.z;
@@ -2517,6 +2592,7 @@ const MOODS = [
   { top: new THREE.Color(0x6ea4b6), hor: new THREE.Color(0xd8ebe6), sun: new THREE.Color(0xe0fff4) }, // teal mist
 ];
 const moodTop = new THREE.Color(), moodHor = new THREE.Color(), moodSun = new THREE.Color();
+const HIGH_TOP = new THREE.Color(0x24489a), HIGH_HOR = new THREE.Color(0xeef3f8); let altK = 0;
 function updatePalette(dt, snap) {
   biomeW(P.pos.x, P.pos.z, _wp);
   for (const k of COLK) palT[k].setRGB(0, 0, 0);
@@ -2529,16 +2605,23 @@ function updatePalette(dt, snap) {
   const k = snap ? 1 : 1 - Math.exp(-0.8 * dt);
   for (const key of COLK) pal[key].lerp(palT[key], k);
   pal.sunDir.lerp(palT.sunDir, k); pal.hemiI = lerp(pal.hemiI, palT.hemiI, k); pal.sunI = lerp(pal.sunI, palT.sunI, k);
+  if (biomeMode === 'journey') pal.sunDir.set(1, 0.13 + 0.05 * Math.sin(t / 160), 0.08 * Math.sin(t / 230)).normalize(); // the sun you ride toward
+  // altitude: deeper sky, clearer air, cloud sea underfoot
+  altK = lerp(altK, smooth(130, 290, P.pos.y), snap ? 1 : 1 - Math.exp(-0.7 * dt));
   // mood cycle (about 8 minutes): rose dawn, pale gold, lilac, teal mist
   const mp = (t / 70) % MOODS.length, mi = Math.floor(mp), mf = smooth(0, 1, mp - mi), A = MOODS[mi], B = MOODS[(mi + 1) % MOODS.length];
   moodTop.copy(A.top).lerp(B.top, mf); moodHor.copy(A.hor).lerp(B.hor, mf); moodSun.copy(A.sun).lerp(B.sun, mf);
   const mk = 0.46;
   skyMat.uniforms.top.value.copy(pal.top).lerp(moodTop, mk); skyMat.uniforms.hor.value.copy(pal.hor).lerp(moodHor, mk); skyMat.uniforms.bot.value.copy(pal.bot).lerp(moodHor, mk * 0.6);
   skyMat.uniforms.sunCol.value.copy(pal.sunCol).lerp(moodSun, mk); skyMat.uniforms.sunDir.value.copy(pal.sunDir).normalize();
+  skyMat.uniforms.top.value.lerp(HIGH_TOP, altK * 0.55); skyMat.uniforms.hor.value.lerp(HIGH_HOR, altK * 0.4);
   scene.fog.color.copy(skyMat.uniforms.hor.value); renderer.setClearColor(scene.fog.color);
+  scene.fog.near = lerp(420, 900, altK); scene.fog.far = lerp(2700, 4600, altK);
+  rangeMat.color.setScalar(0.62); rangeMat.emissive.copy(scene.fog.color).multiplyScalar(0.42 - altK * 0.12);
   hemi.color.copy(pal.hemiSky); hemi.groundColor.copy(pal.hemiGround); hemi.intensity = pal.hemiI;
   sun.color.copy(pal.sunLight).lerp(moodSun, mk * 0.6); sun.intensity = pal.sunI; sun.position.copy(pal.sunDir).normalize();
   for (const c of clouds) c.material.color.copy(pal.cloud);
+  for (const c of cloudSea) { c.material.color.copy(pal.cloud).lerp(moodHor, 0.3); c.material.opacity = altK * 0.85; c.visible = altK > 0.02; }
   // announce a new land when it clearly takes over
   const d = dominant(_wp);
   if (d !== curDom && _wp[d] > 0.62) { domHold += dt; if (domHold > 0.6 || snap) { if (curDom !== -1 && started) toast(BIOMES[BKEYS[d]].name, '— 旅の途中 —', 2600); curDom = d; domHold = 0; } }
@@ -2699,6 +2782,12 @@ function updateVisuals(dt) {
     for (let i = 0; i < motes.length; i++) { const m = motes[i]; mp[i * 3] = m.p.x; mp[i * 3 + 1] = m.got ? -9999 : m.p.y + Math.sin(t * 2 + m.ph) * 0.35; mp[i * 3 + 2] = m.p.z; }
     motePts.geometry.attributes.position.needsUpdate = true;
   }
+  for (const c of cloudSea) {
+    if (!c.visible) continue;
+    const dx = c.position.x - P.pos.x, dz = c.position.z - P.pos.z;
+    if (dx * dx + dz * dz > 2900 * 2900) { const a = Math.random() * TAU, r = 2000 + Math.random() * 800; c.position.x = P.pos.x + Math.cos(a) * r; c.position.z = P.pos.z + Math.sin(a) * r; }
+    c.position.y = Math.min(c.position.y, P.pos.y - 60);
+  }
   for (const c of clouds) {
     c.position.x += windDir.x * 4 * dt; c.position.z += windDir.z * 4 * dt;
     const dx = c.position.x - camera.position.x, dz = c.position.z - camera.position.z;
@@ -2759,9 +2848,15 @@ const sfx = (() => {
     pop() { burst(160, 1.5, 0.12, 0.5); },
     stall() { burst(120, 1.2, 0.5, 0.35, 60); },
     crank() {
+      // a heavy "vroom" that swells and dies: the old twin trying to catch
       if (!ctx) return; const now = ctx.currentTime;
-      for (let i = 0; i < 5; i++) { const o = ctx.createOscillator(), g = ctx.createGain(), t0 = now + i * 0.11; o.type = 'square'; o.frequency.value = 38 + Math.random() * 6;
-        g.gain.setValueAtTime(0.0, t0); g.gain.linearRampToValueAtTime(0.06, t0 + 0.02); g.gain.linearRampToValueAtTime(0, t0 + 0.09); o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + 0.1); }
+      for (const [f0, dl] of [[36, 0], [41, 0.02]]) {
+        const o = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter(); o.type = 'sawtooth'; lp.type = 'lowpass'; lp.frequency.value = 380;
+        o.frequency.setValueAtTime(f0, now + dl); o.frequency.exponentialRampToValueAtTime(f0 * 2.4, now + dl + 0.32); o.frequency.exponentialRampToValueAtTime(f0 * 0.8, now + dl + 0.7);
+        g.gain.setValueAtTime(0, now + dl); g.gain.linearRampToValueAtTime(0.16, now + dl + 0.12); g.gain.linearRampToValueAtTime(0.0, now + dl + 0.72);
+        o.connect(lp); lp.connect(g); g.connect(master); o.start(now + dl); o.stop(now + dl + 0.75);
+      }
+      burst(90, 1.2, 0.3, 0.25);
     },
     start() { burst(140, 1.0, 0.5, 0.5); burst(220, 1.2, 0.3, 0.3); },
     volley() {
@@ -2946,7 +3041,7 @@ $('#btnGo').addEventListener('click', () => {
   const hint = $('#hint'); hint.hidden = false;
   hint.innerHTML = (isTouch ? 'ドラッグで操作　上で前傾・下でブレーキ・下＋左右でドリフト' : 'A・D 曲がる　W 前傾　S ブレーキ　S＋A・D ドリフト　R 立て直す') + '<br>段差は最高速で滑空、越えられる障害物は自動で跳ぶ';
   setTimeout(() => { hint.style.opacity = 0; }, 7000);
-  toast('止まるな', '遅いほど砲撃は近くに落ちる', 2800);
+  toast('太陽の方へ', '中央は山、脇は低地。止まるな', 3000);
 });
 
 const stickBase = $('#stickBase'), stickKnob = $('#stickKnob'), flashEl = $('#flash');
