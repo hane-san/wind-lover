@@ -57,6 +57,15 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   right: calc(env(safe-area-inset-right, 0px) + 8px); top: calc(env(safe-area-inset-top, 0px) + 4px);
   filter: drop-shadow(0 1px 4px rgba(8, 18, 36, 0.55));
 }
+.hull { display: flex; gap: 4px; margin-top: 7px; }
+.hull i { width: 14px; height: 4px; background: rgba(255, 255, 255, 0.22); box-shadow: var(--shadow); }
+.hull i.on { background: #e9e4d6; }
+#warn {
+  position: fixed; z-index: 5; pointer-events: none; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 44px);
+  font-size: 12px; font-weight: 700; letter-spacing: 0.2em; color: #ffd6c8; white-space: nowrap;
+  padding: 3px 10px; border-top: 1px solid #e0573d; border-bottom: 1px solid #e0573d; background: rgba(120, 30, 20, 0.28); text-shadow: var(--shadow);
+}
+#vignette { position: fixed; inset: 0; z-index: 3; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at 50% 55%, rgba(0, 0, 0, 0) 52%, rgba(170, 36, 20, 0.55) 100%); }
 #toast {
   position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 22%); transform: translateX(-50%);
   z-index: 5; pointer-events: none; font-family: var(--font-title); font-weight: 700; font-size: 19px; text-align: center;
@@ -147,7 +156,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 <div id="hud" aria-live="polite">
   <div class="speed"><b id="spd">0</b><small>KM/H</small></div>
   <div class="gauge" id="gauge"><i id="gaugeFill"></i></div>
+  <div class="hull" id="hull" aria-label="装甲"><i class="on"></i><i class="on"></i><i class="on"></i></div>
 </div>
+<div id="warn" hidden></div>
+<div id="vignette"></div>
 <div id="radar" aria-label="探し物の信号"><div id="radarArrow"></div><span id="radarDist">—</span></div>
 <button id="btnMenu" type="button" aria-label="メニュー">
   <svg width="22" height="16" viewBox="0 0 22 16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M2 2h18M2 8h18M2 14h12"/></svg>
@@ -166,12 +178,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 
 <section class="sheet" id="start">
   <div class="card">
-    <div class="eyebrow">PROTOTYPE 0.4 · 止まれない旅</div>
+    <div class="eyebrow">PROTOTYPE 0.6 · 止まるな</div>
     <h1 class="title">Wind Lover</h1>
-    <p>重いサイドカーで、果てのない土地を走り続けてください。ブレーキはありません。道と追い風に乗り、地平線の遺構と信号を目指します。</p>
+    <p>重い鉄のサイドカーで、果てのない土地を走り続けてください。道と追い風に乗り、地平線の遺構と信号を目指します。</p>
     <div class="row" id="vehCards"></div>
     <div class="worlds" id="worldCards"></div>
-    <p>左半分をドラッグして操作します。上に倒すと前傾して加速、下に倒すと少しだけゆるめ、下に倒しながら曲げるとドリフトです。右のボタンはジャンプ（長押しで滑空）とダッシュです。</p>
+    <p>左半分をドラッグして操作します。上に倒すと前傾して加速、下に倒すとブレーキ、下に倒しながら曲げるとドリフト。右のボタンはジャンプ（長押しで滑空）とダッシュです。遅いほど砲撃が近くに落ち、止まると集中砲撃を受けます。</p>
     <div class="row"><button class="go" id="btnGo" type="button">走りはじめる</button><span class="label">縦画面推奨・音が出ます</span></div>
   </div>
 </section>
@@ -188,9 +200,19 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <div class="row">
       <button class="ghost" id="menuTune" type="button">手ざわり調整</button>
       <button class="ghost" id="menuSound" type="button">音：オン</button>
+      <button class="ghost" id="menuShells" type="button">砲撃：オン</button>
       <button class="ghost" id="menuRespawn" type="button">出発地点に戻る</button>
       <button class="go" id="menuClose" type="button">走りに戻る</button>
     </div>
+  </div>
+</section>
+
+<section class="sheet" id="overSheet" hidden>
+  <div class="card">
+    <div class="eyebrow">集中砲撃</div>
+    <h2>旅はここで途切れた</h2>
+    <p id="overText"></p>
+    <div class="row"><button class="go" id="overRetry" type="button">もう一度走る</button></div>
   </div>
 </section>
 
@@ -223,29 +245,29 @@ const LOWQ = isTouch;
 // ---------------------------------------------------------------- settings
 // resp: how quickly the heading answers the bars (lower = heavier)
 const VEHICLES = {
-  sidecar: { name: 'サイドカー', hover: 1.0, grip: 4.2, accel: 17, lean: 0.06, resp: 2.6, defaults: { maxSpeed: 155, cruise: 72, minSpeed: 32, inertia: 1.6, tailwind: 8, gravity: 30, glide: 0.66, turn: 0.85, jump: 13, camDist: 9.5, fovKick: 1.1, auto: true } },
-  bike: { name: 'チョッパー', hover: 1.0, grip: 4.5, accel: 18, lean: 0.55, resp: 5, defaults: { maxSpeed: 145, cruise: 66, minSpeed: 30, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 0.9, jump: 14, camDist: 9.5, fovKick: 1.1, auto: true } },
-  board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 9, defaults: { maxSpeed: 115, cruise: 48, minSpeed: 24, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 8, fovKick: 1.1, auto: true } },
+  sidecar: { name: 'サイドカー', hover: 1.0, grip: 4.2, accel: 17, lean: 0.06, resp: 4.2, defaults: { maxSpeed: 155, cruise: 72, minSpeed: 0, inertia: 1.6, tailwind: 8, gravity: 30, glide: 0.66, turn: 1.0, jump: 13, camDist: 14, fovKick: 1.1, auto: true } },
+  bike: { name: 'チョッパー', hover: 1.0, grip: 4.5, accel: 18, lean: 0.55, resp: 6, defaults: { maxSpeed: 145, cruise: 66, minSpeed: 0, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 1.0, jump: 14, camDist: 13, fovKick: 1.1, auto: true } },
+  board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 10, defaults: { maxSpeed: 115, cruise: 48, minSpeed: 0, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 11, fovKick: 1.1, auto: true } },
 };
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
 };
 let vehKey = store.get('windlover.vehicle4', 'sidecar'); if (!VEHICLES[vehKey]) vehKey = 'sidecar';
-const allS = store.get('windlover.settings.v5', {}) || {};
+const allS = store.get('windlover.settings.v6', {}) || {};
 const loadS = () => ({ ...VEHICLES[vehKey].defaults, ...(allS[vehKey] || {}) });
 let S = loadS();
-const saveS = () => { allS[vehKey] = S; store.set('windlover.settings.v5', allS); };
+const saveS = () => { allS[vehKey] = S; store.set('windlover.settings.v6', allS); };
 
 // ---------------------------------------------------------------- biomes
 const BIOMES = {
   soviet: {
     name: 'ソ連の団地都市', sub: 'パステルのバルコニー、モザイク、錆びたバス停',
-    skyTop: 0x3f78c2, skyHor: 0xd7e4ea, skyBot: 0xb9c8cf, sunCol: 0xfff3dc, sunDir: [0.45, 0.48, 0.55],
-    hemiSky: 0xdfeaf2, hemiGround: 0x76805a, hemiI: 0.92, sunI: 0.78, sunLight: 0xfff2dc,
-    low: 0x9aa66a, high: 0xb9b07a, rock: 0x8d8c86, shore: 0xc8c3a8,
+    skyTop: 0x7d9cc2, skyHor: 0xe7ebe6, skyBot: 0xcdd3cc, sunCol: 0xfff3e2, sunDir: [0.45, 0.42, 0.55],
+    hemiSky: 0xe8eef0, hemiGround: 0x8e9274, hemiI: 1.0, sunI: 0.62, sunLight: 0xfff4e6,
+    low: 0xaeb08c, high: 0xc8c19e, rock: 0x9c9a92, shore: 0xd2cdb6,
     terrain: { amp: 20, ridge: 6, off: 2 },
-    dens: { sovblock: 1.7, busstop: 0.7, stela: 0.25, factory: 0.3, church: 0.1, birch: 1.3, pylons: 0.5 },
+    dens: { sovblock: 1.8, busstop: 0.8, stela: 0.25, factory: 0.3, church: 0.1, birch: 1.3, pylons: 0.4, lamps: 1, fence: 1, bus: 0.35, watertower: 0.25 },
     concrete: 0xd8d4c8, wall: 0xf0ece4, roof: 0x7c8a8f, dome: 0xc9a64a, dust: 0xe6e2cf, cloud: 0xffffff, leaf: 0xd8c25a, tuft: 0x8c9a58, wood: false,
     road: 0x5c5e5f, marks: ['tower', 'rocket', 'panel'],
   },
@@ -479,7 +501,7 @@ const ringGeo = new THREE.RingGeometry(0.92, 1, 40).rotateX(-Math.PI / 2);
 // Soviet-modernist wall mosaics: drawn motifs broken into smalti tiles with grout
 function mosaicTex(kind) {
   return canvasTex(128, 192, (g, w, h) => {
-    const bgs = ['#2f5f8a', '#1f3550', '#c9a565', '#3f7a6a'];
+    const bgs = ['#5d7f9c', '#41566e', '#cdb27e', '#6a8f82'];
     g.fillStyle = bgs[kind]; g.fillRect(0, 0, w, h);
     const circle = (x, y, r, c) => { g.fillStyle = c; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); };
     const poly = (pts, c) => { g.fillStyle = c; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill(); };
@@ -508,16 +530,35 @@ function mosaicTex(kind) {
     // tiles: per-tile brightness jitter, then grout lines
     const img = g.getImageData(0, 0, w, h), d = img.data, T4 = 4, rng = mulberry(77 + kind);
     for (let ty = 0; ty < h; ty += T4) for (let tx = 0; tx < w; tx += T4) {
-      const k = 0.86 + rng() * 0.26;
-      for (let y = ty; y < ty + T4; y++) for (let x = tx; x < tx + T4; x++) { const o = (y * w + x) * 4; const grout = x === tx || y === ty; for (let c = 0; c < 3; c++) d[o + c] = grout ? d[o + c] * 0.55 + 70 : Math.min(255, d[o + c] * k); }
+      const k = 0.9 + rng() * 0.2;
+      for (let y = ty; y < ty + T4; y++) for (let x = tx; x < tx + T4; x++) { const o = (y * w + x) * 4; const grout = x === tx || y === ty; const avg = (d[o] + d[o + 1] + d[o + 2]) / 3; for (let c = 0; c < 3; c++) { const v = lerp(d[o + c], avg, 0.28) * 0.9 + 22; d[o + c] = grout ? v * 0.6 + 70 : Math.min(255, v * k); } }
     }
     g.putImageData(img, 0, 0);
   });
 }
 const mosaicMats = [0, 1, 2, 3].map((k) => new THREE.MeshLambertMaterial({ map: mosaicTex(k) }));
 const planeGeo = new THREE.PlaneGeometry(1, 1);
+const fenceTex = canvasTex(128, 64, (g, w, h) => {
+  g.fillStyle = '#cfc8b8'; g.fillRect(0, 0, w, h);
+  const cw = 16, chh = 12;
+  for (let y = -chh; y < h + chh; y += chh) for (let x = -cw; x < w + cw; x += cw) {
+    const cx = x + ((y / chh) % 2 ? cw / 2 : 0), cy = y;
+    g.beginPath(); g.moveTo(cx, cy - chh / 2); g.lineTo(cx + cw / 2, cy); g.lineTo(cx, cy + chh / 2); g.lineTo(cx - cw / 2, cy); g.closePath();
+    g.fillStyle = '#dcd6c7'; g.fill(); g.strokeStyle = 'rgba(80,72,60,0.35)'; g.lineWidth = 1.2; g.stroke();
+    g.fillStyle = 'rgba(120,110,95,0.25)'; g.beginPath(); g.moveTo(cx, cy + chh / 2); g.lineTo(cx + cw / 2, cy); g.lineTo(cx + cw / 2 - 2, cy); g.lineTo(cx, cy + chh / 2 - 2); g.fill();
+  }
+  const rng = mulberry(5); for (let i = 0; i < 6; i++) { const x = rng() * w; const gr = g.createLinearGradient(x, 0, x, h); gr.addColorStop(0, 'rgba(90,80,70,0)'); gr.addColorStop(1, 'rgba(90,80,70,0.25)'); g.fillStyle = gr; g.fillRect(x, h * 0.4, 6 + rng() * 10, h * 0.6); }
+});
+const fenceMat = new THREE.MeshLambertMaterial({ map: fenceTex });
+const boxNI = new THREE.BoxGeometry(1, 1, 1).toNonIndexed();
+function texMerge(matrices) {
+  const n = boxNI.attributes.position.count, pos = new Float32Array(n * 3 * matrices.length), nor = new Float32Array(n * 3 * matrices.length), uv = new Float32Array(n * 2 * matrices.length);
+  matrices.forEach((mtx, i) => { const g = boxNI.clone().applyMatrix4(mtx); pos.set(g.attributes.position.array, i * n * 3); nor.set(g.attributes.normal.array, i * n * 3); uv.set(g.attributes.uv.array, i * n * 2); g.dispose(); });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  return g;
+}
 const roadMat = new THREE.MeshLambertMaterial({ vertexColors: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-const SHARED = new Set([terrainMat, waterMat, waterGeo, propMat, softMat, ringMat, ringGeo, planeGeo, roadMat, ...mosaicMats]);
+const SHARED = new Set([terrainMat, waterMat, waterGeo, propMat, softMat, ringMat, ringGeo, planeGeo, roadMat, fenceMat, ...mosaicMats]);
 function addMosaic(B, x, y, z, ry, w, h, kind) {
   const m = new THREE.Mesh(planeGeo, mosaicMats[kind]);
   m.applyMatrix4(B.clone().multiply(M(x, y, z, ry, w, h, 1)));
@@ -805,11 +846,11 @@ function buildChunkProps(ch, rng) {
     }
     flush();
   };
-  const PASTEL = [0x7fa7c9, 0xe3c46b, 0xd98a73, 0x8cc2a9, 0xb79ac9];
+  const PASTEL = [0xa9bccb, 0xe2d5a6, 0xd9b2a4, 0xb5cdbe, 0xc4b8cf, 0xd8c9b0];
   const sovblock = (s) => {
     const yaw = rng() * TAU, B = M(s.x, s.y - 1, s.z, yaw);
     const floors = rng() < 0.5 ? 5 : 9, fh = 2.8, secs = 3 + (rng() * 4 | 0), w = secs * 12, d = 12, H = floors * fh + 0.8;
-    const body = [0xe4dfd2, 0xcfd2d0, 0xd9cbb3, 0xdcd6cb][rng() * 4 | 0];
+    const body = [0xe9e3d6, 0xd8dad4, 0xe8d7c9, 0xe2e0c9, 0xd2ddd8, 0xdcd3cd][rng() * 6 | 0];
     solid.part(B, G.box, 0, H / 2, 0, w, H, d, body);
     for (let f = 1; f < floors; f++) solid.part(B, G.box, 0, f * fh + 0.4, 0, w + 0.06, 0.12, d + 0.06, shade(body, 0.86));
     for (let sI = 0; sI < secs; sI++) {
@@ -925,11 +966,62 @@ function buildChunkProps(ch, rng) {
   grove(D.birch, birch); grove(D.fir, fir); grove(D.apricot, apricot);
   place(D.sovblock, sovblock, 0.92, 10); place(D.stela, stela); place(D.factory, factory, 0.9, 16); place(D.village, village, 0.85, 30); place(D.mosque, mosque);
   for (let i = countOf(rng, D.poplar); i > 0; i--) poplarRow();
+  const inChunk = (x, z) => x >= ch.x0 && x < ch.x0 + CH && z >= ch.z0 && z < ch.z0 + CH;
+  const bus = (x, z, yaw) => {
+    const y = surfaceAt(x, z), B = M(x, y - 0.35, z, yaw, 1, 1, 1, 0.02, 0.05);
+    const paint = [0xd9c58a, 0xc9cfc2, 0xd8b9a0][rng() * 3 | 0];
+    solid.part(B, G.box, 0, 1.5, 0, 2.5, 2.3, 7.4, paint);
+    solid.part(B, G.box, 0, 0.55, 0, 2.52, 0.35, 7.42, 0x8a5a44);
+    solid.part(B, G.box, 0, 2.0, 0.2, 2.54, 0.85, 6.4, 0x3a4048);
+    solid.part(B, G.box, 0, 2.75, 0, 2.3, 0.22, 7.1, shade(paint, 1.06));
+    solid.part(B, G.box, 0, 1.9, 3.72, 2.2, 1.0, 0.06, 0x3a4048);
+    solid.part(B, G.box, 0.9, 1.0, 3.72, 0.35, 0.2, 0.06, 0xd8d4c8); solid.part(B, G.box, -0.9, 1.0, 3.72, 0.35, 0.2, 0.06, 0xd8d4c8);
+    for (const [px, py, pz] of [[1.26, 1.2, -2], [-1.26, 0.9, 1.4], [0.4, 2.85, -2.6]]) solid.part(B, G.box, px, py, pz, 0.05, 0.6, 1.1, 0x7a4529);
+    addCollider(x, z, yaw, 1.4, 3.8, y - 2, y + 2.8);
+    ch.motes.push(new V3(x, y + 4.5, z));
+  };
+  if (D.lamps) for (const pts of ch.roads || []) {
+    for (let i = 2; i < pts.length - 1; i += 7) {
+      const [ax, az] = pts[i], [bx, bz] = pts[i + 1], dl = Math.hypot(bx - ax, bz - az) || 1, nx = -(bz - az) / dl, nz = (bx - ax) / dl;
+      const x = ax + nx * 6.8, z = az + nz * 6.8; if (!inChunk(x, z)) continue;
+      const y = surfaceAt(x, z), B = M(x, y - 0.3, z, Math.atan2(-nx, -nz));
+      solid.part(B, G.taper, 0, 4.6, 0, 0.34, 9.2, 0.34, 0xbdb9b0, Math.PI / 4);
+      solid.part(B, G.box, 0, 9.35, 0.95, 0.15, 0.15, 2.1, 0xa9a59c, 0, -0.28);
+      solid.part(B, G.box, 0, 9.62, 2.2, 0.5, 0.18, 0.95, 0x7d8a84, 0, 0.14);
+      solid.part(B, G.box, 0, 9.5, 2.26, 0.36, 0.05, 0.62, 0xf3ead2, 0, 0.14);
+      addCollider(x, z, 0, 0.4, 0.4, y - 2, y + 9.4);
+    }
+  }
+  for (let f = countOf(rng, D.fence); f > 0; f--) {
+    const lines = ch.roads || []; if (!lines.length) break;
+    const pts = lines[rng() * lines.length | 0], i0 = rng() * Math.max(1, pts.length - 24) | 0, sd = rng() < 0.5 ? -12 : 12, mats = [];
+    for (let i = i0; i < Math.min(pts.length - 1, i0 + 10 + (rng() * 14 | 0)); i++) {
+      if (rng() < 0.08) continue; // a missing panel here and there
+      const [ax, az] = pts[i], [bx, bz] = pts[i + 1], dl = Math.hypot(bx - ax, bz - az) || 1, nx = -(bz - az) / dl, nz = (bx - ax) / dl;
+      const x = (ax + bx) / 2 + nx * sd, z = (az + bz) / 2 + nz * sd; if (!inChunk(x, z)) continue;
+      const y = surfaceAt(x, z), yaw = Math.atan2(bx - ax, bz - az), tilt = rng() < 0.12 ? (rng() - 0.5) * 0.3 : 0;
+      mats.push(M(x, y + 1.0, z, yaw, 0.18, 2.4, dl + 0.05, 0, tilt));
+      addCollider(x, z, yaw, 0.3, dl / 2, y - 2, y + 2.2);
+    }
+    if (mats.length) ch.group.add(new THREE.Mesh(texMerge(mats), fenceMat));
+  }
+  place(D.watertower, (s) => {
+    const B = M(s.x, s.y - 0.5, s.z, rng() * TAU);
+    solid.part(B, G.cyl, 0, 8, 0, 2.6, 16, 2.6, 0xb98a74);
+    for (let i = 0; i < 3; i++) solid.part(B, G.box, 0, 4 + i * 4.5, 2.62, 0.6, 1.4, 0.1, 0x4a4440);
+    solid.part(B, G.cyl, 0, 17.5, 0, 4.2, 4.6, 4.2, 0x8a958c); solid.part(B, G.cyl, 0, 19.9, 0, 4.4, 0.3, 4.4, 0x6f7a72);
+    solid.part(B, G.cone, 0, 21.2, 0, 4.4, 2.4, 4.4, 0x7b847c);
+    addCollider(s.x, s.z, 0, 2.7, 2.7, s.y - 2, s.y + 15.5);
+    ch.motes.push(new V3(s.x, s.y + 26, s.z)); ch.cands.push(new V3(s.x, s.y + 24, s.z));
+  });
   for (let i = countOf(rng, D.busstop * 2); i > 0; i--) {
     const lines = ch.roads || []; if (!lines.length) break;
     const pts = lines[rng() * lines.length | 0], k = 2 + (rng() * (pts.length - 4) | 0), [ax, az] = pts[k], [bx, bz] = pts[k + 1], dl = Math.hypot(bx - ax, bz - az) || 1;
     const sd = rng() < 0.5 ? -1 : 1, x = ax - (bz - az) / dl * 9 * sd, z = az + (bx - ax) / dl * 9 * sd;
-    if (heightAt(x, z) > WATER + 0.5) busstop(x, z, Math.atan2(-(bz - az) / dl * -sd, (bx - ax) / dl * -sd) + Math.PI / 2 * 0);
+    if (heightAt(x, z) > WATER + 0.5) {
+      const yaw = Math.atan2((bz - az) / dl * sd, -(bx - ax) / dl * sd); busstop(x, z, yaw);
+      if (rng() < D.bus) { const ux = (bx - ax) / dl, uz = (bz - az) / dl; bus(x + ux * 14 - (bz - az) / dl * 4 * sd, z + uz * 14 + (bx - ax) / dl * 4 * sd, Math.atan2(ux, uz) + (rng() - 0.5) * 0.5); }
+    }
   }
   // ground clutter: small rocks and tufts give the ground parallax at speed
   for (let i = LOWQ ? 70 : 120; i > 0; i--) {
@@ -1466,7 +1558,7 @@ for (let i = 0; i < LINES; i++) { const a = Math.random() * TAU, r = 2.2 + Math.
 const P = {
   pos: new V3(), vel: new V3(), yaw: 0, n: new V3(0, 1, 0), grounded: false, air: 0, coyote: 0, jumpBuf: 0,
   grind: null, gS: 0, gSpeed: 0, gDir: 1, gSeg: 0, grindCD: 0, gauge: 40, dashCD: 0, inStream: false, inUpdraft: false, onWater: false,
-  motes: 0, found: foundKeys.size, drift: 0, drifting: false, tuck: false, yawRate: 0, onRoad: false, dist: store.get('windlover.dist4', 0),
+  motes: 0, hull: 3, braking: false, brakeHeat: 0, danger: 0, stopT: 0, dead: false, invuln: 0, found: foundKeys.size, drift: 0, drifting: false, tuck: false, yawRate: 0, onRoad: false, dist: store.get('windlover.dist4', 0),
 };
 let HOVER = VEHICLES[vehKey].hover;
 const fwd = new V3(), fPl = new V3(), side = new V3(), tmp = new V3(), tmp2 = new V3(), UP = new V3(0, 1, 0), windDir = new V3(1, 0, 0);
@@ -1502,13 +1594,15 @@ function stepPhysics(dt) {
   const back = sy < -0.35;
   P.drifting = P.grounded && !P.grind && back && Math.abs(steer) > 0.35 && speed > 14;
   P.tuck = sy > 0.35;
-  const sitUp = back && !P.drifting;
+  const braking = back && !P.drifting, brakeAmt = braking ? clamp((-sy - 0.35) / 0.65, 0.2, 1) : 0;
+  P.braking = braking;
 
-  if (inp.dashPressed && P.gauge >= 25 && P.dashCD <= 0) doDash();
+  if (P.dead) { inp.jx = inp.jy = inp.kx = inp.ky = 0; P.braking = false; }
+  if (inp.dashPressed && P.gauge >= 25 && P.dashCD <= 0 && !P.dead) doDash();
 
   if (P.grind) grindStep(dt);
   else {
-    const turn = (P.grounded ? lerp(2.3, 0.9, sf) : 1.5) * S.turn * (P.drifting ? 1.5 : 1) * (P.tuck ? 0.75 : 1);
+    const turn = (P.grounded ? lerp(2.9, 1.65, sf) : 2.0) * S.turn * (P.drifting ? 1.5 : 1) * (P.tuck ? 0.75 : 1);
     P.yawRate += (-steer * turn - P.yawRate) * (1 - Math.exp(-V.resp * (P.drifting ? 1.6 : 1) * dt));
     P.yaw += P.yawRate * dt;
     fwd.set(Math.sin(P.yaw), 0, Math.cos(P.yaw));
@@ -1525,13 +1619,13 @@ function stepPhysics(dt) {
       if (gf < 0) gf *= 0.7 / S.inertia;
       let vf = P.vel.dot(fPl), vs = P.vel.dot(side);
       vf += gf * dt; vs += gs * dt;
-      const grip = (P.drifting ? 1.4 : V.grip * lerp(1, 0.45, sf)) / S.inertia;
+      const grip = (P.drifting ? 1.3 : V.grip * lerp(1, 0.3, sf)) / S.inertia;
       const nvs = vs * Math.exp(-grip * dt);
-      if (vf >= 0) vf += (Math.abs(vs) - Math.abs(nvs)) * (P.drifting ? 0.9 : 0.8); else vf *= Math.exp(-3 * dt);
-      let target = S.auto ? S.cruise : 0, acc = V.accel;
+      if (vf >= 0) vf += (Math.abs(vs) - Math.abs(nvs)) * (P.drifting ? 0.9 : 0.86); else vf *= Math.exp(-3 * dt);
+      let target = S.auto && !braking && !P.dead ? S.cruise : 0, acc = V.accel * (vf < 12 ? 0.45 : 1); // heavy to get rolling again
       if (P.tuck) { target = S.cruise * 1.6; acc *= 1.6; }
       if (vf < target) vf += acc * dt * (1 - clamp(vf / Math.max(target, 1), 0, 1) * 0.5);
-      if (sitUp) vf -= 4 * dt; // easing off only takes a little
+      if (braking) vf = Math.max(0, vf - 24 * brakeAmt * dt);
       vf += S.tailwind * Math.max(0, fPl.x * windDir.x + fPl.z * windDir.z) * dt;
       P.onRoad = roadDist(P.pos.x, P.pos.z) < 5;
       if (P.onRoad) vf += 5 * dt;
@@ -1540,7 +1634,7 @@ function stepPhysics(dt) {
       if (vf < S.minSpeed) vf = lerp(vf, S.minSpeed, 1 - Math.exp(-3 * dt));
       if (P.drifting) {
         P.drift += dt;
-        if (Math.random() < dt * 50) emitDust(tmp.copy(P.pos).addScaledVector(fwd, -1).addScaledVector(UP, -HOVER + 0.1), tmp2.copy(side).multiplyScalar(-steer * 4), 2, 4);
+        if (Math.random() < dt * 50) emitDust(tmp.copy(P.pos).addScaledVector(fwd, -1).addScaledVector(UP, -HOVER + 0.1), tmp2.copy(side).multiplyScalar(-steer * 4).addScaledVector(P.vel, 0.9), 2, 4);
       } else {
         if (P.drift > 0.45) {
           const boost = Math.min(24, 6 + P.drift * 10); vf += boost + Math.abs(nvs) * 0.5; dashPunch = Math.max(dashPunch, 0.6);
@@ -1549,7 +1643,7 @@ function stepPhysics(dt) {
         P.drift = 0;
       }
       P.vel.copy(fPl).multiplyScalar(vf).addScaledVector(side, nvs);
-      if (speed > 20 && Math.random() < dt * 40) emitDust(tmp.copy(P.pos).addScaledVector(fwd, -0.9).addScaledVector(UP, -HOVER + 0.1), tmp2.copy(P.vel).multiplyScalar(0.25), 2, 3);
+      if (speed > 20 && Math.random() < dt * 40) emitDust(tmp.copy(P.pos).addScaledVector(fwd, -0.9).addScaledVector(UP, -HOVER + 0.1), tmp2.copy(P.vel).multiplyScalar(0.9), 2, 3);
     } else {
       const gliding = inp.jumpHeld && P.vel.y < 1 && P.air > 0.12;
       let g = S.gravity;
@@ -1597,7 +1691,7 @@ function doDash() {
     P.vel.addScaledVector(tmp, 28);
     if (!P.grounded) P.vel.y = Math.max(P.vel.y, 3.5);
   }
-  emitDust(P.pos, tmp2.copy(P.vel).multiplyScalar(-0.2), 14, 6);
+  emitDust(P.pos, tmp2.copy(P.vel).multiplyScalar(0.75), 14, 6);
   sfx.dash(); toast('疾風');
 }
 
@@ -1682,7 +1776,7 @@ function landing(g) {
     } else { P.vel.multiplyScalar(0.95); shake = Math.min(0.6, impact / 40); landSquash = 0.5; }
     sfx.land(Math.min(1, impact / 25));
     if (navigator.vibrate) try { navigator.vibrate(12); } catch (e) {}
-    emitDust(tmp.copy(P.pos).addScaledVector(UP, -HOVER), tmp2.set(0, 1, 0), 18, Math.min(10, 3 + impact * 0.3));
+    emitDust(tmp.copy(P.pos).addScaledVector(UP, -HOVER), tmp2.copy(P.vel).multiplyScalar(0.85).add(UP), 18, Math.min(10, 3 + impact * 0.3));
   }
 }
 
@@ -1727,7 +1821,7 @@ function grindStep(dt) {
   fwd.set(Math.sin(P.yaw), 0, Math.cos(P.yaw));
   if (P.gS <= 0 || P.gS >= r.len) { leaveGrind(false); return; }
   railPoint(r, P.gS, P.pos); P.pos.y += 0.55;
-  if (Math.random() < dt * 40) emitDust(tmp.copy(P.pos).addScaledVector(UP, -0.5), tmp.set(0, 1.5, 0), 1, 4);
+  if (Math.random() < dt * 40) emitDust(tmp.copy(P.pos).addScaledVector(UP, -0.5), tmp2.copy(P.vel).multiplyScalar(0.85).add(UP), 1, 4);
   if (P.jumpBuf > 0) leaveGrind(true);
 }
 function leaveGrind(jump) {
@@ -1751,9 +1845,97 @@ function collectFinds() {
   }
 }
 
+// ---------------------------------------------------------------- bombardment: the slower you go, the closer the shells land; stop and the guns walk onto you
+let shellsOn = store.get('windlover.shells', true);
+const SAFE = 60; // m/s (216 km/h)
+const shells = [], flashes = [];
+const shellRingGeo = new THREE.RingGeometry(0.88, 1, 48).rotateX(-Math.PI / 2);
+const shellDotGeo = new THREE.CircleGeometry(1, 32).rotateX(-Math.PI / 2);
+const streakGeo = new THREE.CylinderGeometry(0.22, 0.05, 1, 6);
+const streakMat = new THREE.MeshBasicMaterial({ color: 0xfff1d6, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+let fireT = 3, regenT = 0, warnState = '';
+function fireShell(spread, flight, radius) {
+  const a = Math.random() * TAU, r = Math.sqrt(Math.random()) * spread;
+  const x = P.pos.x + Math.cos(a) * r, z = P.pos.z + Math.sin(a) * r, y = surfaceAt(x, z);
+  const mk = (geo, op) => { const o = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xd2452f, transparent: true, opacity: op, depthWrite: false, fog: false })); o.scale.set(radius, 1, radius); o.position.set(x, y + 0.45, z); scene.add(o); return o; };
+  const streak = new THREE.Mesh(streakGeo, streakMat); streak.visible = false; scene.add(streak);
+  shells.push({ x, z, y, t: 0, flight, radius, ring: mk(shellRingGeo, 0), fill: mk(shellDotGeo, 0), streak, sx: (Math.random() - 0.5) * 60, sz: (Math.random() - 0.5) * 60 });
+  sfx.whistle(flight);
+}
+function clearShells() { for (const s of shells) { for (const o of [s.ring, s.fill]) { o.material.dispose(); scene.remove(o); } scene.remove(s.streak); } shells.length = 0; }
+function explode(s) {
+  tmp.set(s.x, s.y + 0.6, s.z); emitDust(tmp, tmp2.set(0, 7, 0), 30, 16);
+  const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xffc890, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  fl.position.set(s.x, s.y + 3, s.z); fl.scale.setScalar(s.radius * 1.5); scene.add(fl); flashes.push({ o: fl, life: 0.45 });
+  const d = Math.hypot(P.pos.x - s.x, P.pos.z - s.z);
+  shake = Math.max(shake, clamp(1.1 - d / 90, 0, 0.9)); sfx.boom(clamp(1 - d / 400, 0.15, 1));
+  if (d < s.radius && P.invuln <= 0 && !P.dead) hitByShell();
+}
+function hitByShell() {
+  P.hull--; P.invuln = 1.1; P.vel.multiplyScalar(0.82); P.vel.y += 7; P.grounded = false; P.air = 0.01; shake = 1.2;
+  vignette(0.85); sfx.land(1);
+  if (navigator.vibrate) try { navigator.vibrate([40, 30, 60]); } catch (e) {}
+  if (P.hull <= 0) die(); else toast('被弾', `装甲 残り${P.hull}`, 1400);
+}
+function startBarrage() {
+  P.barrage = true; toast('停止を検知', '集中砲撃が来る', 1800);
+  for (let i = 0; i < 9; i++) fireShell(i < 3 ? 2 : 7, 1.0 + i * 0.22, 10);
+}
+function die() {
+  P.dead = true; vignette(1);
+  setTimeout(() => { $('#overText').textContent = `旅した距離 ${(P.dist / 1000).toFixed(1)} km`; openSheet('#overSheet'); }, 1500);
+}
+function retry() {
+  closeSheet('#overSheet'); clearShells(); P.dead = false; P.barrage = false; P.hull = 3; P.stopT = 0; P.danger = 0; P.brakeHeat = 0; fireT = 4;
+  placeAt(P.pos.x, P.pos.z, P.yaw, S.cruise * 0.7); P.invuln = 3; vignette(0);
+}
+let vigLevel = 0;
+function vignette(v) { vigLevel = Math.max(vigLevel, v); }
+function updateThreat(dt) {
+  const v = Math.hypot(P.vel.x, P.vel.z);
+  P.brakeHeat = clamp(P.brakeHeat + (P.braking && v > 3 ? dt * 0.75 : -dt * 0.3), 0, 1);
+  P.danger = lerp(P.danger, clamp(1 - v / SAFE, 0, 1), 1 - Math.exp(-2.5 * dt));
+  P.invuln -= dt;
+  if (shellsOn && !P.dead) {
+    fireT -= dt;
+    if (fireT <= 0) {
+      const d = P.danger;
+      fireShell(lerp(12, 4, d), 1.6, 8);
+      if (d > 0.55 && Math.random() < d) fireShell(16, 1.9, 8);
+      fireT = v > SAFE ? 3.5 + Math.random() * 3 : lerp(2.8, 0.42, d * d) * (0.7 + Math.random() * 0.6);
+    }
+    if (v < 2.5 && (P.grounded || P.inUpdraft === false)) { P.stopT += dt; if (P.stopT > 0.7 && !P.barrage) startBarrage(); }
+    else { P.stopT = 0; if (v > 8) P.barrage = false; }
+    if (v > SAFE && P.hull < 3) { regenT += dt; if (regenT > 22) { regenT = 0; P.hull++; toast('装甲を叩き直した', `装甲 ${P.hull}`, 1400); } } else regenT = 0;
+  }
+  for (let i = shells.length - 1; i >= 0; i--) {
+    const s = shells[i]; s.t += dt; const k = s.t / s.flight;
+    s.ring.material.opacity = (0.35 + 0.45 * k) * (0.75 + 0.25 * Math.sin(s.t * 18));
+    s.fill.material.opacity = 0.05 + 0.22 * k * k; s.fill.scale.set(s.radius * k, 1, s.radius * k);
+    if (k > 0.55) {
+      const h = (1 - k) / 0.45 * 220; s.streak.visible = true;
+      s.streak.position.set(s.x + s.sx * (1 - k), s.y + h + 14, s.z + s.sz * (1 - k)); s.streak.scale.set(1, 28, 1);
+      s.streak.lookAt(s.x, s.y, s.z); s.streak.rotateX(Math.PI / 2);
+    }
+    if (k >= 1) { explode(s); for (const o of [s.ring, s.fill]) { o.material.dispose(); scene.remove(o); } scene.remove(s.streak); shells.splice(i, 1); }
+  }
+  for (let i = flashes.length - 1; i >= 0; i--) { const f = flashes[i]; f.life -= dt; f.o.material.opacity = 0.7 * clamp(f.life / 0.45, 0, 1); if (f.life <= 0) { f.o.material.dispose(); scene.remove(f.o); flashes.splice(i, 1); } }
+  // warnings: braking too hard, crawling, stopped
+  let w = '';
+  if (P.dead) w = '';
+  else if (P.stopT > 0) w = '停止中 — 砲撃が来る';
+  else if (shellsOn && P.brakeHeat > 0.55) w = '減速しすぎ';
+  else if (shellsOn && P.danger > 0.72) w = '低速 — 狙われている';
+  if (w !== warnState) { warnState = w; warnEl.textContent = w; warnEl.hidden = !w; if (w) sfx.alarm(); }
+  vigLevel = Math.max(0, vigLevel - dt * 0.8);
+  const pulse = shellsOn ? clamp((P.danger - 0.5) * 1.4, 0, 0.6) * (0.6 + 0.4 * Math.sin(t * 7)) : 0;
+  vigEl.style.opacity = Math.max(vigLevel, pulse).toFixed(3);
+  hullEl.forEach((e, i) => e.classList.toggle('on', i < P.hull));
+}
+
 // ---------------------------------------------------------------- camera & visuals
 const camDir = new V3(0, 0, 1), camPos = new V3(), lookSm = new V3(), visN = new V3(0, 1, 0), camOff = new V3(0, 3, -7);
-let camBaseY = 0, lift = 0;
+let camBaseY = 0, lift = 0, lookAng = 0;
 function applyLens() {
   const w = innerWidth, h = innerHeight, shift = w < h ? 0.07 : 0.04;
   camera.aspect = w / h; camera.setViewOffset(w, h, 0, -h * shift, w, h); camera.updateProjectionMatrix();
@@ -1766,6 +1948,13 @@ const palT = { top: new THREE.Color(), hor: new THREE.Color(), bot: new THREE.Co
 const PALC = BKEYS.map((k) => { const b = BIOMES[k]; return { top: new THREE.Color(b.skyTop), hor: new THREE.Color(b.skyHor), bot: new THREE.Color(b.skyBot), sunCol: new THREE.Color(b.sunCol), hemiSky: new THREE.Color(b.hemiSky), hemiGround: new THREE.Color(b.hemiGround), sunLight: new THREE.Color(b.sunLight), cloud: new THREE.Color(b.cloud), dust: new THREE.Color(b.dust), sunDir: new V3(...b.sunDir).normalize(), hemiI: b.hemiI, sunI: b.sunI }; });
 const COLK = ['top', 'hor', 'bot', 'sunCol', 'hemiSky', 'hemiGround', 'sunLight', 'cloud', 'dust'];
 const _wp = newW(); let curDom = -1, domHold = 0;
+const MOODS = [
+  { top: new THREE.Color(0x8e9ccc), hor: new THREE.Color(0xf3d9d2), sun: new THREE.Color(0xffd0bc) },
+  { top: new THREE.Color(0x7aa0cc), hor: new THREE.Color(0xf2e8cc), sun: new THREE.Color(0xfff0c8) },
+  { top: new THREE.Color(0x8b86c2), hor: new THREE.Color(0xe8d9e8), sun: new THREE.Color(0xf0d8ff) },
+  { top: new THREE.Color(0x6ea4b6), hor: new THREE.Color(0xd8ebe6), sun: new THREE.Color(0xe0fff4) },
+];
+const moodTop = new THREE.Color(), moodHor = new THREE.Color(), moodSun = new THREE.Color();
 function updatePalette(dt, snap) {
   biomeW(P.pos.x, P.pos.z, _wp);
   for (const k of COLK) palT[k].setRGB(0, 0, 0);
@@ -1778,11 +1967,15 @@ function updatePalette(dt, snap) {
   const k = snap ? 1 : 1 - Math.exp(-0.8 * dt);
   for (const key of COLK) pal[key].lerp(palT[key], k);
   pal.sunDir.lerp(palT.sunDir, k); pal.hemiI = lerp(pal.hemiI, palT.hemiI, k); pal.sunI = lerp(pal.sunI, palT.sunI, k);
-  skyMat.uniforms.top.value.copy(pal.top); skyMat.uniforms.hor.value.copy(pal.hor); skyMat.uniforms.bot.value.copy(pal.bot);
-  skyMat.uniforms.sunCol.value.copy(pal.sunCol); skyMat.uniforms.sunDir.value.copy(pal.sunDir).normalize();
-  scene.fog.color.copy(pal.hor); renderer.setClearColor(pal.hor);
+  // mood cycle (about 8 minutes): rose dawn, pale gold, lilac, teal mist
+  const mp = (t / 120) % MOODS.length, mi = Math.floor(mp), mf = smooth(0, 1, mp - mi), A = MOODS[mi], B = MOODS[(mi + 1) % MOODS.length];
+  moodTop.copy(A.top).lerp(B.top, mf); moodHor.copy(A.hor).lerp(B.hor, mf); moodSun.copy(A.sun).lerp(B.sun, mf);
+  const mk = 0.38;
+  skyMat.uniforms.top.value.copy(pal.top).lerp(moodTop, mk); skyMat.uniforms.hor.value.copy(pal.hor).lerp(moodHor, mk); skyMat.uniforms.bot.value.copy(pal.bot).lerp(moodHor, mk * 0.6);
+  skyMat.uniforms.sunCol.value.copy(pal.sunCol).lerp(moodSun, mk); skyMat.uniforms.sunDir.value.copy(pal.sunDir).normalize();
+  scene.fog.color.copy(skyMat.uniforms.hor.value); renderer.setClearColor(scene.fog.color);
   hemi.color.copy(pal.hemiSky); hemi.groundColor.copy(pal.hemiGround); hemi.intensity = pal.hemiI;
-  sun.color.copy(pal.sunLight); sun.intensity = pal.sunI; sun.position.copy(pal.sunDir).normalize();
+  sun.color.copy(pal.sunLight).lerp(moodSun, mk * 0.6); sun.intensity = pal.sunI; sun.position.copy(pal.sunDir).normalize();
   for (const c of clouds) c.material.color.copy(pal.cloud);
   // announce a new land when it clearly takes over
   const d = dominant(_wp);
@@ -1800,9 +1993,13 @@ function updateVisuals(dt) {
     tmp.set(P.vel.x, 0, P.vel.z);
     if (tmp.lengthSq() > 9) tmp.normalize(); else tmp.copy(fwd);
     tmp.lerp(fwd, 0.2).normalize();
-    camDir.lerp(tmp, 1 - Math.exp(-3.2 * dt)).normalize();
+    camDir.lerp(tmp, 1 - Math.exp(-1.7 * dt)).normalize();
+    // look direction leads the camera: velocity heading plus a turn anticipation
+    const ang = Math.atan2(tmp.x, tmp.z) - clamp(P.yawRate, -2, 2) * 0.22, la = Math.atan2(camDir.x, camDir.z);
+    let dA = Math.atan2(Math.sin(ang - la), Math.cos(ang - la)); dA = clamp(dA, -0.32, 0.32);
+    lookAng = lerp(lookAng, dA, 1 - Math.exp(-3 * dt));
     // offset-based follow: the camera keeps its place relative to the rider at any speed
-    const dist = S.camDist * (1 + sf * 0.15), height = 3.1 + (P.grounded ? 0 : 0.6) + (P.tuck ? -0.3 : 0);
+    const dist = S.camDist * (1 + sf * 0.12), height = 4.4 + (P.grounded ? 0 : 0.8) + (P.tuck ? -0.4 : 0);
     tmp2.copy(camDir).multiplyScalar(-dist); tmp2.y = height;
     camOff.lerp(tmp2, 1 - Math.exp(-7 * dt));
     camBaseY += (P.pos.y - camBaseY) * (1 - Math.exp(-14 * dt));
@@ -1812,12 +2009,13 @@ function updateVisuals(dt) {
     const rumble = sf * sf * 0.045 + shake;
     if (rumble > 0) { camera.position.x += (Math.random() - 0.5) * rumble; camera.position.y += (Math.random() - 0.5) * rumble; }
     shake = Math.max(0, shake - dt * 1.5);
-    lookSm.set(P.pos.x + camDir.x * 30, camBaseY + 0.4, P.pos.z + camDir.z * 30);
+    const lAng = Math.atan2(camDir.x, camDir.z) + lookAng;
+    lookSm.set(P.pos.x + Math.sin(lAng) * 40, camBaseY + 0.6, P.pos.z + Math.cos(lAng) * 40);
     camera.lookAt(lookSm);
     camera.rotateZ(clamp(P.yawRate, -1.5, 1.5) * 0.05 * sf);
   }
   dashPunch = Math.max(0, dashPunch - dt * 2.2);
-  const fov = (portrait ? 70 : 56) + (started ? sf * 20 * S.fovKick + dashPunch * 8 : 0);
+  const fov = (portrait ? 66 : 54) + (started ? sf * 18 * S.fovKick + dashPunch * 8 : 0);
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = lerp(camera.fov, fov, 1 - Math.exp(-6 * dt)); applyLens(); }
   sky.position.copy(camera.position);
 
@@ -1883,7 +2081,7 @@ function updateVisuals(dt) {
   const dp = dustGeo.attributes.position.array;
   for (let i = 0; i < DUST_N; i++) {
     const d = dust[i];
-    if (d.life > 0) { d.life -= dt; d.v.y -= 6 * dt; d.v.multiplyScalar(1 - 1.8 * dt); d.p.addScaledVector(d.v, dt); if (d.life <= 0) d.p.y = -9999; }
+    if (d.life > 0) { d.life -= dt; d.v.y -= 6 * dt; d.v.multiplyScalar(1 - 0.6 * dt); d.p.addScaledVector(d.v, dt); if (d.life <= 0) d.p.y = -9999; }
     dp[i * 3] = d.p.x; dp[i * 3 + 1] = d.p.y; dp[i * 3 + 2] = d.p.z;
   }
   dustGeo.attributes.position.needsUpdate = true;
@@ -1985,16 +2183,30 @@ const sfx = (() => {
     init,
     toggle() { on = !on; if (master) master.gain.value = on ? 0.8 : 0; return on; },
     resume() { if (ctx && ctx.state === 'suspended') ctx.resume(); },
-    update(speed, grinding, stream, bike) {
+    update(speed, grinding, stream, kind) {
+      const bike = kind !== 'board', low = kind === 'sidecar' ? 0.72 : 1;
       if (!ctx) return; const now = ctx.currentTime;
       windGain.gain.setTargetAtTime(0.04 + clamp(speed / 80, 0, 1) * 0.42 + (stream ? 0.08 : 0), now, 0.15);
       bp.frequency.setTargetAtTime(220 + speed * 20, now, 0.15);
       grindGain.gain.setTargetAtTime(grinding ? 0.045 : 0, now, 0.05);
-      eng.a.frequency.setTargetAtTime(30 + speed * 0.75, now, 0.1); eng.b.frequency.setTargetAtTime(15 + speed * 0.38, now, 0.1);
+      eng.a.frequency.setTargetAtTime((30 + speed * 0.75) * low, now, 0.1); eng.b.frequency.setTargetAtTime((15 + speed * 0.38) * low, now, 0.1);
       eng.lfo.frequency.setTargetAtTime(5 + speed * 0.13, now, 0.1); eng.lp.frequency.setTargetAtTime(180 + speed * 5, now, 0.1);
       eng.g.gain.setTargetAtTime(bike ? 0.05 + clamp(speed / 110, 0, 1) * 0.05 : 0, now, 0.2); eng.lg.gain.setTargetAtTime(bike ? 0.035 : 0, now, 0.2);
     },
     land(v) { burst(180, 0.8, 0.25, 0.25 + v * 0.5); },
+    boom(v) { burst(90, 0.6, 1.4, 0.9 * v); burst(260, 0.7, 0.5, 0.5 * v); },
+    whistle(dur) {
+      if (!ctx) return; const now = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(1500 + Math.random() * 300, now); o.frequency.exponentialRampToValueAtTime(420, now + dur);
+      g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.025, now + dur * 0.6); g.gain.linearRampToValueAtTime(0, now + dur);
+      o.connect(g); g.connect(master); o.start(now); o.stop(now + dur + 0.05);
+    },
+    alarm() {
+      if (!ctx) return; const now = ctx.currentTime;
+      [0, 0.18].forEach((dl, i) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'square'; o.frequency.value = i ? 620 : 780;
+        g.gain.setValueAtTime(0.0, now + dl); g.gain.linearRampToValueAtTime(0.035, now + dl + 0.01); g.gain.linearRampToValueAtTime(0, now + dl + 0.15);
+        o.connect(g); g.connect(master); o.start(now + dl); o.stop(now + dl + 0.2); });
+    },
     jump() { burst(700, 1.2, 0.18, 0.18, 1600); },
     dash() { burst(500, 0.9, 0.5, 0.45, 2600); },
     ping(k) {
@@ -2030,7 +2242,7 @@ function toast(main, sub, ms = 1100) {
   if (sub) { const s = document.createElement('small'); s.textContent = sub; el.append(s); }
   el.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('on'), ms);
 }
-const hudSpd = $('#spd'), hudGauge = $('#gaugeFill'), gaugeBox = $('#gauge'), btnDash = $('#btnDash');
+const hudSpd = $('#spd'), hudGauge = $('#gaugeFill'), gaugeBox = $('#gauge'), btnDash = $('#btnDash'), warnEl = $('#warn'), vigEl = $('#vignette'), hullEl = [...document.querySelectorAll('#hull i')];
 let hudTick = 0, distSave = 0;
 function updateHud() {
   if (++hudTick % 3) return;
@@ -2128,7 +2340,10 @@ $('#btnMenu').addEventListener('click', () => {
 $('#menuClose').addEventListener('click', () => closeSheet('#menuSheet'));
 $('#menuTune').addEventListener('click', () => { $('#menuSheet').hidden = true; buildTune(); openSheet('#tuneSheet'); });
 $('#menuSound').addEventListener('click', (e) => { const on = sfx.toggle(); e.currentTarget.textContent = on ? '音：オン' : '音：オフ'; });
-$('#menuRespawn').addEventListener('click', () => { respawn(); closeSheet('#menuSheet'); });
+$('#menuRespawn').addEventListener('click', () => { clearShells(); respawn(); P.hull = 3; P.dead = false; closeSheet('#menuSheet'); });
+const shellsBtn = $('#menuShells'); const setShellsLabel = () => { shellsBtn.textContent = shellsOn ? '砲撃：オン' : '砲撃：オフ'; }; setShellsLabel();
+shellsBtn.addEventListener('click', () => { shellsOn = !shellsOn; store.set('windlover.shells', shellsOn); if (!shellsOn) clearShells(); setShellsLabel(); });
+$('#overRetry').addEventListener('click', retry);
 $('#tuneReset').addEventListener('click', () => { S = { ...VEHICLES[vehKey].defaults }; saveS(); buildTune(); });
 $('#tuneClose').addEventListener('click', () => closeSheet('#tuneSheet'));
 
@@ -2138,10 +2353,10 @@ $('#btnGo').addEventListener('click', () => {
   try { navigator.wakeLock && navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
   placeAt(0, 0, startPose(), S.minSpeed); last = performance.now();
   const hint = $('#hint'); hint.hidden = false;
-  hint.innerHTML = isTouch ? '左半分をドラッグ　上で前傾・下で少しゆるめる<br>右のボタンでジャンプ（長押しで滑空）とダッシュ' : 'A・D 曲がる　W 前傾　S ゆるめる　S＋A・D ドリフト<br>Space ジャンプ・長押しで滑空　Shift ダッシュ　R 立て直す';
+  hint.innerHTML = isTouch ? '左半分をドラッグ　上で前傾・下でブレーキ・下＋左右でドリフト<br>右のボタンでジャンプ（長押しで滑空）とダッシュ' : 'A・D 曲がる　W 前傾　S ブレーキ　S＋A・D ドリフト<br>Space ジャンプ・長押しで滑空　Shift ダッシュ　R 立て直す';
   setTimeout(() => { hint.style.opacity = 0; }, 7000);
   if (isTouch) $('#pad').hidden = false;
-  toast('止まらずに、行けるところまで', '地平線の遺構を目指してみてください', 2800);
+  toast('止まるな', '遅いほど砲撃は近くに落ちる', 2800);
 });
 
 const stickBase = $('#stickBase'), stickKnob = $('#stickKnob');
@@ -2199,8 +2414,8 @@ function frame(now) {
     const sub = clamp(Math.ceil(P.vel.length() * dt / 1.4), dt > 0.022 ? 2 : 1, 5);
     for (let i = 0; i < sub; i++) stepPhysics(dt / sub);
     updateWind(); updateChunks(false); updatePalette(dt, false);
-    sfx.update(P.vel.length(), !!P.grind, P.inStream, vehKey === 'bike');
-    updateHud(); updateRadar(dt);
+    sfx.update(P.vel.length(), !!P.grind, P.inStream, vehKey);
+    updateHud(); updateRadar(dt); updateThreat(dt);
   }
   updateVisuals(paused ? 0 : dt);
   if (window.__wlCam) window.__wlCam(camera, player); // inspection hook for close-ups
@@ -2209,6 +2424,6 @@ function frame(now) {
 setVehicle(vehKey); applyLens();
 P.pos.set(0, 0, 0); updateChunks(true); placeAt(0, 0, startPose(), 0); updatePalette(0, true); refreshCards();
 requestAnimationFrame(frame);
-window.__wl = { P, inp, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
+window.__wl = { P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
 })();
 </script>
