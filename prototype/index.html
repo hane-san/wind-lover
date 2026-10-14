@@ -122,6 +122,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .label { color: var(--muted); letter-spacing: 0.14em; }
 .worlds { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 @media (max-width: 560px) { .worlds { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.worlds .world:first-child { grid-column: 1 / -1; }
 .world { border: 1.5px solid transparent; border-radius: 12px; padding: 0; overflow: hidden; background: rgba(255, 255, 255, 0.06); text-align: left; display: grid; }
 .world[aria-pressed="true"] { border-color: var(--accent); }
 .world .sw { height: 40px; }
@@ -276,6 +277,57 @@ const BIOMES = {
     concrete: 0xd8d4c8, wall: 0xf0ece4, roof: 0x7c8a8f, dome: 0xc9a64a, dust: 0xe6e2cf, cloud: 0xffffff, leaf: 0xd8c25a, tuft: 0x8c9a58, wood: false,
     road: 0x5c5e5f, marks: ['shukhov', 'tatlin', 'saucer', 'monolith', 'gates', 'rocket', 'colossus', 'dish', 'panel'], monus: ['bust', 'figure', 'obelisk', 'mosaicwall'],
   },
+  fergana: {
+    name: 'フェルガナの畑と峠', sub: '山あいに綿花と麦の畑、ポプラ並木の街道',
+    skyTop: 0x6f9ccc, skyHor: 0xf0e6cf, skyBot: 0xd8d0b0, sunCol: 0xfff0d0, sunDir: [1, 0.2, 0],
+    hemiSky: 0xeef0e8, hemiGround: 0x7d8656, hemiI: 0.95, sunI: 0.85, sunLight: 0xfff2dc,
+    low: 0x8ea860, high: 0xb9b07a, rock: 0x9a8a72, shore: 0xd6caa4, water: 0x6f9fb0,
+    terrain: { amp: 30, ridge: 45, off: 10, swell: 1 }, fields: 1,
+    dens: { monu: 0.5, village: 1.0, poplar: 1.8, apricot: 1.0, mosque: 0.25, pylons: 0.5, busstop: 0.5, sovblock: 0.2, factory: 0.1 },
+    concrete: 0xd9cfb8, wall: 0xe8dcc4, roof: 0x8a6a4a, dome: 0x2a9fa8, dust: 0xe2d6b4, cloud: 0xffffff, leaf: 0x7f9a4a, tuft: 0x8f9a5a, wood: false,
+    road: 0x5c5e5f, marks: ['minaret', 'niche', 'hand', 'monolith', 'rings'], monus: ['bust', 'balbal', 'obelisk'],
+  },
+  issyk: {
+    name: 'イシク・クルの青', sub: '雪の山並みに抱かれた真っ青な湖と、廃れた保養地',
+    skyTop: 0x2e6ad0, skyHor: 0xd6e6f2, skyBot: 0x9fbdd8, sunCol: 0xffffff, sunDir: [1, 0.3, 0],
+    hemiSky: 0xe2eef8, hemiGround: 0x6f8070, hemiI: 1.0, sunI: 0.85, sunLight: 0xfffaf0,
+    low: 0x9fb070, high: 0xe8ecf0, rock: 0x7f7d7a, shore: 0xdcd2b0, water: 0x1d5fae,
+    terrain: { amp: 34, ridge: 40, off: -46, swell: 0.5 },
+    dens: { monu: 0.5, sovblock: 0.5, yurt: 0.5, fir: 0.5, birch: 0.3, pier: 0.7, ship: 0.5, busstop: 0.2, flags: 0.2 },
+    concrete: 0xe2dccd, wall: 0xf0ece4, roof: 0x7c8a8f, dome: 0x4f9a8e, dust: 0xe6e2d0, cloud: 0xffffff, leaf: 0xd5b856, tuft: 0x8c9a58, wood: false,
+    road: 0x5c5e5f, marks: ['rings', 'gates', 'colossus', 'monolith', 'saucer'], monus: ['balbal', 'figure', 'mosaicwall'],
+  },
+  kyzylkum: {
+    name: 'キジルクムの砂漠遺跡', sub: '崩れた城塞と、青いタイルのドームが残る砂の海',
+    skyTop: 0x8aa6c8, skyHor: 0xf4e8d0, skyBot: 0xe6d4a8, sunCol: 0xfff0d8, sunDir: [1, 0.25, 0],
+    hemiSky: 0xf8f0e0, hemiGround: 0xa08a5a, hemiI: 0.95, sunI: 0.95, sunLight: 0xfff0dc,
+    low: 0xdcc28a, high: 0xe8d6a8, rock: 0xb8955e, shore: 0xe6dcc0, water: 0x7fa6a8,
+    terrain: { amp: 16, ridge: 10, off: 6, swell: 5 },
+    dens: { monu: 0.6, fortress: 0.45, madrasa: 0.35, kaltaminor: 0.3, mausoleum: 0.3, minaret: 0.3, saxaul: 1.6, yurt: 0.1 },
+    concrete: 0xd9c9a8, wall: 0xe8dcc4, roof: 0x8a6a4a, dome: 0x2b6fb3, dust: 0xead8a8, cloud: 0xfff8ee, leaf: 0x8a9670, tuft: 0xb8a670, wood: false,
+    road: 0xa8916a, marks: ['minaret', 'dome', 'gate', 'cubes', 'rings', 'niche'], monus: ['obelisk', 'balbal'],
+  },
+  pamir: {
+    name: 'パミールの渓谷', sub: '黒い岩が切り立つ、荒々しい峡谷の道',
+    skyTop: 0x2a55a8, skyHor: 0xc9d3dc, skyBot: 0x9aa3ad, sunCol: 0xffffff, sunDir: [1, 0.35, 0],
+    hemiSky: 0xdde6f0, hemiGround: 0x5a544c, hemiI: 0.9, sunI: 0.9, sunLight: 0xffffff,
+    low: 0x6f675a, high: 0xd8d8d4, rock: 0x4f4842, shore: 0x8a8274, water: 0x5f8f9a,
+    terrain: { amp: 120, ridge: 210, off: 50, swell: 0.5 },
+    dens: { monu: 0.3, village: 0.4, poplar: 0.4, pylons: 0.3, flags: 0.2 },
+    adobe: [0x6e665c, 0x7a7266, 0x5f5850, 0x8a8478],
+    concrete: 0xb8b4ac, wall: 0xd8d2c6, roof: 0x5a5048, dome: 0x4f8a8a, dust: 0xbab4a8, cloud: 0xffffff, leaf: 0x8a9a5a, tuft: 0x7a7a5a, wood: false,
+    road: 0x5c5e5f, marks: ['niche', 'monolith', 'dish', 'tatlin', 'hand'], monus: ['balbal', 'obelisk'],
+  },
+  aktau: {
+    name: 'アクタウの港', sub: 'カスピの海霧、錆びた船とクレーン、灯台を載せた団地',
+    skyTop: 0x8a96b8, skyHor: 0xe2dde0, skyBot: 0xc6c0c4, sunCol: 0xffe8e0, sunDir: [1, 0.18, 0],
+    hemiSky: 0xe8e4ec, hemiGround: 0x8a8070, hemiI: 0.95, sunI: 0.7, sunLight: 0xfff0e8,
+    low: 0xc9b88f, high: 0xd9cba6, rock: 0xb7a888, shore: 0xe2d6b6, water: 0x5d8f9e,
+    terrain: { amp: 24, ridge: 18, off: -30, swell: 0.5 },
+    dens: { monu: 0.6, sovblock: 1.3, lighthouse: 0.15, crane: 0.5, ship: 0.6, pumpjack: 1.3, pylons: 0.5, lamps: 1, fence: 0.6, busstop: 0.4, bus: 0.3 },
+    concrete: 0xdcd4c4, wall: 0xf0ece4, roof: 0x7c8a8f, dome: 0x4f9a8e, dust: 0xe6dcc4, cloud: 0xf4eef2, leaf: 0xb8a670, tuft: 0x9a9a6a, wood: false,
+    road: 0x5c5e5f, marks: ['saucer', 'dish', 'gates', 'monolith', 'rings', 'rocket'], monus: ['mosaicwall', 'obelisk', 'figure'],
+  },
   tianshan: {
     name: '天山の峠道', sub: '尾根を貫いて登る、果てしない山道と洞門',
     skyTop: 0x3a6fc0, skyHor: 0xdfe8ef, skyBot: 0xc8d4dc, sunCol: 0xffffff, sunDir: [-0.2, 0.55, 0.6],
@@ -337,11 +389,11 @@ const BIOMES = {
     road: 0xc9d1d8, marks: ['monolith', 'tatlin', 'shukhov', 'dish', 'colossus'], monus: ['khachkar', 'figure', 'obelisk'],
   },
 };
-const BKEYS = ['soviet', 'village', 'azure', 'steppe', 'dusk', 'snow', 'tianshan'], NB = BKEYS.length;
+const BKEYS = ['soviet', 'village', 'azure', 'steppe', 'dusk', 'snow', 'tianshan', 'fergana', 'issyk', 'kyzylkum', 'pamir', 'aktau'], NB = BKEYS.length;
 let biomeMode = store.get('windlover.world4', 'journey');
 if (biomeMode !== 'journey' && !BIOMES[biomeMode]) biomeMode = 'journey';
 const toRGB = (h) => { const c = new THREE.Color(h); return [c.r, c.g, c.b]; };
-const PAL = BKEYS.map((k) => { const b = BIOMES[k]; return { low: toRGB(b.low), high: toRGB(b.high), rock: toRGB(b.rock), shore: toRGB(b.shore) }; });
+const PAL = BKEYS.map((k) => { const b = BIOMES[k]; return { low: toRGB(b.low), high: toRGB(b.high), rock: toRGB(b.rock), shore: toRGB(b.shore), water: toRGB(b.water || 0x6f9fbf), fields: b.fields || 0 }; });
 
 // ---------------------------------------------------------------- noise
 function hash(ix, iy, seed) {
@@ -365,23 +417,27 @@ function biomeW(x, z, out) {
   if (biomeMode !== 'journey') { out[BKEYS.indexOf(biomeMode)] = 1; return out; }
   return journeyW(x, z, out);
 }
-const BI = (k) => BKEYS.indexOf(k);
-const mountainBelt = (x, z) => (1 - smooth(1500, 3300, Math.abs(z))) * smooth(1500, 5500, x);
 const lowlandZone = (z) => smooth(1800, 3600, Math.abs(z));
+// the journey east, told in chapters per lane (metres from home); after the first loop it keeps varying
+const LANES = {
+  north: [[0, 'soviet'], [4000, 'steppe'], [15000, 'aktau'], [33000, 'steppe'], [42000, 'dusk'], [52000, 'steppe'], [60000, 'aktau']],
+  centre: [[0, 'soviet'], [3500, 'fergana'], [15000, 'tianshan'], [34000, 'pamir'], [50000, 'tianshan'], [60000, 'fergana']],
+  south: [[0, 'soviet'], [4000, 'village'], [9000, 'issyk'], [20000, 'kyzylkum'], [38000, 'issyk'], [50000, 'kyzylkum'], [60000, 'village']],
+};
+const BIX = {}; BKEYS.forEach((k, i) => { BIX[k] = i; });
+const BI = (k) => BIX[k];
+const BLEND = 1600;
+function laneW(list, x, scale, out) {
+  const xx = x < 64000 ? x : 4000 + ((x - 4000) % 60000);
+  let i = 0; while (i < list.length - 1 && list[i + 1][0] <= xx) i++;
+  const k = i > 0 ? smooth(list[i][0], list[i][0] + BLEND, xx) : 1;
+  out[BIX[list[i][1]]] += scale * k;
+  if (i > 0) out[BIX[list[i - 1][1]]] += scale * (1 - k);
+}
 function journeyW(x, z, out) {
-  const belt = mountainBelt(x, z), soviet = 1 - smooth(2500, 14000, x);
-  // lowlands beyond the Soviet fringe: a slow patchwork of village, steppe, salt lakes and birch hills
-  const a = smooth(0.38, 0.62, vnoise(x / 2600 + 11.3, z / 2600 - 7.1, 501)), b = smooth(0.38, 0.62, vnoise(x / 2600 - 23.7, z / 2600 + 5.9, 502));
-  const rest = (1 - belt) * (1 - soviet);
-  out[BI('soviet')] = (1 - belt) * soviet;
-  out[BI('village')] = rest * (1 - a) * (1 - b) + rest * a * b * 0.5;
-  out[BI('steppe')] = rest * a * (1 - b);
-  out[BI('dusk')] = rest * (1 - a) * b;
-  out[BI('azure')] = rest * a * b * 0.5 * (1 - smooth(8000, 20000, x));
-  out[BI('village')] += rest * a * b * 0.5 * smooth(8000, 20000, x);
-  out[BI('tianshan')] = belt;
-  let sum = 0; for (let i = 0; i < NB; i++) sum += out[i];
-  for (let i = 0; i < NB; i++) out[i] /= sum || 1;
+  const c = 1 - smooth(1500, 3300, Math.abs(z)), side = 1 - c;
+  laneW(LANES.centre, x, c, out);
+  laneW(z > 0 ? LANES.north : LANES.south, x, side, out);
   return out;
 }
 function cellW(x, z, out) {
@@ -765,7 +821,16 @@ function buildChunkTerrain(ch) {
     const slope = 1 - ny / nl, nn = vnoise(x * 0.02, z * 0.02, 99);
     const th = clamp((y - off + amp * 0.3) / (amp * 1.6) + (nn - 0.5) * 0.35, 0, 1);
     const tr = clamp((slope - 0.12) * 3.2, 0, 1), ts = y < WATER + 2.5 ? clamp((WATER + 2.5 - y) / 2.5, 0, 1) : 0;
-    const shadeK = 0.92 + nn * 0.16;
+    let shadeK = 0.92 + nn * 0.16;
+    let fw = 0; for (let b = 0; b < NB; b++) if (w[b] && PAL[b].fields) fw += w[b] * PAL[b].fields;
+    if (fw > 0.02 && y > WATER + 1.5) {
+      // rotated strip fields: cotton, wheat, green rows, ploughed earth
+      const ca = 0.5, fx = x * Math.cos(ca) + z * Math.sin(ca), fz = -x * Math.sin(ca) + z * Math.cos(ca);
+      const id = hash(Math.floor(fx / 80), Math.floor(fz / 34), 31), F = FIELD_COLS[id * FIELD_COLS.length | 0];
+      const kf = fw * 0.82 * (1 - tr);
+      for (let k = 0; k < 3; k++) { c[k] = lerp(c[k], F[k], kf); hi[k] = lerp(hi[k], F[k], kf); }
+      if ((Math.floor(fz / 2.2) & 1) && id > 0.5) shadeK *= 1 - 0.08 * kf; // furrows
+    }
     for (let k = 0; k < 3; k++) {
       let v2 = lerp(c[k], hi[k], th); v2 = lerp(v2, rk[k], tr); v2 = lerp(v2, sh[k], ts);
       col[v * 3 + k] = v2 * shadeK;
@@ -822,6 +887,12 @@ function buildChunkHighway(ch) {
   }
   if (!lines.length) return;
   const ASPH = new THREE.Color(0x56585a), PAINT = new THREE.Color(0xe8e6de), CONC = 0xc4c0b6, CONC_D = 0xa9a59c;
+  // a portal is a frame: a heavy lintel over the opening and a pier each side, never a wall across the road
+  const portal = (c, yaw) => {
+    const sn = Math.sin(yaw + Math.PI / 2), cs = Math.cos(yaw + Math.PI / 2);
+    st.add(G.box, M(c[0], c[1] + 13, c[2], yaw, HW_HALF * 2 + 10, 4.5, 2.4), 0x9d988d);
+    for (const sd of [-1, 1]) st.add(G.box, M(c[0] + sn * sd * (HW_HALF + 3), c[1] + 6, c[2] + cs * sd * (HW_HALF + 3), yaw, 4, 16, 2.4), 0x9d988d);
+  };
   const quad = (m, a, b, c, d, k) => { for (const v of [a, b, c, c, b, d]) { m.p.push(v[0], v[1], v[2]); m.c.push(k.r, k.g, k.b); } };
   for (const pts of lines) {
     const n = pts.length, dk = pts.map(([x, z]) => deckAt(x, z) + 0.25), raw = pts.map(([x, z]) => rawHeight(x, z));
@@ -856,13 +927,13 @@ function buildChunkHighway(ch) {
         const segL = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]) + 0.3;
         for (const sd of [-1, 1]) {
           const w = at(i, sd * (HW_HALF + 1.2)), w2 = at(i + 1, sd * (HW_HALF + 1.2)), wm = [(w[0] + w2[0]) / 2, (w[2] + w2[2]) / 2];
-          if (deep || sd < 0) st.add(G.box, M(wm[0], mid[1] + 5, wm[1], yaw, 1.4, 10, segL), 0xb9b4a8);
+          if (deep || sd < 0) st.add(G.box, M(wm[0], mid[1] + 5, wm[1], yaw, 1.4, 10, segL), deep ? 0x5e5b56 : 0xb9b4a8);
           else if (i % 2 === 0) st.add(G.box, M(wm[0], mid[1] + 5, wm[1], yaw, 1.4, 10, 2.2), 0xb9b4a8);
         }
-        st.add(G.box, M(mid[0], mid[1] + 10.6, mid[2], yaw, HW_HALF * 2 + 4, 1.4, segL), deep ? 0xa8a397 : 0xb4afa3);
+        st.add(G.box, M(mid[0], mid[1] + 10.6, mid[2], yaw, HW_HALF * 2 + 4, 1.4, segL), deep ? 0x4f4c48 : 0xb4afa3);
         if (i % 3 === 0) st.add(G.box, M(mid[0], mid[1] + 9.7, mid[2], yaw, 6, 0.25, 1.2), 0xfff0c4);
-        if (gal === 1 || cutDepth <= 22) st.add(G.box, M(mid[0], mid[1] + 6, mid[2], yaw, HW_HALF * 2 + 8, 14, 2), 0x9d988d);
-      } else if (gal) { const c0 = at(i, 0), yaw = Math.atan2(nrm[i][2], nrm[i][3]); st.add(G.box, M(c0[0], dk[i] + 6, c0[2], yaw, HW_HALF * 2 + 8, 14, 2), 0x9d988d); gal = 0; }
+        if (gal === 1) portal(mid, yaw);
+      } else if (gal) { const c0 = at(i, 0); portal([c0[0], dk[i], c0[2]], Math.atan2(nrm[i][2], nrm[i][3])); gal = 0; }
     }
   }
   if (deckM.p.length) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(deckM.p, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(deckM.c, 3)); g.computeVertexNormals(); ch.group.add(new THREE.Mesh(g, roadMat)); }
@@ -1064,7 +1135,7 @@ function buildChunkProps(ch, rng) {
       const y = heightAt(x, z); if (y < WATER + 1 || roadDist(x, z) < 10) continue;
       if (ch.colliders.some((c) => Math.hypot(c.x - x, c.z - z) < Math.max(c.hw, c.hd) + 6)) continue;
       const yaw = cyaw + (rng() < 0.5 ? 0 : Math.PI / 2) + (rng() - 0.5) * 0.1, B = M(x, y - 0.5, z, yaw);
-      const w = 6 + rng() * 5, d = 6 + rng() * 3, h = 3 + rng() * 0.8, wall = ADOBE[rng() * 4 | 0], blue = rng() < 0.6 ? 0x2f5fa8 : 0x2a9fa8;
+      const w = 6 + rng() * 5, d = 6 + rng() * 3, h = 3 + rng() * 0.8, wall = (T.adobe || ADOBE)[rng() * 4 | 0], blue = rng() < 0.6 ? 0x2f5fa8 : 0x2a9fa8;
       solid.part(B, G.box, 0, h / 2, 0, w, h, d, wall);
       solid.part(B, G.box, 0, h + 0.12, 0, w + 0.5, 0.25, d + 0.5, 0x8a6a4a);
       for (let k = 0; k < 4; k++) solid.part(B, G.cyl, -w / 2 + 1 + k * (w - 2) / 3, h - 0.3, d / 2 + 0.3, 0.09, 0.8, 0.09, 0x6b4f36, 0, Math.PI / 2);
@@ -1170,6 +1241,96 @@ function buildChunkProps(ch, rng) {
     },
   };
   for (let i = countOf(rng, D.monu * (biomeMode === 'journey' ? 0.6 + 1.6 * smooth(3000, 25000, ch.x0) : 1)); i > 0; i--) { const sp = pickSpot(rng, ch, 0.9, 10); if (sp && T.monus) MONU[T.monus[rng() * T.monus.length | 0]](sp); }
+  const shoreSpot = () => {
+    for (let t = 0; t < 60; t++) {
+      const x = ch.x0 + 20 + rng() * (CH - 40), z = ch.z0 + 20 + rng() * (CH - 40), h = heightAt(x, z);
+      if (h < WATER + 0.3 || h > WATER + 4 || roadDist(x, z) < 12 || highway(x, z).d < HW_HALF + 30) continue;
+      let best = null, bh = Infinity;
+      for (let k = 0; k < 8; k++) { const a = k / 8 * TAU, hh = heightAt(x + Math.sin(a) * 45, z + Math.cos(a) * 45); if (hh < bh) { bh = hh; best = a; } }
+      if (bh < WATER - 2) return { x, z, y: Math.max(h, WATER), a: best };
+    }
+    return null;
+  };
+  const fortress = (sp) => {
+    // a mud-brick citadel: long eroded walls, round towers, gaps where the years broke through
+    const yaw = rng() * TAU, B = M(sp.x, sp.y - 1, sp.z, yaw), W2 = 36 + rng() * 14, D2 = 26 + rng() * 10, brick = 0xc9a878;
+    const wall = (x0, z0, x1, z1) => {
+      const L = Math.hypot(x1 - x0, z1 - z0), n = Math.max(2, Math.round(L / 12)), ry = Math.atan2(x1 - x0, z1 - z0);
+      for (let i = 0; i < n; i++) {
+        const u = (i + 0.5) / n, x = lerp(x0, x1, u), z = lerp(z0, z1, u), h = 8 + rng() * 4;
+        if (rng() < 0.18) continue;
+        solid.part(B, G.box, x, h / 2, z, 3.2, h, L / n + 0.2, shade(brick, 0.92 + rng() * 0.12), ry);
+        solid.part(B, G.cyl, x, (h + 2) / 2, z, 3.4, h + 2, 3.4, shade(brick, 0.95));
+        const c = Math.cos(yaw), sn = Math.sin(yaw); addCollider(sp.x + x * c + z * sn, sp.z - x * sn + z * c, yaw + ry, 1.8, L / n / 2 + 0.2, sp.y - 2, sp.y - 1 + h);
+      }
+    };
+    wall(-W2, -D2, W2, -D2); wall(W2, -D2, W2, D2); wall(W2, D2, -W2, D2); wall(-W2, D2, -W2, -D2);
+    solid.part(B, G.box, 0, 0.5, 0, W2 * 1.6, 1, D2 * 1.6, shade(brick, 1.06));
+    ch.motes.push(new V3(sp.x, sp.y + 14, sp.z)); ch.cands.push(new V3(sp.x, sp.y + 2, sp.z));
+  };
+  const madrasa = (sp) => {
+    const yaw = rng() * TAU, B = M(sp.x, sp.y - 0.6, sp.z, yaw), BLUE = 0x2b6fb3, TEAL = 0x2fa3b0, FRAME = 0x6aa8c8, BR = 0xc9a87a;
+    solid.part(B, G.box, 0, 7, -12, 34, 14, 26, BR);
+    solid.part(B, G.box, 0, 13, 2, 22, 26, 4, BLUE); solid.part(B, G.box, 0, 13, 2.1, 23, 27, 3.6, FRAME);
+    solid.part(B, G.box, 0, 9, 4.1, 9, 16, 0.4, 0x24324a); solid.part(B, G.half, 0, 17, 4.1, 4.5, 4, 0.35, 0x24324a);
+    for (const sx of [-1, 1]) { solid.part(B, G.cyl, sx * 12, 14, 2, 1.4, 28, 1.4, TEAL); solid.part(B, G.half, sx * 12, 28, 2, 1.6, 1.8, 1.6, BLUE); }
+    solid.part(B, G.cyl, 0, 16, -14, 8, 4, 8, BR); solid.part(B, G.half, 0, 18, -14, 8.6, 10, 8.6, TEAL);
+    for (let k = 0; k < 12; k++) { const a = k / 12 * TAU; solid.part(B, G.box, Math.cos(a) * 8.4, 21, -14 + Math.sin(a) * 8.4, 0.5, 6, 0.5, BLUE, -a); }
+    addCollider(sp.x, sp.z, yaw, 17, 15, sp.y - 2, sp.y + 14);
+    ch.motes.push(new V3(sp.x, sp.y + 32, sp.z));
+  };
+  const kaltaminor = (sp) => {
+    // the fat unfinished minaret, banded in glazed tile
+    const B = M(sp.x, sp.y - 0.5, sp.z, 0), bands = [0x2b6fb3, 0x3fb0c0, 0xe8e2d0, 0x2f8f9a, 0x1f5a9a, 0x6ac0c8];
+    for (let i = 0; i < 6; i++) solid.part(B, G.cyl, 0, 2 + i * 4, 0, 7.4 - i * 0.25, 4, 7.4 - i * 0.25, bands[i]);
+    solid.part(B, G.cyl, 0, 24.5, 0, 6.2, 1, 6.2, 0xc9a87a);
+    addCollider(sp.x, sp.z, 0, 7.2, 7.2, sp.y - 2, sp.y + 24);
+    ch.motes.push(new V3(sp.x, sp.y + 30, sp.z));
+  };
+  const crane = (sp) => {
+    const B = M(sp.x, sp.y - 0.3, sp.z, sp.a), RED = 0xb8473c, WH = 0xe2dccf;
+    for (const [lx, lz] of [[-5, -4], [5, -4], [-5, 4], [5, 4]]) solid.part(B, G.box, lx, 9, lz, 0.9, 18, 0.9, RED);
+    solid.part(B, G.box, 0, 18.5, 0, 12, 2, 10, WH); solid.part(B, G.box, 0, 26, 0, 3, 14, 3, RED);
+    solid.part(B, G.box, 0, 33, 14, 2, 2, 40, RED, 0, -0.12); solid.part(B, G.box, 0, 30, -8, 5, 3, 6, WH);
+    addCollider(sp.x, sp.z, sp.a, 6, 5, sp.y - 2, sp.y + 18);
+  };
+  const ship = (sp) => {
+    // a rusting hull, listing at its last mooring
+    const x = sp.x + Math.sin(sp.a) * 40, z = sp.z + Math.cos(sp.a) * 40, B = M(x, WATER - 1.5, z, sp.a + 1.3, 1, 1, 1, 0, 0.07), RUST = 0x6e4a36, WH = 0xd8d2c4;
+    solid.part(B, G.box, 0, 2.5, 0, 9, 6, 42, RUST); solid.part(B, G.box, 0, 0.8, 22, 5, 4.5, 6, RUST, 0.3);
+    solid.part(B, G.box, 0, 7.5, -12, 8, 5, 10, WH); solid.part(B, G.box, 0, 11, -13, 6, 3, 6, WH); solid.part(B, G.cyl, 0, 15, -16, 1.2, 6, 1.2, 0x2a2c30);
+    for (let k = 0; k < 3; k++) solid.part(B, G.box, 4.52, 3 + k, -8 + k * 9, 0.05, 1.5, 3, 0x8a5a3a);
+    addCollider(x, z, sp.a + 1.3, 4.5, 21, WATER - 3, WATER + 5);
+  };
+  const pier = (sp) => {
+    const B = M(sp.x, WATER, sp.z, sp.a), L = 50 + rng() * 40;
+    for (let d = 4; d < L; d += 8) { solid.part(B, G.cyl, -2, -1, d, 0.25, 4, 0.25, 0x4a3c30); solid.part(B, G.cyl, 2, -1, d, 0.25, 4, 0.25, 0x4a3c30); }
+    solid.part(B, G.box, 0, 1, L / 2, 4.6, 0.3, L, 0x8a7458);
+    if (rng() < 0.6) solid.part(B, G.box, 0, 2.6, L - 3, 3, 3, 3, 0xcfc8b8);
+  };
+  const pumpjack = (sp) => {
+    const B = M(sp.x, sp.y - 0.2, sp.z, rng() * TAU), BL = 0x4f6a7a, k = rng() * 0.5 - 0.25;
+    solid.part(B, G.box, 0, 0.5, 0, 2.4, 1, 9, 0x6f6a64);
+    for (const sx of [-1, 1]) solid.part(B, G.box, sx * 0.8, 3.2, 0, 0.35, 6, 0.35, BL, 0, 0, sx * 0.18);
+    solid.part(B, G.box, 0, 6.3, 0, 0.7, 0.8, 9, BL, 0, k); solid.part(B, G.box, 0, 6.3 - Math.sin(k) * 4.5, 4.6, 0.8, 2.4, 0.8, BL, 0, k);
+    solid.part(B, G.cyl, 0, 1.6, -3.4, 1.4, 0.5, 1.4, 0x8a5a3a, 0, Math.PI / 2);
+  };
+  const lighthouse = (sp) => {
+    // a residential block with a lighthouse on its roof
+    const yaw = rng() * TAU, B = M(sp.x, sp.y - 1, sp.z, yaw), H = 16 * 2.8 + 0.8, w = 30, d = 12;
+    solid.part(B, G.box, 0, H / 2, 0, w, H, d, 0xe8e2d6);
+    for (let f = 1; f < 16; f++) solid.part(B, G.box, 0, f * 2.8 + 0.4, 0, w + 0.06, 0.12, d + 0.06, 0xc9c4b8);
+    for (let i = 0; i < 5; i++) solid.part(B, G.cyl, 0, H + 2 + i * 3, 0, 2.2 - i * 0.12, 3, 2.2 - i * 0.12, i % 2 ? 0xf0ece4 : 0xc0392b);
+    solid.part(B, G.cyl, 0, H + 17, 0, 1.4, 2, 1.4, 0xfff0c0);
+    addCollider(sp.x, sp.z, yaw, w / 2, d / 2, sp.y - 2, sp.y - 1 + H);
+    ch.motes.push(new V3(sp.x, sp.y + H + 22, sp.z));
+  };
+  place(D.fortress, fortress, 0.9, 40); place(D.madrasa, madrasa, 0.9, 20); place(D.kaltaminor, kaltaminor, 0.9, 12);
+  place(D.pumpjack, pumpjack, 0.85, 8); place(D.lighthouse, lighthouse, 0.9, 14);
+  grove(D.saxaul, (x, z) => { if (highway(x, z).d < HW_HALF + 8) return; const y = heightAt(x, z); if (y < WATER + 0.5) return; solid.add(G.ico, M(x, y + 0.6, z, rng() * TAU, 1.4 + rng(), 0.8 + rng() * 0.5, 1.4 + rng()), shade(0x8a9670, 0.85 + rng() * 0.25)); });
+  for (let i = countOf(rng, D.crane); i > 0; i--) { const sp = shoreSpot(); if (sp) crane(sp); }
+  for (let i = countOf(rng, D.ship); i > 0; i--) { const sp = shoreSpot(); if (sp) ship(sp); }
+  for (let i = countOf(rng, D.pier); i > 0; i--) { const sp = shoreSpot(); if (sp) pier(sp); }
   place(D.sovblock, sovblock, 0.92, 10); place(D.stela, stela); place(D.factory, factory, 0.9, 16); place(D.village, village, 0.85, 30); place(D.mosque, mosque);
   for (let i = countOf(rng, D.poplar); i > 0; i--) poplarRow();
   const inChunk = (x, z) => x >= ch.x0 && x < ch.x0 + CH && z >= ch.z0 && z < ch.z0 + CH;
@@ -1552,6 +1713,7 @@ const FAR = 7600, FAR_SEG = LOWQ ? 76 : 104;
 const farMat = new THREE.MeshLambertMaterial({ vertexColors: true });
 let farMesh = null, farKey = null;
 const WATER_RGB = toRGB(0x6f9fbf);
+const FIELD_COLS = [0x7f9a4e, 0xa9a35a, 0xe9e5d8, 0x9c7d58, 0x6f8f3e, 0xc8b46a, 0x8aa25a].map(toRGB);
 function buildFar(cx, cz) {
   const n = FAR_SEG, step = FAR / n, x0 = cx - FAR / 2, z0 = cz - FAR / 2, nv = (n + 1) * (n + 1);
   const pos = new Float32Array(nv * 3), col = new Float32Array(nv * 3), w = newW();
@@ -1561,7 +1723,8 @@ function buildFar(cx, cz) {
     biomeW(x, z, w); let amp = 0, off = 0; const lo = [0, 0, 0], hi = [0, 0, 0];
     for (let b = 0; b < NB; b++) { if (!w[b]) continue; const t = BIOMES[BKEYS[b]].terrain, p = PAL[b]; amp += w[b] * t.amp; off += w[b] * t.off; for (let k = 0; k < 3; k++) { lo[k] += w[b] * p.low[k]; hi[k] += w[b] * p.high[k]; } }
     const th = clamp((h - off + amp * 0.3) / (amp * 1.6), 0, 1);
-    for (let k = 0; k < 3; k++) col[v * 3 + k] = wet ? WATER_RGB[k] : lerp(lo[k], hi[k], th) * 0.97;
+    if (wet) { const wc = [0, 0, 0]; for (let b = 0; b < NB; b++) if (w[b]) for (let k = 0; k < 3; k++) wc[k] += w[b] * PAL[b].water[k]; for (let k = 0; k < 3; k++) col[v * 3 + k] = wc[k]; }
+    else for (let k = 0; k < 3; k++) col[v * 3 + k] = lerp(lo[k], hi[k], th) * 0.97;
   }
   const idx = [];
   // cut out every quad that lies wholly on loaded detail chunks, so the coarse ring never pokes through
@@ -2619,6 +2782,7 @@ function updatePalette(dt, snap) {
   scene.fog.near = lerp(420, 900, altK); scene.fog.far = lerp(2700, 4600, altK);
   rangeMat.color.setScalar(0.62); rangeMat.emissive.copy(scene.fog.color).multiplyScalar(0.42 - altK * 0.12);
   hemi.color.copy(pal.hemiSky); hemi.groundColor.copy(pal.hemiGround); hemi.intensity = pal.hemiI;
+  { let r = 0, g = 0, bl = 0; for (let i = 0; i < NB; i++) { const w = _wp[i]; if (!w) continue; r += PAL[i].water[0] * w; g += PAL[i].water[1] * w; bl += PAL[i].water[2] * w; } waterMat.color.setRGB(r, g, bl); }
   sun.color.copy(pal.sunLight).lerp(moodSun, mk * 0.6); sun.intensity = pal.sunI; sun.position.copy(pal.sunDir).normalize();
   for (const c of clouds) c.material.color.copy(pal.cloud);
   for (const c of cloudSea) { c.material.color.copy(pal.cloud).lerp(moodHor, 0.3); c.material.opacity = altK * 0.85; c.visible = altK > 0.02; }
