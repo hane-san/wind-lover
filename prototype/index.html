@@ -65,6 +65,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   font-size: 12px; font-weight: 700; letter-spacing: 0.2em; color: #ffd6c8; white-space: nowrap;
   padding: 3px 10px; border-top: 1px solid #e0573d; border-bottom: 1px solid #e0573d; background: rgba(120, 30, 20, 0.28); text-shadow: var(--shadow);
 }
+#grain { position: fixed; inset: -20px; z-index: 2; pointer-events: none; opacity: 0.075; mix-blend-mode: overlay; background-size: 160px 160px; }
+#warmth { position: fixed; inset: 0; z-index: 2; pointer-events: none; background: radial-gradient(ellipse at 50% 42%, rgba(255, 240, 220, 0) 55%, rgba(92, 66, 44, 0.22) 100%), linear-gradient(180deg, rgba(255, 236, 214, 0.06), rgba(255, 220, 190, 0.08)); }
+#flash { position: fixed; inset: 0; z-index: 3; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0) 45%, rgba(255, 252, 240, 0.85) 100%); }
 #vignette { position: fixed; inset: 0; z-index: 3; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at 50% 55%, rgba(0, 0, 0, 0) 52%, rgba(170, 36, 20, 0.55) 100%); }
 #toast {
   position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 22%); transform: translateX(-50%);
@@ -160,6 +163,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 </div>
 <div id="warn" hidden></div>
 <div id="vignette"></div>
+<div id="flash"></div>
+<div id="grain"></div>
+<div id="warmth"></div>
 <div id="radar" aria-label="探し物の信号" hidden><div id="radarArrow"></div><span id="radarDist">—</span></div>
 <button id="btnMenu" type="button" aria-label="メニュー">
   <svg width="22" height="16" viewBox="0 0 22 16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M2 2h18M2 8h18M2 14h12"/></svg>
@@ -183,7 +189,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <p>重い鉄のサイドカーで、果てのない土地を走り続けてください。道と追い風に乗り、地平線の遺構と信号を目指します。</p>
     <div class="row" id="vehCards"></div>
     <div class="worlds" id="worldCards"></div>
-    <p>左半分をドラッグして操作します。上に倒すと前傾して加速、下に倒すとブレーキ、下に倒しながら曲げるとドリフト。右のボタンはジャンプ（長押しで滑空）。最高速のまま段差に突っ込むと、長く滑空できます。遅いほど砲撃が近くに落ち、止まると集中砲撃を受けます。</p>
+    <p>画面をドラッグして操作します。上に倒すと前傾して加速、下に倒すとブレーキ、下に倒しながら曲げるとドリフト。最高速のまま段差に突っ込むと長く滑空し、越えられる障害物は自動で跳び越えます。高すぎるものにぶつかれば激突です。遅いほど砲撃が近くに落ち、止まると集中砲撃を受けます。</p>
     <div class="row"><button class="go" id="btnGo" type="button">走りはじめる</button><span class="label">縦画面推奨・音が出ます</span></div>
   </div>
 </section>
@@ -209,7 +215,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 
 <section class="sheet" id="overSheet" hidden>
   <div class="card">
-    <div class="eyebrow">集中砲撃</div>
+    <div class="eyebrow" id="overCause">集中砲撃</div>
     <h2>旅はここで途切れた</h2>
     <p id="overText"></p>
     <div class="row"><button class="go" id="overRetry" type="button">もう一度走る</button></div>
@@ -245,19 +251,19 @@ const LOWQ = isTouch;
 // ---------------------------------------------------------------- settings
 // resp: how quickly the heading answers the bars (lower = heavier)
 const VEHICLES = {
-  sidecar: { name: 'サイドカー', hover: 1.0, grip: 4.2, accel: 17, lean: 0.06, resp: 5.2, defaults: { maxSpeed: 155, cruise: 72, minSpeed: 0, inertia: 1.6, tailwind: 8, gravity: 30, glide: 0.66, turn: 1.0, jump: 13, camDist: 17, fovKick: 1.1, auto: true } },
-  bike: { name: 'チョッパー', hover: 1.0, grip: 4.5, accel: 18, lean: 0.55, resp: 7, defaults: { maxSpeed: 145, cruise: 66, minSpeed: 0, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 1.0, jump: 14, camDist: 16, fovKick: 1.1, auto: true } },
-  board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 10, defaults: { maxSpeed: 115, cruise: 48, minSpeed: 0, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 13, fovKick: 1.1, auto: true } },
+  sidecar: { name: 'サイドカー', hover: 1.0, grip: 4.2, accel: 17, lean: 0.06, resp: 5.2, defaults: { maxSpeed: 155, cruise: 72, minSpeed: 0, inertia: 1.6, tailwind: 8, gravity: 30, glide: 0.66, turn: 1.0, jump: 13, camDist: 19, fovKick: 1.1, auto: true } },
+  bike: { name: 'チョッパー', hover: 1.0, grip: 4.5, accel: 18, lean: 0.55, resp: 7, defaults: { maxSpeed: 145, cruise: 66, minSpeed: 0, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 1.0, jump: 14, camDist: 18, fovKick: 1.1, auto: true } },
+  board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 10, defaults: { maxSpeed: 115, cruise: 48, minSpeed: 0, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 15, fovKick: 1.1, auto: true } },
 };
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
 };
 let vehKey = store.get('windlover.vehicle4', 'sidecar'); if (!VEHICLES[vehKey]) vehKey = 'sidecar';
-const allS = store.get('windlover.settings.v7', {}) || {};
+const allS = store.get('windlover.settings.v8', {}) || {};
 const loadS = () => ({ ...VEHICLES[vehKey].defaults, ...(allS[vehKey] || {}) });
 let S = loadS();
-const saveS = () => { allS[vehKey] = S; store.set('windlover.settings.v7', allS); };
+const saveS = () => { allS[vehKey] = S; store.set('windlover.settings.v8', allS); };
 
 // ---------------------------------------------------------------- biomes
 const BIOMES = {
@@ -267,9 +273,9 @@ const BIOMES = {
     hemiSky: 0xe8eef0, hemiGround: 0x8e9274, hemiI: 1.0, sunI: 0.62, sunLight: 0xfff4e6,
     low: 0xaeb08c, high: 0xc8c19e, rock: 0x9c9a92, shore: 0xd2cdb6,
     terrain: { amp: 20, ridge: 6, off: 2, swell: 3.2 },
-    dens: { sovblock: 1.8, busstop: 0.8, stela: 0.25, factory: 0.3, church: 0.1, birch: 1.3, pylons: 0.4, lamps: 1, fence: 1, bus: 0.35, watertower: 0.25 },
+    dens: { monu: 0.9, sovblock: 1.8, busstop: 0.8, stela: 0.25, factory: 0.3, church: 0.1, birch: 1.3, pylons: 0.4, lamps: 1, fence: 1, bus: 0.35, watertower: 0.25 },
     concrete: 0xd8d4c8, wall: 0xf0ece4, roof: 0x7c8a8f, dome: 0xc9a64a, dust: 0xe6e2cf, cloud: 0xffffff, leaf: 0xd8c25a, tuft: 0x8c9a58, wood: false,
-    road: 0x5c5e5f, marks: ['tower', 'rocket', 'panel'],
+    road: 0x5c5e5f, marks: ['tower', 'rocket', 'panel', 'colossus', 'head', 'dish'], monus: ['bust', 'figure', 'obelisk', 'mosaicwall'],
   },
   village: {
     name: '中央アジアの田舎町', sub: '日干し煉瓦の家、ポプラ並木、青い扉',
@@ -277,9 +283,9 @@ const BIOMES = {
     hemiSky: 0xeaf0f8, hemiGround: 0x8f7a56, hemiI: 0.9, sunI: 0.9, sunLight: 0xfff0d8,
     low: 0xb8a878, high: 0xc9b58c, rock: 0xa08a6a, shore: 0xd8ccaa,
     terrain: { amp: 16, ridge: 70, off: 4, swell: 2.8 },
-    dens: { village: 1.3, poplar: 1.2, apricot: 0.6, mosque: 0.3, mausoleum: 0.12, minaret: 0.12, busstop: 0.3, yurt: 0.1, flags: 0.1 },
+    dens: { monu: 0.6, village: 1.3, poplar: 1.2, apricot: 0.6, mosque: 0.3, mausoleum: 0.12, minaret: 0.12, busstop: 0.3, yurt: 0.1, flags: 0.1 },
     concrete: 0xd9c9a8, wall: 0xe8dcc4, roof: 0x8a6a4a, dome: 0x2a9fa8, dust: 0xe2d4b0, cloud: 0xffffff, leaf: 0x7f9a4a, tuft: 0xa59a62, wood: false,
-    road: 0xa8916a, marks: ['minaret', 'dome', 'gate'],
+    road: 0xa8916a, marks: ['minaret', 'dome', 'gate', 'niche', 'hand'], monus: ['balbal', 'bust', 'obelisk'],
   },
   azure: {
     name: '青空と廃団地', sub: '東欧の団地と仏塔が混ざる丘陵',
@@ -287,9 +293,9 @@ const BIOMES = {
     hemiSky: 0xd8ecff, hemiGround: 0x6e7d55, hemiI: 0.9, sunI: 0.8, sunLight: 0xfff4e2,
     low: 0x8fae5c, high: 0xc8c17c, rock: 0x9a958a, shore: 0xd9cfa3,
     terrain: { amp: 50, ridge: 22, off: 0, swell: 4 },
-    dens: { panel: 0.9, church: 0.35, stupa: 0.15, pagoda: 0.06, mausoleum: 0.06, minaret: 0.12, yurt: 0, birch: 1.2, fir: 0, pylons: 0.3, flags: 0, aqueduct: 0.1 },
+    dens: { monu: 0.6, panel: 0.9, church: 0.35, stupa: 0.15, pagoda: 0.06, mausoleum: 0.06, minaret: 0.12, yurt: 0, birch: 1.2, fir: 0, pylons: 0.3, flags: 0, aqueduct: 0.1 },
     concrete: 0xd8d4c8, wall: 0xf0ece4, roof: 0x7c8a8f, dome: 0x4f9a8e, dust: 0xe9e3c6, cloud: 0xffffff, leaf: 0xd5b856, tuft: 0x7f9c50, wood: false,
-    road: 0x606264, marks: ['panel', 'tower', 'stupa'],
+    road: 0x606264, marks: ['panel', 'tower', 'stupa', 'cathedral', 'colossus'], monus: ['khachkar', 'bust', 'figure'],
   },
   steppe: {
     name: '草原の仏塔', sub: 'ゆるやかな起伏が続くステップ',
@@ -297,9 +303,9 @@ const BIOMES = {
     hemiSky: 0xe9f0ff, hemiGround: 0x8a7a48, hemiI: 0.9, sunI: 0.85, sunLight: 0xfff0d6,
     low: 0xc2b06a, high: 0xa99e5e, rock: 0x9b8667, shore: 0xe2d6a8,
     terrain: { amp: 26, ridge: 8, off: 4, swell: 5 },
-    dens: { panel: 0.12, church: 0.05, stupa: 0.4, pagoda: 0, mausoleum: 0.2, minaret: 0.2, yurt: 0.8, birch: 0.15, fir: 0, pylons: 0.12, flags: 0.25, aqueduct: 0 },
+    dens: { monu: 0.7, panel: 0.12, church: 0.05, stupa: 0.4, pagoda: 0, mausoleum: 0.2, minaret: 0.2, yurt: 0.8, birch: 0.15, fir: 0, pylons: 0.12, flags: 0.25, aqueduct: 0 },
     concrete: 0xd9d0bc, wall: 0xefe8d8, roof: 0x8a7f6a, dome: 0x2aa3a6, dust: 0xe6d9ae, cloud: 0xffffff, leaf: 0xc9b04a, tuft: 0xa89a54, wood: false,
-    road: 0xa3946a, marks: ['stupa', 'gate', 'dome'],
+    road: 0xa3946a, marks: ['stupa', 'gate', 'dome', 'niche', 'head'], monus: ['balbal', 'balbal', 'obelisk'],
   },
   dusk: {
     name: '黄昏の塩湖', sub: '水辺に水道橋とミナレットが残る',
@@ -307,9 +313,9 @@ const BIOMES = {
     hemiSky: 0xffd2b0, hemiGround: 0x5b4a5a, hemiI: 0.78, sunI: 1.0, sunLight: 0xffc28a,
     low: 0xe6d8c4, high: 0xc9a98a, rock: 0x8c7468, shore: 0xf2e9dc,
     terrain: { amp: 22, ridge: 14, off: -8, swell: 4 },
-    dens: { panel: 0.25, church: 0.12, stupa: 0.06, pagoda: 0, mausoleum: 0.15, minaret: 0.3, yurt: 0, birch: 0.2, fir: 0, pylons: 0.2, flags: 0, aqueduct: 0.25 },
+    dens: { monu: 0.5, panel: 0.25, church: 0.12, stupa: 0.06, pagoda: 0, mausoleum: 0.15, minaret: 0.3, yurt: 0, birch: 0.2, fir: 0, pylons: 0.2, flags: 0, aqueduct: 0.25 },
     concrete: 0xd8c4b2, wall: 0xeedccb, roof: 0x6f5a5a, dome: 0x3e8f95, dust: 0xf4e6d6, cloud: 0xffc6a8, leaf: 0xb7894f, tuft: 0xbfa98e, wood: false,
-    road: 0x8d7f72, marks: ['gate', 'dome', 'tower'],
+    road: 0x8d7f72, marks: ['gate', 'dome', 'tower', 'hand', 'cathedral'], monus: ['obelisk', 'figure', 'khachkar'],
   },
   snow: {
     name: '雪の峠', sub: '木造教会と針葉樹の雪原',
@@ -317,9 +323,9 @@ const BIOMES = {
     hemiSky: 0xe6f2ff, hemiGround: 0x8d9bb0, hemiI: 1.0, sunI: 0.75, sunLight: 0xffffff,
     low: 0xf1f5f9, high: 0xffffff, rock: 0x8f98a4, shore: 0xeef2f6,
     terrain: { amp: 85, ridge: 32, off: 40, swell: 5.5 },
-    dens: { panel: 0.25, church: 0.35, stupa: 0.06, pagoda: 0.12, mausoleum: 0, minaret: 0, yurt: 0, birch: 0.3, fir: 1.4, pylons: 0.25, flags: 0.08, aqueduct: 0 },
+    dens: { monu: 0.5, panel: 0.25, church: 0.35, stupa: 0.06, pagoda: 0.12, mausoleum: 0, minaret: 0, yurt: 0, birch: 0.3, fir: 1.4, pylons: 0.25, flags: 0.08, aqueduct: 0 },
     concrete: 0xcfd3d8, wall: 0x6b4a35, roof: 0x4a3426, dome: 0x3d2c22, dust: 0xffffff, cloud: 0xffffff, leaf: 0xdfe8ee, tuft: 0xc9d3dc, wood: true,
-    road: 0xc9d1d8, marks: ['tower', 'stupa', 'panel'],
+    road: 0xc9d1d8, marks: ['tower', 'stupa', 'panel', 'dish', 'colossus'], monus: ['khachkar', 'figure', 'obelisk'],
   },
 };
 const BKEYS = ['soviet', 'village', 'azure', 'steppe', 'dusk', 'snow'], NB = BKEYS.length;
@@ -455,7 +461,8 @@ const skyMat = new THREE.ShaderMaterial({
   vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: `uniform vec3 top; uniform vec3 hor; uniform vec3 bot; uniform vec3 sunCol; uniform vec3 sunDir; varying vec3 vDir;
     void main(){ vec3 d = normalize(vDir); float h = d.y; vec3 c = h > 0.0 ? mix(hor, top, pow(clamp(h,0.0,1.0), 0.55)) : mix(hor, bot, clamp(-h*4.0,0.0,1.0));
-    float s = max(dot(d, normalize(sunDir)), 0.0); c += sunCol * (pow(s, 900.0) * 1.4 + pow(s, 14.0) * 0.22);
+    float s = max(dot(d, normalize(sunDir)), 0.0); c += sunCol * (pow(s, 900.0) * 1.4 + pow(s, 14.0) * 0.22 + pow(s, 3.0) * 0.07);
+    c = mix(c, hor * 1.04 + sunCol * 0.04, exp(-abs(h) * 16.0) * 0.55);
     gl_FragColor = vec4(c, 1.0); }`,
   side: THREE.BackSide, depthWrite: false,
 });
@@ -977,6 +984,53 @@ function buildChunkProps(ch, rng) {
     }
   };
   grove(D.birch, birch); grove(D.fir, fir); grove(D.apricot, apricot);
+  const MONU = {
+    bust: (sp) => {
+      const B = M(sp.x, sp.y - 0.4, sp.z, rng() * TAU), c = rng() < 0.5 ? 0x6f8a7e : 0xcac4b8;
+      solid.part(B, G.box, 0, 2.25, 0, 3, 4.5, 3, 0xb8b3a8); solid.part(B, G.box, 0, 4.7, 0, 3.4, 0.4, 3.4, 0xc4bfb4);
+      solid.part(B, G.box, 0, 5.7, 0, 4.2, 1.6, 2, c); solid.part(B, G.cyl, 0, 6.8, 0, 0.6, 0.8, 0.6, c); solid.part(B, G.ico, 0, 8.0, 0, 1.25, 1.6, 1.4, c);
+      addCollider(sp.x, sp.z, 0, 1.7, 1.7, sp.y - 2, sp.y + 4.9);
+    },
+    figure: (sp) => {
+      const B = M(sp.x, sp.y - 0.4, sp.z, rng() * TAU), c = rng() < 0.5 ? 0x6f8a7e : 0xd2cdc2;
+      solid.part(B, G.box, 0, 1.5, 0, 5, 3, 5, 0xb8b3a8);
+      solid.part(B, G.taper8, 0, 7.5, 0, 1.7, 9, 1.4, c); solid.part(B, G.box, 0, 12.3, 0, 3.4, 1, 1.4, c); solid.part(B, G.ico, 0, 13.5, 0, 0.8, 1, 0.9, c);
+      solid.part(B, G.box, 1.9, 14.2, 0.4, 0.5, 5, 0.5, c, 0, -0.3, -0.35);
+      addCollider(sp.x, sp.z, 0, 2.5, 2.5, sp.y - 2, sp.y + 3);
+      ch.motes.push(new V3(sp.x, sp.y + 18, sp.z));
+    },
+    obelisk: (sp) => {
+      const B = M(sp.x, sp.y - 0.4, sp.z, rng() * TAU);
+      solid.part(B, G.box, 0, 1, 0, 6, 2, 6, 0xb8b3a8);
+      solid.part(B, G.taper, 0, 15, 0, 2.4, 26, 2.4, 0xd6d2c8, Math.PI / 4);
+      for (let i = 0; i < 3; i++) solid.part(B, G.box, 0, 6 + i * 5, 0, 2.3 - i * 0.35, 0.5, 2.3 - i * 0.35, 0xb7a172);
+      addCollider(sp.x, sp.z, 0, 3, 3, sp.y - 2, sp.y + 27);
+    },
+    balbal: (sp) => {
+      // Turkic stone figures standing in a loose row on the steppe
+      const n = 3 + (rng() * 4 | 0), yaw = rng() * TAU;
+      for (let i = 0; i < n; i++) {
+        const x = sp.x + Math.sin(yaw + 1.57) * (i - n / 2) * 3.2, z = sp.z + Math.cos(yaw + 1.57) * (i - n / 2) * 3.2, y = heightAt(x, z), B = M(x, y - 0.2, z, yaw + (rng() - 0.5) * 0.4, 1, 1, 1, (rng() - 0.5) * 0.12, (rng() - 0.5) * 0.12);
+        const h = 1.4 + rng() * 0.8, st = shade(0x9c968a, 0.9 + rng() * 0.2);
+        solid.part(B, G.box, 0, h / 2, 0, 0.75, h, 0.45, st); solid.part(B, G.ico, 0, h + 0.3, 0, 0.42, 0.5, 0.36, st);
+        solid.part(B, G.box, 0, h + 0.3, 0.33, 0.4, 0.08, 0.04, 0x5f5a50); solid.part(B, G.box, 0, h - 0.35, 0.24, 0.5, 0.25, 0.04, shade(st, 0.85));
+      }
+    },
+    khachkar: (sp) => {
+      // a carved stone cross-slab on a plinth
+      const B = M(sp.x, sp.y - 0.2, sp.z, rng() * TAU), tuff = shade(0xb89a82, 0.9 + rng() * 0.2);
+      solid.part(B, G.box, 0, 0.3, 0, 1.8, 0.6, 0.9, 0x9a948a); solid.part(B, G.box, 0, 1.95, 0, 1.3, 2.7, 0.32, tuff);
+      solid.part(B, G.box, 0, 2.0, 0.18, 0.16, 1.5, 0.06, shade(tuff, 0.75)); solid.part(B, G.box, 0, 2.3, 0.18, 0.9, 0.16, 0.06, shade(tuff, 0.75));
+      for (let i = 0; i < 3; i++) solid.part(B, G.box, -0.45 + i * 0.45, 0.85, 0.18, 0.18, 0.18, 0.05, shade(tuff, 0.8));
+    },
+    mosaicwall: (sp) => {
+      const yaw = rng() * TAU, B = M(sp.x, sp.y - 0.4, sp.z, yaw);
+      solid.part(B, G.box, 0, 3.4, 0, 11, 6.8, 0.6, 0xc9c4ba); solid.part(B, G.box, 0, 0.3, 0, 12, 0.6, 1.6, 0xb8b3a8);
+      addMosaic(B, 0, 3.6, 0.31, 0, 10, 5.6, rng() * 4 | 0); addMosaic(B, 0, 3.6, -0.31, Math.PI, 10, 5.6, rng() * 4 | 0);
+      addCollider(sp.x, sp.z, yaw, 5.6, 0.5, sp.y - 2, sp.y + 6.4);
+    },
+  };
+  for (let i = countOf(rng, D.monu); i > 0; i--) { const sp = pickSpot(rng, ch, 0.9, 10); if (sp && T.monus) MONU[T.monus[rng() * T.monus.length | 0]](sp); }
   place(D.sovblock, sovblock, 0.92, 10); place(D.stela, stela); place(D.factory, factory, 0.9, 16); place(D.village, village, 0.85, 30); place(D.mosque, mosque);
   for (let i = countOf(rng, D.poplar); i > 0; i--) poplarRow();
   const inChunk = (x, z) => x >= ch.x0 && x < ch.x0 + CH && z >= ch.z0 && z < ch.z0 + CH;
@@ -1126,18 +1180,19 @@ function disposeGroup(g) {
 }
 
 // ---------------------------------------------------------------- landmarks: giant ruins on the horizon
-const RG = 2600, landmarks = new Map();
+const RG = 2000, landmarks = new Map();
 let lastRX = null, lastRZ = null;
 function buildLandmark(rx, rz) {
   const L = { key: rx + ',' + rz, group: new THREE.Group(), colliders: [], rails: [], streams: [], updrafts: [], motes: [], finds: [], mat: null, x: 0, z: 0 };
   landmarks.set(L.key, L);
   const rng = mulberry(seedOf(rx, rz, 9));
-  if (rng() < 0.15) return;
+  if (rng() < 0.1) return;
   let x = (rx + 0.2 + rng() * 0.6) * RG, z = (rz + 0.2 + rng() * 0.6) * RG;
   const d0 = Math.hypot(x, z); if (d0 < 700) { const k = 700 / Math.max(d0, 1); x = d0 < 1 ? 700 : x * k; z *= k; }
   L.x = x; L.z = z; CUR = L;
   const dom = BKEYS[dominant(biomeW(x, z, newW()))]; T = BIOMES[dom];
-  const type = T.marks[rng() * 3 | 0], yaw = rng() * TAU;
+  const type = T.marks[rng() * T.marks.length | 0], yaw = rng() * TAU;
+  L.type = type;
   const gy = Math.max(heightAt(x, z), WATER) - 3, B = M(x, gy, z, yaw), m = new Merger();
   let top = 80, rad = 30;
   const col = (lx, lz, hw, hd, bottom, topY) => { const c = Math.cos(yaw), s = Math.sin(yaw); addCollider(x + lx * c + lz * s, z - lx * s + lz * c, yaw, hw, hd, gy + bottom, gy + topY); };
@@ -1164,6 +1219,70 @@ function buildLandmark(rx, rz) {
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) m.part(B, G.cyl, sx * 34, 35, sz * 34, 3, 70, 3, 0xc8a77e);
     col(0, 0, 30, 34, -5, 40); col(0, 0, 20, 20, -5, 75);
     top = 81; rad = 40;
+  } else if (type === 'colossus') {
+    // a faceless robed giant, one arm raised with a ring
+    const st = 0xd2cdc2;
+    m.part(B, G.box, 0, 5, 0, 34, 10, 34, 0xbdb8ad); m.part(B, G.box, 0, 10.6, 0, 30, 1.2, 30, 0xc9c4b9);
+    m.part(B, G.taper8, 0, 50, 0, 14, 80, 10, st);
+    m.part(B, G.box, 0, 92, 0, 26, 9, 10, st);
+    m.part(B, G.ico, 0, 103, 0, 6.5, 8.5, 6.5, 0xdcd7cc);
+    m.part(B, G.box, 15, 108, 0, 5, 34, 5, st, 0, 0, -0.35);
+    m.part(B, G.box, -14, 76, 0, 4.5, 30, 4.5, st, 0, 0, 0.12);
+    { const tr = new THREE.TorusGeometry(9, 1.3, 6, 24); m.add(tr, B.clone().multiply(M(22, 130, 0)), 0xc9a64a); tr.dispose(); }
+    col(0, 0, 17, 17, -5, 11); col(0, 0, 7, 5, -5, 96);
+    top = 112; rad = 30;
+  } else if (type === 'head') {
+    // a fallen giant head, half sunk, gazing at the sky
+    const st = 0xc4beb2, Bh = B.clone().multiply(M(0, 14, 0, 0, 1.7, 1.7, 1.7, -0.28, 0.3));
+    m.part(Bh, G.ico, 0, 0, 0, 22, 26, 24, st);
+    m.part(Bh, G.box, 0, -2, 22, 5, 9, 6, st); m.part(Bh, G.box, 0, 9, 20, 24, 3, 4, shade(st, 1.04));
+    for (const sx of [-1, 1]) m.part(Bh, G.box, sx * 8, 5, 19.5, 6, 3, 3, 0x6d685f);
+    m.part(Bh, G.box, 0, -11, 20, 10, 1.6, 3, 0x8e887d);
+    for (let i = 0; i < 5; i++) m.part(B, G.box, (rng() - 0.5) * 50, 1, (rng() - 0.5) * 50, 3 + rng() * 5, 2 + rng() * 3, 3 + rng() * 5, shade(st, 0.9), rng(), rng() * 0.3, rng() * 0.3);
+    col(0, 0, 34, 34, -5, 50);
+    top = 58; rad = 44;
+  } else if (type === 'hand') {
+    // an oxidised hand rising from the ground, a gilded ring held aloft
+    const br = 0x6f8a7e, Bh = B.clone().multiply(M(0, 0, 0, 0, 1, 1, 1, 0.12, 0.08));
+    m.part(Bh, G.taper8, 0, 25, 0, 6.5, 50, 6, br);
+    m.part(Bh, G.box, 0, 58, 0, 17, 18, 6, br);
+    for (let i = 0; i < 4; i++) { const tall = i === 1 || i === 2; m.part(Bh, G.box, -6.3 + i * 4.2, tall ? 78 : 75, 0, 3.6, tall ? 22 : 16, 5, shade(br, 1 + i * 0.03)); }
+    m.part(Bh, G.box, 11, 62, 1, 4, 14, 5, br, 0, 0, -0.75);
+    { const tr = new THREE.TorusGeometry(6, 0.9, 6, 22); m.add(tr, Bh.clone().multiply(M(0, 96, 0)), 0xc9a64a); tr.dispose(); }
+    col(0, 0, 9, 9, -5, 52);
+    top = 82; rad = 18;
+  } else if (type === 'niche') {
+    // a sandstone cliff with a great empty niche where a figure once stood
+    const rock = 0xc2a27c;
+    m.part(B, G.box, 0, 40, 0, 110, 80, 34, rock);
+    for (let i = 0; i < 7; i++) m.part(B, G.box, -50 + i * 16 + (rng() - 0.5) * 6, 80 + rng() * 8, (rng() - 0.5) * 10, 14 + rng() * 12, 8 + rng() * 10, 22 + rng() * 10, shade(rock, 0.92 + rng() * 0.12));
+    m.part(B, G.box, 0, 33, 17.3, 26, 56, 1, 0x4a3a2c);
+    m.part(B, G.half, 0, 61, 17.3, 13, 10, 0.6, 0x4a3a2c);
+    for (let i = 0; i < 9; i++) m.part(B, G.box, (i < 5 ? -1 : 1) * (22 + rng() * 26), 8 + rng() * 50, 17.3, 2.5, 3.5, 0.6, 0x3e3226);
+    col(0, 0, 55, 17, -5, 80);
+    top = 82; rad = 60;
+  } else if (type === 'dish') {
+    // a dead radio telescope staring at nothing
+    m.part(B, G.box, 0, 4, 0, 16, 8, 16, 0x9fa3a6); m.part(B, G.taper, 0, 21, 0, 8, 28, 8, 0xb3b7ba, Math.PI / 4);
+    { const pts = []; for (let i = 0; i <= 10; i++) { const r = i * 3.4; pts.push(new THREE.Vector2(r, r * r / 90)); }
+      const lg = new THREE.LatheGeometry(pts, 22); m.add(lg, B.clone().multiply(M(0, 37, 0, 0, 1, 1, 1, -0.75)), 0xe0e2e2); lg.dispose(); }
+    m.part(B, G.box, 0, 46, 8, 0.8, 24, 0.8, 0x8d9194, 0, -0.75);
+    col(0, 0, 8, 8, -5, 34);
+    top = 56; rad = 36;
+  } else if (type === 'cathedral') {
+    // a vast ruined cathedral, one dome fallen
+    const wall = 0xe8e2d6, dome = 0x5f9a92;
+    m.part(B, G.box, 0, 16, 0, 36, 32, 64, wall); m.part(B, G.prism, 0, 38, 0, 20, 12, 64, 0x8f9a9a);
+    m.part(B, G.cyl, 0, 46, 0, 9, 12, 9, wall); m.part(B, G.onion, 0, 52, 0, 3.4, 3.4, 3.4, dome);
+    let k = 0;
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      m.part(B, G.cyl, sx * 13, 38, sz * 22, 4.5, 8, 4.5, wall);
+      if (k++ === 2) { for (let j = 0; j < 4; j++) m.part(B, G.box, sx * 13 + (rng() - 0.5) * 6, 43 + rng() * 2, sz * 22 + (rng() - 0.5) * 6, 2, 3 + rng() * 3, 2, wall, rng(), 0, rng() * 0.5); }
+      else m.part(B, G.onion, sx * 13, 42, sz * 22, 1.7, 1.7, 1.7, 0xc9a64a);
+    }
+    m.part(B, G.box, 0, 30, 40, 12, 60, 12, wall); m.part(B, G.cyl, 0, 62, 40, 4, 4, 4, wall); m.part(B, G.onion, 0, 64, 40, 1.4, 1.4, 1.4, dome);
+    col(0, 0, 18, 32, -5, 32); col(0, 40, 6, 6, -5, 60);
+    top = 76; rad = 42;
   } else if (type === 'rocket') {
     m.part(B, G.box, 0, 4, 0, 26, 8, 26, 0xb9b4aa); m.part(B, G.box, 0, 9, 0, 16, 2, 16, 0xa9a49a);
     const Bt = B.clone().multiply(M(0, 10, 0, 0, 1, 1, 1, 0.22, 0));
@@ -1189,7 +1308,7 @@ function buildLandmark(rx, rz) {
     col(0, 0, 50, 13, -5, 140);
     top = 150; rad = 50;
   }
-  L.mat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 4, fog: false, emissive: 0x000000 });
+  L.mat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 4, fog: false, emissive: 0x000000, side: THREE.DoubleSide });
   L.group.add(new THREE.Mesh(m.build(), L.mat));
   // an updraft beside it carries you to the find at the top
   const a = rng() * TAU, ux = x + Math.cos(a) * (rad + 16), uz = z + Math.sin(a) * (rad + 16), ub = surfaceAt(ux, uz);
@@ -1573,9 +1692,9 @@ const scarf = new Ribbon(SCARF_N, ribbonMat(0xd9473b, 1, false));
 const TRAIL_N = 60, trailPts = Array.from({ length: TRAIL_N }, () => new V3()); let trailCount = 0;
 const trail = new Ribbon(TRAIL_N, ribbonMat(0xffffff, 0.32, true));
 
-const DUST_N = 260, dust = Array.from({ length: DUST_N }, () => ({ p: new V3(0, -9999, 0), v: new V3(), life: 0 }));
+const DUST_N = 520, dust = Array.from({ length: DUST_N }, () => ({ p: new V3(0, -9999, 0), v: new V3(), life: 0 }));
 const dustGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(DUST_N * 3), 3));
-const dustMat = new THREE.PointsMaterial({ size: 0.5, map: dotTex, transparent: true, depthWrite: false, color: 0xffffff, opacity: 0.8 });
+const dustMat = new THREE.PointsMaterial({ size: 1.1, map: dotTex, transparent: true, depthWrite: false, color: 0xffffff, opacity: 0.55 });
 const dustPts = new THREE.Points(dustGeo, dustMat); dustPts.frustumCulled = false; scene.add(dustPts);
 let dustI = 0;
 function emitDust(p, v, n, spread) {
@@ -1594,7 +1713,7 @@ for (let i = 0; i < LINES; i++) { const a = Math.random() * TAU, r = 2.2 + Math.
 const P = {
   pos: new V3(), vel: new V3(), yaw: 0, n: new V3(0, 1, 0), grounded: false, air: 0, coyote: 0, jumpBuf: 0,
   grind: null, gS: 0, gSpeed: 0, gDir: 1, gSeg: 0, grindCD: 0, gauge: 40, dashCD: 0, inStream: false, inUpdraft: false, onWater: false,
-  motes: 0, hull: 3, braking: false, brakeHeat: 0, danger: 0, stopT: 0, dead: false, invuln: 0, found: foundKeys.size, drift: 0, drifting: false, tuck: false, yawRate: 0, onRoad: false, dist: store.get('windlover.dist4', 0),
+  motes: 0, flow: 0, carve: 0, ajCD: 0, skipT: 0, hull: 3, braking: false, brakeHeat: 0, danger: 0, stopT: 0, dead: false, invuln: 0, found: foundKeys.size, drift: 0, drifting: false, tuck: false, yawRate: 0, onRoad: false, dist: store.get('windlover.dist4', 0),
 };
 let HOVER = VEHICLES[vehKey].hover;
 const fwd = new V3(), fPl = new V3(), side = new V3(), tmp = new V3(), tmp2 = new V3(), UP = new V3(0, 1, 0), windDir = new V3(1, 0, 0);
@@ -1638,11 +1757,10 @@ function stepPhysics(dt) {
 
   if (P.grind) grindStep(dt);
   else {
-    const turn = (P.grounded ? lerp(3.1, 2.1, sf) : 2.1) * S.turn * (P.drifting ? 1.5 : 1) * (P.tuck ? 0.75 : 1);
+    const turn = (P.grounded ? lerp(3.7, 2.6, sf) : 2.2) * S.turn * (P.drifting ? 1.4 : 1) * (P.tuck ? 0.8 : 1);
     P.yawRate += (-steer * turn - P.yawRate) * (1 - Math.exp(-V.resp * (P.drifting ? 1.6 : 1) * dt));
     P.yaw += P.yawRate * dt;
     fwd.set(Math.sin(P.yaw), 0, Math.cos(P.yaw));
-    if (P.jumpBuf > 0 && (P.grounded || P.coyote > 0)) doJump();
 
     if (P.grounded) {
       const n = P.n;
@@ -1655,18 +1773,19 @@ function stepPhysics(dt) {
       if (gf < 0) gf *= 0.7 / S.inertia;
       let vf = P.vel.dot(fPl), vs = P.vel.dot(side);
       vf += gf * dt; vs += gs * dt;
-      const grip = (P.drifting ? 1.3 : V.grip * lerp(1, 0.5, sf)) / S.inertia;
+      const grip = (P.drifting ? 1.3 : V.grip * lerp(1, 0.36, sf)) / S.inertia;
       const nvs = vs * Math.exp(-grip * dt);
       if (vf >= 0) vf += (Math.abs(vs) - Math.abs(nvs)) * (P.drifting ? 0.9 : 0.86); else vf *= Math.exp(-3 * dt);
-      let target = S.auto && !braking && !P.dead ? S.cruise : 0, acc = V.accel * (vf < 12 ? 0.45 : 1); // heavy to get rolling again
-      if (P.tuck) { target = S.cruise * 1.6; acc *= 1.6; }
+      const cruiseNow = S.cruise * (1 + P.flow * 1.3), maxNow = S.maxSpeed * (1 + P.flow * 0.45);
+      let target = S.auto && !braking && !P.dead ? cruiseNow : 0, acc = V.accel * (vf < 12 ? 0.45 : 1); // heavy to get rolling again
+      if (P.tuck) { target = cruiseNow * 1.35; acc *= 1.6; }
       if (vf < target) vf += acc * dt * (1 - clamp(vf / Math.max(target, 1), 0, 1) * 0.5);
       if (braking) vf = Math.max(0, vf - 24 * brakeAmt * dt);
       vf += S.tailwind * Math.max(0, fPl.x * windDir.x + fPl.z * windDir.z) * dt;
       P.onRoad = roadDist(P.pos.x, P.pos.z) < 5;
       if (P.onRoad) vf += 5 * dt;
-      if (vf > S.cruise) vf -= (vf - S.cruise) * (P.onWater ? 0.025 : P.onRoad ? 0.004 : 0.009) * dt;
-      if (vf > S.maxSpeed) vf -= (vf - S.maxSpeed) * 1.5 * dt;
+      if (vf > cruiseNow) vf -= (vf - cruiseNow) * (P.onWater ? 0.02 : P.onRoad ? 0.003 : 0.007) * dt;
+      if (vf > maxNow) vf -= (vf - maxNow) * 1.5 * dt;
       if (vf < S.minSpeed) vf = lerp(vf, S.minSpeed, 1 - Math.exp(-3 * dt));
       if (P.drifting) {
         P.drift += dt;
@@ -1679,13 +1798,19 @@ function stepPhysics(dt) {
         P.drift = 0;
       }
       P.vel.copy(fPl).multiplyScalar(vf).addScaledVector(side, nvs);
+      P.carve = clamp(Math.abs(nvs) / 14 + Math.abs(P.yawRate) * sf * 0.45, 0, 1);
+      if (P.carve > 0.08) for (let k = Math.floor(dt * 160 * P.carve + Math.random()); k > 0; k--)
+        emitDust(tmp.copy(P.pos).addScaledVector(fwd, -0.8 + Math.random() * 1.6).addScaledVector(side, Math.sign(nvs) * -0.6).addScaledVector(UP, -HOVER + 0.15), tmp2.copy(P.vel).multiplyScalar(0.8).addScaledVector(side, -Math.sign(nvs) * (2 + 6 * P.carve)).addScaledVector(UP, 1.5 + 3 * P.carve), 1, 3 + 4 * P.carve);
       if (speed > 20 && Math.random() < dt * 40) emitDust(tmp.copy(P.pos).addScaledVector(fwd, -0.9).addScaledVector(UP, -HOVER + 0.1), tmp2.copy(P.vel).multiplyScalar(0.9), 2, 3);
     } else {
-      const gliding = inp.jumpHeld && P.vel.y < 1 && P.air > 0.12;
+      const gliding = false;
+      P.carve = 0;
       const hsNow = Math.hypot(P.vel.x, P.vel.z);
-      let g = S.gravity * (1 - 0.52 * smooth(35, 125, hsNow)); // air cushion: the faster you fly, the lighter you fall
-      if (P.vel.y > 24) P.vel.y = 24;
-      if (gliding) { g *= 1 - S.glide; if (P.vel.y < -4) P.vel.y += (-4 - P.vel.y) * (1 - Math.exp(-3 * dt)); }
+      // heavy iron in the air: full weight on the way up, then a steady glider-like sink that shrinks with speed
+      let g = S.gravity * 1.2;
+      if (P.vel.y > 22) P.vel.y = 22;
+      const sinkMax = lerp(40, 8.5, smooth(40, 170, hsNow));
+      if (P.vel.y < -sinkMax) P.vel.y += (-sinkMax - P.vel.y) * (1 - Math.exp(-2.6 * dt));
       P.vel.y -= g * dt;
       const hx = P.vel.x, hz = P.vel.z; let hs = Math.hypot(hx, hz);
       if (hs > 0.5) {
@@ -1702,13 +1827,16 @@ function stepPhysics(dt) {
     }
 
     windFields(dt);
-    if (P.vel.length() > S.maxSpeed * 1.35) P.vel.multiplyScalar(1 - 1.5 * dt);
+    autoHop();
+    if (P.vel.length() > S.maxSpeed * 1.6) P.vel.multiplyScalar(1 - 1.5 * dt);
     P.pos.addScaledVector(P.vel, dt);
     collide();
     resolveGround(dt);
     tryGrind();
   }
   P.dist += Math.hypot(P.vel.x, P.vel.z) * dt;
+  P.ajCD -= dt; P.skipT -= dt;
+  if (!P.dead) { if (braking) P.flow = Math.max(0, P.flow - dt * 0.3); else if (speed > S.cruise * 0.8) P.flow = Math.min(1, P.flow + dt / 55); }
   if (!isFinite(P.pos.x + P.pos.y + P.pos.z + P.vel.x + P.vel.y + P.vel.z)) respawn();
   collectMotes(); collectFinds();
   P.gauge = clamp(P.gauge, 0, 100);
@@ -1767,13 +1895,52 @@ function windFields(dt) {
   }
 }
 
+function autoHop() {
+  if (P.ajCD > 0 || P.dead || !(P.grounded || P.coyote > 0)) return;
+  const hs = Math.hypot(P.vel.x, P.vel.z); if (hs < 12) return;
+  const ux = P.vel.x / hs, uz = P.vel.z / hs, feet = P.pos.y - HOVER, reach = hs * 0.6;
+  const near = colliders.filter((c) => !(c.hw < 0.6 && c.hd < 0.6) && Math.hypot(c.x - P.pos.x, c.z - P.pos.z) < reach + Math.max(c.hw, c.hd) + 6);
+  if (!near.length) return;
+  for (let d = 2; d <= reach; d += 2) {
+    const qx = P.pos.x + ux * d, qz = P.pos.z + uz * d; let need = -Infinity;
+    for (const c of near) {
+      if (!inFoot(c, qx, qz, 1.0)) continue;
+      const lz = (qx - c.x) * c.s + (qz - c.z) * c.c, top = c.ramp ? rampH(c, lz) : c.top;
+      if (c.ramp && top - feet < 2.2) continue;
+      if (top <= feet + 1.0 || P.pos.y > top + 0.6) continue;
+      need = Math.max(need, top + 1.8 - feet);
+    }
+    if (need > -Infinity) {
+      const tq = d / hs, vy = need / tq + 0.5 * S.gravity * 1.2 * tq;
+      if (vy > 0 && vy <= 28) { P.vel.y = Math.max(P.vel.y, vy); P.grounded = false; P.air = 0.01; P.coyote = 0; P.ajCD = 0.4; landSquash = -0.3; sfx.jump(); }
+      return;
+    }
+  }
+}
+function nearMiss() {
+  P.flow = Math.min(1, P.flow + 0.05); dashPunch = Math.max(dashPunch, 0.35);
+  flashEl.style.transition = 'none'; flashEl.style.opacity = '0.55';
+  requestAnimationFrame(() => { flashEl.style.transition = 'opacity 0.5s'; flashEl.style.opacity = '0'; });
+  sfx.whoosh();
+}
+function crash() {
+  if (P.dead) return;
+  shake = 1.4; P.vel.multiplyScalar(0.15); P.vel.y = 6; P.grounded = false; P.air = 0.01;
+  tmp.copy(P.pos); emitDust(tmp, tmp2.set(0, 6, 0), 40, 14); sfx.boom(1);
+  if (navigator.vibrate) try { navigator.vibrate([60, 40, 120]); } catch (e) {}
+  die('激突');
+}
 function collide() {
   for (const c of colliders) {
     if (c.hw < 0.6 && c.hd < 0.6) continue; // lamp posts and poles: ride straight through
     const dx = P.pos.x - c.x, dz = P.pos.z - c.z, r = Math.max(c.hw, c.hd) + 4;
     if (dx * dx + dz * dz > r * r * 2) continue;
     let lx = dx * c.c - dz * c.s, lz = dx * c.s + dz * c.c;
-    if (P.pos.y >= (c.ramp ? rampH(c, lz) : c.top) - 1.2 || P.pos.y < c.bottom) continue;
+    const topHere = c.ramp ? rampH(c, lz) : c.top;
+    // near miss: skimming past (or just over) at speed
+    const ox = Math.max(Math.abs(lx) - c.hw, 0), oz = Math.max(Math.abs(lz) - c.hd, 0), od = Math.hypot(ox, oz), hsp = Math.hypot(P.vel.x, P.vel.z);
+    if (hsp > 45 && !P.dead && (c.nm || 0) < t && P.pos.y < topHere + 2.5 && P.pos.y > c.bottom && (od > 0 ? od < 3.2 : P.pos.y > topHere - 0.4)) { c.nm = t + 2.5; nearMiss(); }
+    if (P.pos.y >= topHere - 1.2 || P.pos.y < c.bottom) continue;
     const pad = 0.6;
     const px = c.hw + pad - Math.abs(lx), pz = c.hd + pad - Math.abs(lz);
     if (px <= 0 || pz <= 0) continue;
@@ -1785,6 +1952,8 @@ function collide() {
     if (vn < 0) {
       // scrape and vault: the speed you lose into the wall turns into a slide along it and a hop up it
       const lost = -vn;
+      if (lost > 24) { crash(); return; }
+      P.flow *= 0.6;
       P.vel.x -= vn * nx; P.vel.z -= vn * nz;
       let tx = -nz, tz = nx; if (tx * fwd.x + tz * fwd.z < 0) { tx = -tx; tz = -tz; }
       P.vel.x += tx * lost * 0.4 + nx * lost * 0.12; P.vel.z += tz * lost * 0.4 + nz * lost * 0.12;
@@ -1804,6 +1973,11 @@ function resolveGround(dt) {
     P.pos.y = target; P.n.copy(g.n);
     const vn = P.vel.dot(P.n); if (vn < 0) P.vel.addScaledVector(P.n, -vn);
     P.grounded = true; P.air = 0; P.onWater = g.water;
+    const hsw = Math.hypot(P.vel.x, P.vel.z);
+    if (g.water && hsw > 45 && P.skipT <= 0) {
+      P.vel.y = Math.min(6 + hsw * 0.035, 11); P.grounded = false; P.air = 0.01; P.skipT = 0.55;
+      tmp.copy(P.pos).addScaledVector(UP, -HOVER); emitDust(tmp, tmp2.copy(P.vel).multiplyScalar(0.7).addScaledVector(UP, 4), 16, 7); sfx.splash();
+    }
     if (P.jumpBuf > 0 && !wasG) doJump();
   } else {
     if (wasG) P.coyote = 0.12;
@@ -1918,19 +2092,20 @@ function hitByShell() {
   P.hull--; P.invuln = 1.1; P.vel.multiplyScalar(0.82); P.vel.y += 7; P.grounded = false; P.air = 0.01; shake = 1.2;
   vignette(0.85); sfx.land(1);
   if (navigator.vibrate) try { navigator.vibrate([40, 30, 60]); } catch (e) {}
-  if (P.hull <= 0) die(); else toast('被弾', `装甲 残り${P.hull}`, 1400);
+  if (P.hull <= 0) die(P.barrage ? '集中砲撃' : '砲撃'); else toast('被弾', `装甲 残り${P.hull}`, 1400);
 }
 function startBarrage() {
   P.barrage = true; toast('停止を検知', '集中砲撃が来る', 1800);
   for (let i = 0; i < 9; i++) fireShell(i < 3 ? 2 : 7, 1.0 + i * 0.22, 10);
 }
-function die() {
+function die(cause = '集中砲撃') {
+  $('#overCause').textContent = cause;
   P.dead = true; vignette(1);
-  setTimeout(() => { $('#overText').textContent = `旅した距離 ${(P.dist / 1000).toFixed(1)} km`; openSheet('#overSheet'); }, 1500);
+  setTimeout(() => { $('#overText').textContent = `旅した距離 ${(P.dist / 1000).toFixed(1)} km`; openSheet('#overSheet'); }, 1600);
 }
 function retry() {
   closeSheet('#overSheet'); clearShells(); P.dead = false; P.barrage = false; P.hull = 3; P.stopT = 0; P.danger = 0; P.brakeHeat = 0; fireT = 4;
-  placeAt(P.pos.x, P.pos.z, P.yaw, S.cruise * 0.7); P.invuln = 3; vignette(0);
+  P.flow = 0; placeAt(P.pos.x - fwd.x * 40, P.pos.z - fwd.z * 40, P.yaw, S.cruise * 0.7); P.invuln = 3; vignette(0);
 }
 let vigLevel = 0;
 function vignette(v) { vigLevel = Math.max(vigLevel, v); }
@@ -1992,10 +2167,12 @@ const PALC = BKEYS.map((k) => { const b = BIOMES[k]; return { top: new THREE.Col
 const COLK = ['top', 'hor', 'bot', 'sunCol', 'hemiSky', 'hemiGround', 'sunLight', 'cloud', 'dust'];
 const _wp = newW(); let curDom = -1, domHold = 0;
 const MOODS = [
-  { top: new THREE.Color(0x8e9ccc), hor: new THREE.Color(0xf3d9d2), sun: new THREE.Color(0xffd0bc) },
-  { top: new THREE.Color(0x7aa0cc), hor: new THREE.Color(0xf2e8cc), sun: new THREE.Color(0xfff0c8) },
-  { top: new THREE.Color(0x8b86c2), hor: new THREE.Color(0xe8d9e8), sun: new THREE.Color(0xf0d8ff) },
-  { top: new THREE.Color(0x6ea4b6), hor: new THREE.Color(0xd8ebe6), sun: new THREE.Color(0xe0fff4) },
+  { top: new THREE.Color(0x8e9ccc), hor: new THREE.Color(0xf3d9d2), sun: new THREE.Color(0xffd0bc) }, // rose dawn
+  { top: new THREE.Color(0x7aa0cc), hor: new THREE.Color(0xf2e8cc), sun: new THREE.Color(0xfff0c8) }, // pale gold
+  { top: new THREE.Color(0x9a8fb8), hor: new THREE.Color(0xf4d2b4), sun: new THREE.Color(0xffc49a) }, // amber dusk
+  { top: new THREE.Color(0x8b86c2), hor: new THREE.Color(0xe8d9e8), sun: new THREE.Color(0xf0d8ff) }, // lilac
+  { top: new THREE.Color(0x5f7fae), hor: new THREE.Color(0xc9d6e6), sun: new THREE.Color(0xdfe8ff) }, // blue hour
+  { top: new THREE.Color(0x6ea4b6), hor: new THREE.Color(0xd8ebe6), sun: new THREE.Color(0xe0fff4) }, // teal mist
 ];
 const moodTop = new THREE.Color(), moodHor = new THREE.Color(), moodSun = new THREE.Color();
 function updatePalette(dt, snap) {
@@ -2011,9 +2188,9 @@ function updatePalette(dt, snap) {
   for (const key of COLK) pal[key].lerp(palT[key], k);
   pal.sunDir.lerp(palT.sunDir, k); pal.hemiI = lerp(pal.hemiI, palT.hemiI, k); pal.sunI = lerp(pal.sunI, palT.sunI, k);
   // mood cycle (about 8 minutes): rose dawn, pale gold, lilac, teal mist
-  const mp = (t / 120) % MOODS.length, mi = Math.floor(mp), mf = smooth(0, 1, mp - mi), A = MOODS[mi], B = MOODS[(mi + 1) % MOODS.length];
+  const mp = (t / 70) % MOODS.length, mi = Math.floor(mp), mf = smooth(0, 1, mp - mi), A = MOODS[mi], B = MOODS[(mi + 1) % MOODS.length];
   moodTop.copy(A.top).lerp(B.top, mf); moodHor.copy(A.hor).lerp(B.hor, mf); moodSun.copy(A.sun).lerp(B.sun, mf);
-  const mk = 0.38;
+  const mk = 0.46;
   skyMat.uniforms.top.value.copy(pal.top).lerp(moodTop, mk); skyMat.uniforms.hor.value.copy(pal.hor).lerp(moodHor, mk); skyMat.uniforms.bot.value.copy(pal.bot).lerp(moodHor, mk * 0.6);
   skyMat.uniforms.sunCol.value.copy(pal.sunCol).lerp(moodSun, mk); skyMat.uniforms.sunDir.value.copy(pal.sunDir).normalize();
   scene.fog.color.copy(skyMat.uniforms.hor.value); renderer.setClearColor(scene.fog.color);
@@ -2042,8 +2219,9 @@ function updateVisuals(dt) {
     let dA = Math.atan2(Math.sin(ang - la), Math.cos(ang - la)); dA = clamp(dA, -0.32, 0.32);
     lookAng = lerp(lookAng, dA, 1 - Math.exp(-3 * dt));
     // offset-based follow: the camera keeps its place relative to the rider at any speed
-    const dist = S.camDist * (1 + sf * 0.12), height = 5.3 + (P.grounded ? 0 : 1.2) + (P.tuck ? -0.4 : 0);
+    const dist = S.camDist * (1 + sf * 0.12), height = 6.2 + (P.grounded ? 0 : 1.4) + (P.tuck ? -0.4 : 0);
     tmp2.copy(camDir).multiplyScalar(-dist); tmp2.y = height;
+    const swing = clamp(P.yawRate, -2.2, 2.2) * sf * 2.6; tmp2.x += -camDir.z * swing; tmp2.z += camDir.x * swing;
     camOff.lerp(tmp2, 1 - Math.exp(-7 * dt));
     camBaseY += (P.pos.y - camBaseY) * (1 - Math.exp(-14 * dt));
     camPos.set(P.pos.x + camOff.x, camBaseY + camOff.y, P.pos.z + camOff.z);
@@ -2055,10 +2233,10 @@ function updateVisuals(dt) {
     const lAng = Math.atan2(camDir.x, camDir.z) + lookAng;
     lookSm.set(P.pos.x + Math.sin(lAng) * 52, camBaseY + 0.8, P.pos.z + Math.cos(lAng) * 52);
     camera.lookAt(lookSm);
-    camera.rotateZ(clamp(P.yawRate, -1.5, 1.5) * 0.05 * sf);
+    camera.rotateZ(clamp(P.yawRate, -2, 2) * 0.075 * sf);
   }
   dashPunch = Math.max(0, dashPunch - dt * 2.2);
-  const fov = (portrait ? 66 : 54) + (started ? sf * 18 * S.fovKick + dashPunch * 8 : 0);
+  const fov = (portrait ? 76 : 58) + (started ? sf * 14 * S.fovKick + dashPunch * 7 : 0);
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = lerp(camera.fov, fov, 1 - Math.exp(-6 * dt)); applyLens(); }
   sky.position.copy(camera.position);
 
@@ -2188,7 +2366,7 @@ const UPC = new THREE.Color(0xffffff);
 
 // ---------------------------------------------------------------- audio
 const sfx = (() => {
-  let ctx = null, master, windGain, bp, grindGain, noiseBuf, eng, on = true;
+  let ctx = null, master, windGain, bp, grindGain, noiseBuf, eng, carveF, carveG, on = true;
   function init() {
     if (ctx) return;
     try {
@@ -2205,6 +2383,9 @@ const sfx = (() => {
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500;
       grindGain = ctx.createGain(); grindGain.gain.value = 0;
       osc.connect(lp); lp.connect(grindGain); grindGain.connect(master); osc.start();
+      const src2 = ctx.createBufferSource(); src2.buffer = noiseBuf; src2.loop = true; src2.playbackRate.value = 1.7;
+      carveF = ctx.createBiquadFilter(); carveF.type = 'bandpass'; carveF.frequency.value = 2600; carveF.Q.value = 0.7;
+      carveG = ctx.createGain(); carveG.gain.value = 0; src2.connect(carveF); carveF.connect(carveG); carveG.connect(master); src2.start();
       eng = { g: ctx.createGain(), a: ctx.createOscillator(), b: ctx.createOscillator(), lp: ctx.createBiquadFilter(), lfo: ctx.createOscillator(), lg: ctx.createGain() };
       eng.g.gain.value = 0; eng.a.type = 'sawtooth'; eng.b.type = 'square'; eng.lp.type = 'lowpass'; eng.lp.frequency.value = 240; eng.lp.Q.value = 2;
       eng.lfo.type = 'sine'; eng.lfo.frequency.value = 7; eng.lg.gain.value = 0;
@@ -2226,6 +2407,12 @@ const sfx = (() => {
     init,
     toggle() { on = !on; if (master) master.gain.value = on ? 0.8 : 0; return on; },
     resume() { if (ctx && ctx.state === 'suspended') ctx.resume(); },
+    carve(k, water) {
+      if (!ctx) return; const now = ctx.currentTime;
+      carveG.gain.setTargetAtTime(k * 0.55, now, 0.06); carveF.frequency.setTargetAtTime(water ? 1300 : 2600 + k * 1400, now, 0.1);
+    },
+    whoosh() { burst(1400, 0.9, 0.55, 0.5, 260); },
+    splash() { burst(1800, 0.6, 0.4, 0.35, 500); },
     update(speed, grinding, stream, kind) {
       const bike = kind !== 'board', low = kind === 'sidecar' ? 0.72 : 1;
       if (!ctx) return; const now = ctx.currentTime;
@@ -2396,17 +2583,23 @@ $('#btnGo').addEventListener('click', () => {
   try { navigator.wakeLock && navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
   placeAt(0, 0, startPose(), S.minSpeed); last = performance.now();
   const hint = $('#hint'); hint.hidden = false;
-  hint.innerHTML = isTouch ? '左半分をドラッグ　上で前傾・下でブレーキ・下＋左右でドリフト<br>右のボタンでジャンプ（長押しで滑空）' : 'A・D 曲がる　W 前傾　S ブレーキ　S＋A・D ドリフト<br>Space ジャンプ・長押しで滑空　R 立て直す';
+  hint.innerHTML = (isTouch ? 'ドラッグで操作　上で前傾・下でブレーキ・下＋左右でドリフト' : 'A・D 曲がる　W 前傾　S ブレーキ　S＋A・D ドリフト　R 立て直す') + '<br>段差は最高速で滑空、越えられる障害物は自動で跳ぶ';
   setTimeout(() => { hint.style.opacity = 0; }, 7000);
-  if (isTouch) $('#pad').hidden = false;
   toast('止まるな', '遅いほど砲撃は近くに落ちる', 2800);
 });
 
-const stickBase = $('#stickBase'), stickKnob = $('#stickKnob');
+const stickBase = $('#stickBase'), stickKnob = $('#stickKnob'), flashEl = $('#flash');
+// film grain: one noise tile, nudged a few times a second
+(() => {
+  const c = document.createElement('canvas'); c.width = c.height = 160; const g = c.getContext('2d'), img = g.createImageData(160, 160);
+  for (let i = 0; i < img.data.length; i += 4) { const v = Math.random() * 255 | 0; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
+  g.putImageData(img, 0, 0); const el = $('#grain'); el.style.backgroundImage = `url(${c.toDataURL()})`;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setInterval(() => { el.style.transform = `translate(${(Math.random() * 20 | 0) - 10}px, ${(Math.random() * 20 | 0) - 10}px)`; }, 90);
+})();
 let stickId = null, sx0 = 0, sy0 = 0;
 renderer.domElement.addEventListener('pointerdown', (e) => {
   if (!started || paused) return;
-  if (e.clientX < innerWidth * 0.55 && stickId === null) {
+  if (stickId === null) {
     stickId = e.pointerId; sx0 = e.clientX; sy0 = e.clientY;
     stickBase.style.left = sx0 + 'px'; stickBase.style.top = sy0 + 'px'; stickBase.classList.add('on');
     stickKnob.style.transform = 'translate(0,0)';
@@ -2440,7 +2633,7 @@ window.addEventListener('keydown', (e) => {
   if (e.target && e.target.tagName === 'INPUT') return;
   if (e.repeat) { if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); return; }
   inp.keys[e.code] = true; keyAxis();
-  if (e.code === 'Space') { inp.jumpHeld = true; inp.jumpPressed = true; e.preventDefault(); }
+  if (e.code === 'Space') e.preventDefault();
   if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') inp.dashPressed = true;
   if (e.code === 'KeyR' && started) recover();
   if (e.code === 'Enter' && !started) $('#btnGo').click();
@@ -2457,7 +2650,7 @@ function frame(now) {
     const sub = clamp(Math.ceil(P.vel.length() * dt / 1.4), dt > 0.022 ? 2 : 1, 5);
     for (let i = 0; i < sub; i++) stepPhysics(dt / sub);
     updateWind(); updateChunks(false); updatePalette(dt, false);
-    sfx.update(P.vel.length(), !!P.grind, P.inStream, vehKey);
+    sfx.update(P.vel.length(), !!P.grind, P.inStream, vehKey); sfx.carve(P.grounded ? P.carve : 0, P.onWater);
     updateHud(); updateThreat(dt);
   }
   updateVisuals(paused ? 0 : dt);
