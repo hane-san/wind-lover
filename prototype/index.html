@@ -251,19 +251,19 @@ const LOWQ = isTouch;
 // ---------------------------------------------------------------- settings
 // resp: how quickly the heading answers the bars (lower = heavier)
 const VEHICLES = {
-  sidecar: { name: 'サイドカー', hover: 1.0, grip: 4.2, accel: 17, lean: 0.06, resp: 5.2, roll: 2.1, defaults: { maxSpeed: 155, cruise: 72, minSpeed: 0, inertia: 1.6, tailwind: 8, gravity: 30, glide: 0.66, turn: 1.0, jump: 13, camDist: 19, fovKick: 1.1, auto: true } },
-  bike: { name: 'チョッパー', hover: 1.0, grip: 4.5, accel: 18, lean: 0.55, resp: 7, roll: 2.8, defaults: { maxSpeed: 145, cruise: 66, minSpeed: 0, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 1.0, jump: 14, camDist: 18, fovKick: 1.1, auto: true } },
-  board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 10, roll: 4.5, defaults: { maxSpeed: 115, cruise: 48, minSpeed: 0, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 15, fovKick: 1.1, auto: true } },
+  sidecar: { name: 'サイドカー', hover: 1.0, grip: 4.2, accel: 17, lean: 0.06, resp: 5.2, roll: 2.7, defaults: { maxSpeed: 75, cruise: 40, minSpeed: 0, inertia: 1.6, tailwind: 8, gravity: 30, glide: 0.66, turn: 1.0, jump: 13, camDist: 15, fovKick: 1.1, auto: true } },
+  bike: { name: 'チョッパー', hover: 1.0, grip: 4.5, accel: 18, lean: 0.55, resp: 7, roll: 3.4, defaults: { maxSpeed: 72, cruise: 38, minSpeed: 0, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 1.0, jump: 14, camDist: 14, fovKick: 1.1, auto: true } },
+  board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 10, roll: 5, defaults: { maxSpeed: 60, cruise: 30, minSpeed: 0, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 12, fovKick: 1.1, auto: true } },
 };
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
 };
 let vehKey = store.get('windlover.vehicle4', 'sidecar'); if (!VEHICLES[vehKey]) vehKey = 'sidecar';
-const allS = store.get('windlover.settings.v9', {}) || {};
+const allS = store.get('windlover.settings.v10', {}) || {};
 const loadS = () => ({ ...VEHICLES[vehKey].defaults, ...(allS[vehKey] || {}) });
 let S = loadS();
-const saveS = () => { allS[vehKey] = S; store.set('windlover.settings.v9', allS); };
+const saveS = () => { allS[vehKey] = S; store.set('windlover.settings.v10', allS); };
 
 // ---------------------------------------------------------------- biomes
 const BIOMES = {
@@ -384,7 +384,7 @@ function heightAt(x, z) {
   // swell bands: fields of wave crests; at full speed each crest becomes a launch
   const zone = smooth(0.42, 0.68, vnoise(x / 900 + 7.7, z / 900 - 3.3, 33));
   const cr = 1 - Math.abs(vnoise(x / 80 + 13.7, z / 80 - 4.2, 34) * 2 - 1);
-  return h * amp + big * amp * 0.9 + r * r * r * ridge + off + 0.7 * swell * zone * cr * cr;
+  return h * amp + big * amp * 0.9 + r * r * r * ridge + off + 0.45 * swell * zone * cr * cr;
 }
 const surfaceAt = (x, z) => Math.max(heightAt(x, z), WATER);
 // endless roads: wavy rows and columns every RS metres
@@ -869,7 +869,7 @@ function buildChunkProps(ch, rng) {
   const PASTEL = [0xa9bccb, 0xe2d5a6, 0xd9b2a4, 0xb5cdbe, 0xc4b8cf, 0xd8c9b0];
   const sovblock = (s) => {
     const yaw = rng() * TAU, B = M(s.x, s.y - 1, s.z, yaw);
-    const floors = rng() < 0.5 ? 5 : 9, fh = 2.8, secs = 3 + (rng() * 4 | 0), w = secs * 12, d = 12, H = floors * fh + 0.8;
+    const floors = [5, 9, 9, 12, 16][rng() * 5 | 0], fh = 2.8, secs = 3 + (rng() * 4 | 0), w = secs * 12, d = 12, H = floors * fh + 0.8;
     const body = [0xe9e3d6, 0xd8dad4, 0xe8d7c9, 0xe2e0c9, 0xd2ddd8, 0xdcd3cd][rng() * 6 | 0];
     solid.part(B, G.box, 0, H / 2, 0, w, H, d, body);
     for (let f = 1; f < floors; f++) solid.part(B, G.box, 0, f * fh + 0.4, 0, w + 0.06, 0.12, d + 0.06, shade(body, 0.86));
@@ -1193,9 +1193,10 @@ function buildLandmark(rx, rz) {
   const dom = BKEYS[dominant(biomeW(x, z, newW()))]; T = BIOMES[dom];
   const type = T.marks[rng() * T.marks.length | 0], yaw = rng() * TAU;
   L.type = type;
-  const gy = Math.max(heightAt(x, z), WATER) - 3, B = M(x, gy, z, yaw), m = new Merger();
+  const LS = 1.6; // giants at true scale
+  const gy = Math.max(heightAt(x, z), WATER) - 3, B = M(x, gy, z, yaw, LS, LS, LS), m = new Merger();
   let top = 80, rad = 30;
-  const col = (lx, lz, hw, hd, bottom, topY) => { const c = Math.cos(yaw), s = Math.sin(yaw); addCollider(x + lx * c + lz * s, z - lx * s + lz * c, yaw, hw, hd, gy + bottom, gy + topY); };
+  const col = (lx, lz, hw, hd, bottom, topY) => { const c = Math.cos(yaw), s = Math.sin(yaw); addCollider(x + (lx * c + lz * s) * LS, z + (-lx * s + lz * c) * LS, yaw, hw * LS, hd * LS, gy + bottom * LS, gy + topY * LS); };
   if (type === 'stupa') {
     m.part(B, G.box, 0, 4, 0, 60, 8, 60, 0xf1ede3); m.part(B, G.box, 0, 12, 0, 48, 8, 48, 0xe8e2d4); m.part(B, G.box, 0, 20, 0, 36, 8, 36, 0xf1ede3);
     m.part(B, G.half, 0, 24, 0, 18, 19, 18, 0xf7f4ec); m.part(B, G.box, 0, 45, 0, 8, 6, 8, 0xd9b45a); m.part(B, G.cone, 0, 68, 0, 5, 40, 5, 0xd9b45a);
@@ -1371,6 +1372,7 @@ function buildLandmark(rx, rz) {
     col(0, 0, 50, 13, -5, 140);
     top = 150; rad = 50;
   }
+  top *= LS; rad *= LS;
   L.mat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 4, fog: false, emissive: 0x000000, side: THREE.DoubleSide });
   L.group.add(new THREE.Mesh(m.build(), L.mat));
   // an updraft beside it carries you to the find at the top
@@ -1825,7 +1827,7 @@ function stepPhysics(dt) {
     const maxLean = Math.min(1.2, 0.8 * S.turn) * (P.drifting ? 1.25 : 1) * (P.tuck ? 0.85 : 1);
     P.lean += (steer * maxLean - P.lean) * (1 - Math.exp(-V.roll * (P.drifting ? 1.4 : 1) * dt));
     const vTurn = Math.max(Math.hypot(P.vel.x, P.vel.z), 10);
-    P.yawRate = clamp(-(P.grounded ? 55 : 44) * Math.tan(P.lean) / vTurn * (P.drifting ? 1.6 : 1), -2.2, 2.2);
+    P.yawRate = clamp(-(P.grounded ? 62 : 50) * Math.tan(P.lean) / vTurn * (P.drifting ? 1.6 : 1), -2.2, 2.2);
     P.yaw += P.yawRate * dt;
     fwd.set(Math.sin(P.yaw), 0, Math.cos(P.yaw));
 
@@ -1843,7 +1845,7 @@ function stepPhysics(dt) {
       const grip = (P.drifting ? 1.3 : V.grip * lerp(1, 0.6, sf)) / S.inertia;
       const nvs = vs * Math.exp(-grip * dt);
       if (vf >= 0) vf += (Math.abs(vs) - Math.abs(nvs)) * (P.drifting ? 0.9 : 0.86); else vf *= Math.exp(-3 * dt);
-      const cruiseNow = S.cruise * (1 + P.flow * 1.3), maxNow = S.maxSpeed * (1 + P.flow * 0.45);
+      const cruiseNow = S.cruise * (1 + P.flow * 0.5), maxNow = S.maxSpeed * (1 + P.flow * 0.3);
       let target = S.auto && !braking && !P.dead && !P.stalled ? cruiseNow : 0, acc = V.accel * (vf < 12 ? 0.45 : 1); // heavy to get rolling again
       if (P.tuck && target > 0) { target = cruiseNow * 1.35; acc *= 1.6; }
       if (vf < target) vf += acc * dt * (1 - clamp(vf / Math.max(target, 1), 0, 1) * 0.5);
@@ -1875,8 +1877,8 @@ function stepPhysics(dt) {
       const hsNow = Math.hypot(P.vel.x, P.vel.z);
       // heavy iron in the air: full weight on the way up, then a steady glider-like sink that shrinks with speed
       let g = S.gravity * 1.2;
-      if (P.vel.y > 15 && !P.hopping) P.vel.y = 15; // terrain launches stay low; only the auto-hop may climb higher
-      const sinkMax = lerp(40, 8.5, smooth(40, 170, hsNow));
+      if (P.vel.y > 10 && !P.hopping) P.vel.y = 10; // terrain launches stay low; only the auto-hop may climb higher
+      const sinkMax = lerp(34, 9, smooth(22, 90, hsNow));
       if (P.vel.y < -sinkMax) P.vel.y += (-sinkMax - P.vel.y) * (1 - Math.exp(-2.6 * dt));
       P.vel.y -= g * dt;
       const hx = P.vel.x, hz = P.vel.z; let hs = Math.hypot(hx, hz);
@@ -2006,7 +2008,7 @@ function collide() {
     const topHere = c.ramp ? rampH(c, lz) : c.top;
     // near miss: skimming past (or just over) at speed
     const ox = Math.max(Math.abs(lx) - c.hw, 0), oz = Math.max(Math.abs(lz) - c.hd, 0), od = Math.hypot(ox, oz), hsp = Math.hypot(P.vel.x, P.vel.z);
-    if (hsp > 45 && !P.dead && (c.nm || 0) < t && P.pos.y < topHere + 2.5 && P.pos.y > c.bottom && (od > 0 ? od < 3.2 : P.pos.y > topHere - 0.4)) { c.nm = t + 2.5; nearMiss(); }
+    if (hsp > 28 && !P.dead && (c.nm || 0) < t && P.pos.y < topHere + 2.5 && P.pos.y > c.bottom && (od > 0 ? od < 3.2 : P.pos.y > topHere - 0.4)) { c.nm = t + 2.5; nearMiss(); }
     if (P.pos.y >= topHere - 1.2 || P.pos.y < c.bottom) continue;
     const pad = 0.6;
     const px = c.hw + pad - Math.abs(lx), pz = c.hd + pad - Math.abs(lz);
@@ -2019,7 +2021,7 @@ function collide() {
     if (vn < 0) {
       // scrape and vault: the speed you lose into the wall turns into a slide along it and a hop up it
       const lost = -vn;
-      if (lost > 24) { crash(); return; }
+      if (lost > 18) { crash(); return; }
       P.flow *= 0.6;
       P.vel.x -= vn * nx; P.vel.z -= vn * nz;
       let tx = -nz, tz = nx; if (tx * fwd.x + tz * fwd.z < 0) { tx = -tx; tz = -tz; }
@@ -2035,13 +2037,14 @@ function resolveGround(dt) {
   const g = ground(P.pos.x, P.pos.z, P.pos.y);
   const target = g.h + HOVER, gap = P.pos.y - target;
   const wasG = P.grounded;
-  if (gap <= 0 || (wasG && gap < 0.7 && P.vel.dot(g.n) < 3)) {
+  const hsg = Math.hypot(P.vel.x, P.vel.z);
+  if (gap <= 0 || (wasG && !P.hopping && gap < 1.1 + hsg * 0.03 && P.vel.dot(g.n) < 6)) {
     if (!wasG) { landing(g); P.hopping = false; }
     P.pos.y = target; P.n.copy(g.n);
-    const vn = P.vel.dot(P.n); if (vn < 0) P.vel.addScaledVector(P.n, -vn);
+    const vn = P.vel.dot(P.n); if (vn < 0 || wasG) P.vel.addScaledVector(P.n, -vn);
     P.grounded = true; P.air = 0; P.onWater = g.water;
     const hsw = Math.hypot(P.vel.x, P.vel.z);
-    if (g.water && hsw > 45 && P.skipT <= 0) {
+    if (g.water && hsw > 30 && P.skipT <= 0) {
       P.vel.y = Math.min(6 + hsw * 0.035, 11); P.grounded = false; P.air = 0.01; P.skipT = 0.55;
       tmp.copy(P.pos).addScaledVector(UP, -HOVER); emitDust(tmp, tmp2.copy(P.vel).multiplyScalar(0.7).addScaledVector(UP, 4), 16, 7); sfx.splash();
     }
@@ -2131,7 +2134,7 @@ function collectFinds() {
 
 // ---------------------------------------------------------------- bombardment: the slower you go, the closer the shells land; stop and the guns walk onto you
 let shellsOn = store.get('windlover.shells', true);
-const SAFE = 60; // m/s (216 km/h)
+const SAFE = 38; // m/s (137 km/h)
 const shells = [], flashes = [];
 const shellRingGeo = new THREE.RingGeometry(0.88, 1, 48).rotateX(-Math.PI / 2);
 const shellDotGeo = new THREE.CircleGeometry(1, 32).rotateX(-Math.PI / 2);
@@ -2263,7 +2266,7 @@ function updateEngine(dt) {
 }
 
 // ---------------------------------------------------------------- legacy drones: flying formations that can only catch you when you are slow
-const DRONE_MAX = 90, BULLET_SPD = 62; // m/s: about 320 km/h and 220 km/h over the ground
+const DRONE_MAX = 62, BULLET_SPD = 40; // m/s: about 223 km/h and 144 km/h over the ground
 const droneGeo = (() => {
   const m = new Merger(), IRON = 0x4d4a44, RUSTY = 0x7a5034;
   m.add(G.cyl, M(0, 0, 0, 0, 0.62, 0.55, 0.62), IRON); m.add(G.cyl, M(0, 0.32, 0, 0, 0.4, 0.12, 0.4), RUSTY);
@@ -2275,16 +2278,18 @@ const droneGeo = (() => {
   m.add(G.box, M(0, -0.42, 0.2, 0, 0.3, 0.3, 0.5), IRON);
   return m.build();
 })();
-const MAXD = 72;
+const MAXD = 100;
 const droneMesh = new THREE.InstancedMesh(droneGeo, new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 18 }), MAXD);
-const eyeMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffb050 }), MAXD);
+const eyeMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), MAXD);
+const EYE_HOSTILE = new THREE.Color(0xffb050), EYE_PEACE = new THREE.Color(0xa8f0e8);
+for (let i = 0; i < MAXD; i++) eyeMesh.setColorAt(i, EYE_HOSTILE);
 for (const im of [droneMesh, eyeMesh]) { im.count = 0; im.frustumCulled = false; scene.add(im); }
 const BUL = 720, bPos = new Float32Array(BUL * 3), bVel = new Float32Array(BUL * 3), bLife = new Float32Array(BUL), bCol = new Float32Array(BUL * 3);
 const bulGeo = new THREE.BufferGeometry(); bulGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3)); bulGeo.setAttribute('color', new THREE.BufferAttribute(bCol, 3));
 const bulPts = new THREE.Points(bulGeo, new THREE.PointsMaterial({ size: 3.4, map: dotTex, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false, fog: false }));
 bulPts.frustumCulled = false; scene.add(bulPts);
 for (let i = 0; i < BUL; i++) bPos[i * 3 + 1] = -9999;
-let bulI = 0, droneSpawnT = 9;
+let bulI = 0, droneSpawnT = 5;
 const forms = [], _dm = new THREE.Object3D(), _f = new V3(), _r = new V3(), _u = new V3();
 const VOLLEY_COLS = [[1, 0.5, 0.16], [0.95, 0.36, 0.58], [0.3, 0.68, 1], [1, 0.78, 0.22]];
 function slotOf(f, i, out) {
@@ -2296,14 +2301,16 @@ function slotOf(f, i, out) {
 }
 function spawnFormation(forceMode) {
   const hs = Math.hypot(P.vel.x, P.vel.z) || 1, fx = P.vel.x / hs, fz = P.vel.z / hs;
-  const mode = forceMode || (hs < 80 && Math.random() < 0.45 ? 'chase' : 'pass');
+  const mode = forceMode || 'pass';
   const type = ['V', 'ring', 'wave', 'helix'][Math.random() * 4 | 0], n = type === 'ring' ? 20 : type === 'V' ? 19 : type === 'wave' ? 21 : 20;
   // scenic approach: rise over the horizon far ahead, slightly off your line, and come on slowly
-  const side = (Math.random() - 0.5) * 320, dist = mode === 'pass' ? 1500 : -480;
+  const side = mode === 'flyby' ? (Math.random() < 0.5 ? -1 : 1) * (700 + Math.random() * 300) : (Math.random() - 0.5) * 320;
+  const dist = mode === 'pass' ? 1400 : mode === 'flyby' ? 450 + Math.random() * 700 : -420;
   const pos = new V3(P.pos.x + fx * dist - fz * side, 0, P.pos.z + fz * dist + fx * side);
-  pos.y = surfaceAt(pos.x, pos.z) + (mode === 'pass' ? 70 + Math.random() * 30 : 34 + Math.random() * 20);
-  const vel = mode === 'pass' ? new V3(-fx, 0, -fz).multiplyScalar(42) : new V3(fx, 0, fz).multiplyScalar(60);
-  const f = { mode, type, n, pos, vel, t: 0, fireT: 1.5, volley: 0, turned: false, drones: [] };
+  pos.y = surfaceAt(pos.x, pos.z) + (mode === 'pass' ? 70 + Math.random() * 30 : mode === 'flyby' ? 60 + Math.random() * 90 : 34 + Math.random() * 20);
+  // flybys cross your path far off, slowly, like birds; they never fire
+  const vel = mode === 'pass' ? new V3(-fx, 0, -fz).multiplyScalar(34) : mode === 'flyby' ? new V3(fz, 0, -fx).multiplyScalar(Math.sign(side) * (28 + Math.random() * 12)) : new V3(fx, 0, fz).multiplyScalar(45);
+  const f = { mode, type, n, pos, vel, t: 0, fireT: 1.5, volley: 0, turned: false, peace: mode === 'flyby', drones: [] };
   for (let i = 0; i < n; i++) f.drones.push(slotOf(f, i, new V3()).add(pos));
   forms.push(f);
 }
@@ -2330,12 +2337,15 @@ function volley(f) {
 function updateDrones(dt) {
   const hs = Math.hypot(P.vel.x, P.vel.z);
   droneSpawnT -= dt;
-  if (shellsOn && !P.dead && droneSpawnT <= 0 && forms.length < 3) { spawnFormation(); droneSpawnT = hs > 80 ? 20 + Math.random() * 10 : lerp(12, 6, clamp(1 - hs / 80, 0, 1)) + Math.random() * 3; }
+  if (!P.dead && droneSpawnT <= 0 && forms.length < 4) {
+    const r = Math.random(), mode = !shellsOn ? 'flyby' : hs < 30 && r < 0.4 ? 'chase' : r < 0.5 ? 'flyby' : 'pass';
+    spawnFormation(mode); droneSpawnT = hs > 50 ? 7 + Math.random() * 6 : 5 + Math.random() * 4;
+  }
   let nearest = Infinity, k = 0;
   const fx = hs > 1 ? P.vel.x / hs : fwd.x, fz = hs > 1 ? P.vel.z / hs : fwd.z;
   for (let i = forms.length - 1; i >= 0; i--) {
     const f = forms[i]; f.t += dt;
-    if (f.mode === 'pass' && !f.turned && (P.pos.x - f.pos.x) * f.vel.x + (P.pos.z - f.pos.z) * f.vel.z < 0) f.turned = true;
+    if (!f.peace && f.mode === 'pass' && !f.turned && (P.pos.x - f.pos.x) * f.vel.x + (P.pos.z - f.pos.z) * f.vel.z < 0) f.turned = true;
     if (f.mode === 'chase' || f.turned) {
       // try to get ahead of the rider and hang there, as fast as old rotors allow
       tmp.set(P.pos.x + fx * 70, P.pos.y + 24 + Math.sin(f.t) * 4, P.pos.z + fz * 70).sub(f.pos).normalize().multiplyScalar(DRONE_MAX);
@@ -2346,8 +2356,8 @@ function updateDrones(dt) {
     const gh = surfaceAt(f.pos.x, f.pos.z) + 16; if (f.pos.y < gh) f.pos.y = gh;
     const d = f.pos.distanceTo(P.pos); nearest = Math.min(nearest, d);
     f.fireT -= dt;
-    if (d < 180 && f.fireT <= 0 && !P.dead && shellsOn) { volley(f); f.fireT = 1.0 + Math.random() * 0.8; }
-    if ((d > 1300 && f.t > 20) || f.t > 90 || !shellsOn) { forms.splice(i, 1); continue; }
+    if (!f.peace && d < 180 && f.fireT <= 0 && !P.dead && shellsOn) { volley(f); f.fireT = 1.0 + Math.random() * 0.8; }
+    if ((d > 1700 && f.t > 20) || f.t > 90 || (!shellsOn && !f.peace)) { forms.splice(i, 1); continue; }
     // drones ease into their slots; the formation faces where it flies
     _f.copy(f.vel).normalize(); _r.crossVectors(_f, UP).normalize(); _u.crossVectors(_r, _f);
     for (let j = 0; j < f.n && k < MAXD; j++, k++) {
@@ -2355,10 +2365,10 @@ function updateDrones(dt) {
       const dp = f.drones[j], kk = 1 - Math.exp(-5 * dt); dp.x += (tx - dp.x) * kk; dp.y += (ty - dp.y) * kk; dp.z += (tz - dp.z) * kk;
       _dm.position.copy(dp); _dm.rotation.set(Math.sin(t * 3 + j) * 0.15, Math.atan2(_f.x, _f.z), Math.cos(t * 2.6 + j) * 0.15); _dm.scale.setScalar(2.6); _dm.updateMatrix();
       droneMesh.setMatrixAt(k, _dm.matrix);
-      _dm.position.addScaledVector(_f, 1.2); _dm.position.y -= 1.0; _dm.scale.setScalar(2.4 + 2.6 * Math.max(0, Math.sin(t * 3.2 - j * 0.45))); _dm.updateMatrix(); eyeMesh.setMatrixAt(k, _dm.matrix);
+      _dm.position.addScaledVector(_f, 1.2); _dm.position.y -= 1.0; _dm.scale.setScalar(2.4 + 2.6 * Math.max(0, Math.sin(t * 3.2 - j * 0.45))); _dm.updateMatrix(); eyeMesh.setMatrixAt(k, _dm.matrix); eyeMesh.setColorAt(k, f.peace ? EYE_PEACE : EYE_HOSTILE);
     }
   }
-  droneMesh.count = eyeMesh.count = k; droneMesh.instanceMatrix.needsUpdate = eyeMesh.instanceMatrix.needsUpdate = true;
+  droneMesh.count = eyeMesh.count = k; droneMesh.instanceMatrix.needsUpdate = eyeMesh.instanceMatrix.needsUpdate = true; if (eyeMesh.instanceColor) eyeMesh.instanceColor.needsUpdate = true;
   sfx.hum(nearest < 400 ? 1 - nearest / 400 : 0);
   // bullets
   for (let i = 0; i < BUL; i++) {
@@ -2441,7 +2451,7 @@ function updateVisuals(dt) {
     let dA = Math.atan2(Math.sin(ang - la), Math.cos(ang - la)); dA = clamp(dA, -0.32, 0.32);
     lookAng = lerp(lookAng, dA, 1 - Math.exp(-3 * dt));
     // offset-based follow: the camera keeps its place relative to the rider at any speed
-    const dist = S.camDist * (1 + sf * 0.12), height = 6.2 + (P.grounded ? 0 : 1.4) + (P.tuck ? -0.4 : 0);
+    const dist = S.camDist * (1 + sf * 0.12), height = 4.4 + (P.grounded ? 0 : 1.0) + (P.tuck ? -0.3 : 0);
     tmp2.copy(camDir).multiplyScalar(-dist); tmp2.y = height;
     const swing = clamp(P.yawRate, -2.2, 2.2) * sf * 2.6; tmp2.x += -camDir.z * swing; tmp2.z += camDir.x * swing;
     camOff.lerp(tmp2, 1 - Math.exp(-7 * dt));
@@ -2458,7 +2468,7 @@ function updateVisuals(dt) {
     camera.rotateZ(clamp(P.yawRate, -2, 2) * 0.075 * sf);
   }
   dashPunch = Math.max(0, dashPunch - dt * 2.2);
-  const fov = (portrait ? 76 : 58) + (started ? sf * 14 * S.fovKick + dashPunch * 7 : 0);
+  const fov = (portrait ? 72 : 56) + (started ? sf * 14 * S.fovKick + dashPunch * 7 : 0);
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = lerp(camera.fov, fov, 1 - Math.exp(-6 * dt)); applyLens(); }
   sky.position.copy(camera.position);
 
@@ -2539,7 +2549,7 @@ function updateVisuals(dt) {
     lp[i * 6] = l.x; lp[i * 6 + 1] = l.y; lp[i * 6 + 2] = l.z; lp[i * 6 + 3] = l.x; lp[i * 6 + 4] = l.y; lp[i * 6 + 5] = l.z - len;
   }
   lineGeo.attributes.position.needsUpdate = true;
-  lineMat.opacity = started ? clamp((speed - 38) / 35, 0, 0.5) + dashPunch * 0.35 : 0;
+  lineMat.opacity = started ? clamp((speed - 26) / 30, 0, 0.5) + dashPunch * 0.35 : 0;
 
   // wind seeds, recycled in a box around the rider
   for (let i = 0; i < SEEDS; i++) {
