@@ -279,8 +279,8 @@ const LOWQ = isTouch;
 // ---------------------------------------------------------------- settings
 // resp: how quickly the heading answers the bars (lower = heavier)
 const VEHICLES = {
-  sidecar: { name: 'サイドカー', hover: 1.0, grip: 4.2, accel: 17, lean: 0.06, resp: 5.2, roll: 2.7, defaults: { maxSpeed: 75, cruise: 40, minSpeed: 0, inertia: 1.6, tailwind: 8, gravity: 30, glide: 0.66, turn: 1.0, jump: 13, camDist: 15, fovKick: 1.1, auto: true } },
-  bike: { name: 'チョッパー', hover: 1.0, grip: 4.5, accel: 18, lean: 0.55, resp: 7, roll: 3.4, defaults: { maxSpeed: 72, cruise: 38, minSpeed: 0, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 1.0, jump: 14, camDist: 14, fovKick: 1.1, auto: true } },
+  sidecar: { name: 'サイドカー', hover: 1.0, grip: 5.2, accel: 17, lean: 0.06, resp: 5.2, roll: 4.3, defaults: { maxSpeed: 75, cruise: 40, minSpeed: 0, inertia: 1.6, tailwind: 8, gravity: 30, glide: 0.66, turn: 1.0, jump: 13, camDist: 15, fovKick: 1.1, auto: true } },
+  bike: { name: 'チョッパー', hover: 1.0, grip: 5.4, accel: 18, lean: 0.55, resp: 7, roll: 5.0, defaults: { maxSpeed: 72, cruise: 38, minSpeed: 0, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 1.0, jump: 14, camDist: 14, fovKick: 1.1, auto: true } },
   board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 10, roll: 5, defaults: { maxSpeed: 60, cruise: 30, minSpeed: 0, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 12, fovKick: 1.1, auto: true } },
 };
 const store = {
@@ -316,14 +316,34 @@ const BIOMES = {
     road: 0x5c5e5f, marks: ['minaret', 'niche', 'hand', 'monolith', 'rings'], monus: ['bust', 'balbal', 'obelisk'],
   },
   issyk: {
-    name: 'イシク・クルの青', sub: '雪の山並みに抱かれた真っ青な湖と、廃れた保養地',
-    skyTop: 0x2e6ad0, skyHor: 0xd6e6f2, skyBot: 0x9fbdd8, sunCol: 0xffffff, sunDir: [1, 0.3, 0],
-    hemiSky: 0xe2eef8, hemiGround: 0x6f8070, hemiI: 1.0, sunI: 0.85, sunLight: 0xfffaf0,
-    low: 0x9fb070, high: 0xe8ecf0, rock: 0x7f7d7a, shore: 0xdcd2b0, water: 0x1d5fae,
-    terrain: { amp: 34, ridge: 40, off: -46, swell: 0.5 },
-    dens: { monu: 0.5, sovblock: 0.5, yurt: 0.5, fir: 0.5, birch: 0.3, pier: 0.7, ship: 0.5, busstop: 0.2, flags: 0.2 },
-    concrete: 0xe2dccd, wall: 0xf0ece4, roof: 0x7c8a8f, dome: 0x4f9a8e, dust: 0xe6e2d0, cloud: 0xffffff, leaf: 0xd5b856, tuft: 0x8c9a58, wood: false,
+    name: 'イシク・クル北岸', sub: '夏草の岸辺と白い砂浜、窓の割れた保養所',
+    skyTop: 0x2a68d6, skyHor: 0xd9eaf6, skyBot: 0xa9c8e0, sunCol: 0xffffff, sunDir: [1, 0.32, 0],
+    hemiSky: 0xe4f0fa, hemiGround: 0x6f8a52, hemiI: 1.0, sunI: 0.9, sunLight: 0xfffaf0,
+    low: 0x7fae4e, high: 0xa9b862, rock: 0x8a8476, shore: 0xebe2c4, water: 0x1660c2,
+    terrain: { amp: 18, ridge: 22, off: 6, swell: 2 },
+    dens: { monu: 0.6, sovblock: 0.7, pier: 1.0, ship: 0.4, busstop: 0.4, birch: 0.6, poplar: 0.9, apricot: 0.7, yurt: 0.2, lamps: 0.6, fence: 0.4 },
+    concrete: 0xe6e0d2, wall: 0xf2eee6, roof: 0x6f8a90, dome: 0x4f9a8e, dust: 0xe4e2cc, cloud: 0xffffff, leaf: 0x6f9a42, tuft: 0x7f9e4c, wood: false,
     road: 0x5c5e5f, marks: ['rings', 'gates', 'colossus', 'monolith', 'saucer'], monus: ['balbal', 'figure', 'mosaicwall'],
+  },
+  issykS: {
+    name: 'イシク・クル南岸', sub: '雪山がすぐそこに迫る、緑の谷と赤い岩の渓谷',
+    skyTop: 0x2864d2, skyHor: 0xdcebf3, skyBot: 0xa6c4d8, sunCol: 0xffffff, sunDir: [1, 0.35, 0],
+    hemiSky: 0xe2eef8, hemiGround: 0x6a7a4a, hemiI: 1.0, sunI: 0.9, sunLight: 0xfffaf0,
+    low: 0x6aa046, high: 0xb5643f, rock: 0xa24c33, shore: 0xd8cfae, water: 0x1660c2,
+    terrain: { amp: 40, ridge: 95, off: 10, swell: 1 },
+    dens: { monu: 0.3, yurt: 1.0, fir: 1.5, birch: 0.2, flags: 0.2, poplar: 0.3 },
+    concrete: 0xdcd6c8, wall: 0xeae4d8, roof: 0x6f7a7f, dome: 0x4f9a8e, dust: 0xd8c8a8, cloud: 0xffffff, leaf: 0x5f8f3e, tuft: 0x6f9446, wood: false,
+    road: 0x5c5e5f, marks: ['niche', 'monolith', 'gates', 'head', 'rings'], monus: ['balbal', 'balbal', 'obelisk'],
+  },
+  karakol: {
+    name: 'カラコルの町', sub: 'ポプラ並木の碁盤の町、木造の聖堂と東干のモスク',
+    skyTop: 0x2c68d2, skyHor: 0xe0ecf2, skyBot: 0xb4cad8, sunCol: 0xfff8ea, sunDir: [1, 0.3, 0],
+    hemiSky: 0xe6f0f8, hemiGround: 0x6f824e, hemiI: 1.0, sunI: 0.88, sunLight: 0xfff6e6,
+    low: 0x86a85a, high: 0xa9b46a, rock: 0x8a8070, shore: 0xdcd2b0, water: 0x1a62bc,
+    terrain: { amp: 14, ridge: 20, off: 8, swell: 1.5 },
+    dens: { monu: 0.5, village: 1.2, poplar: 2.2, apricot: 0.9, church: 0.55, pagoda: 0.4, sovblock: 0.4, busstop: 0.5, lamps: 0.7, fence: 0.7 },
+    concrete: 0xdcd6c6, wall: 0x7a5a3e, roof: 0x55705a, dome: 0xc9a64a, dust: 0xdcd6bc, cloud: 0xffffff, leaf: 0x6f9a42, tuft: 0x7f9e4c, wood: true,
+    road: 0x5c5e5f, marks: ['gates', 'rings', 'monolith', 'tower'], monus: ['bust', 'figure', 'balbal'],
   },
   kyzylkum: {
     name: 'キジルクムの砂漠遺跡', sub: '崩れた城塞と、青いタイルのドームが残る砂の海',
@@ -417,7 +437,7 @@ const BIOMES = {
     road: 0xc9d1d8, marks: ['monolith', 'tatlin', 'shukhov', 'dish', 'colossus'], monus: ['khachkar', 'figure', 'obelisk'],
   },
 };
-const BKEYS = ['soviet', 'village', 'azure', 'steppe', 'dusk', 'snow', 'tianshan', 'fergana', 'issyk', 'kyzylkum', 'pamir', 'aktau'], NB = BKEYS.length;
+const BKEYS = ['soviet', 'village', 'azure', 'steppe', 'dusk', 'snow', 'tianshan', 'fergana', 'issyk', 'issykS', 'karakol', 'kyzylkum', 'pamir', 'aktau'], NB = BKEYS.length;
 let biomeMode = store.get('windlover.world4', 'journey');
 if (biomeMode !== 'journey' && !BIOMES[biomeMode]) biomeMode = 'journey';
 const toRGB = (h) => { const c = new THREE.Color(h); return [c.r, c.g, c.b]; };
@@ -450,7 +470,7 @@ const lowlandZone = (z) => smooth(1800, 3600, Math.abs(z));
 const LANES = {
   north: [[0, 'soviet'], [4000, 'steppe'], [15000, 'aktau'], [33000, 'steppe'], [42000, 'dusk'], [52000, 'steppe'], [60000, 'aktau']],
   centre: [[0, 'soviet'], [3500, 'fergana'], [15000, 'tianshan'], [34000, 'pamir'], [50000, 'tianshan'], [60000, 'fergana']],
-  south: [[0, 'soviet'], [4000, 'village'], [9000, 'issyk'], [20000, 'kyzylkum'], [38000, 'issyk'], [50000, 'kyzylkum'], [60000, 'village']],
+  south: [[0, 'soviet'], [4000, 'village'], [9000, 'issyk'], [22000, 'kyzylkum'], [38000, 'issykS'], [50000, 'kyzylkum'], [60000, 'village']],
 };
 const BIX = {}; BKEYS.forEach((k, i) => { BIX[k] = i; });
 const BI = (k) => BIX[k];
@@ -466,8 +486,25 @@ function journeyW(x, z, out) {
   const c = 1 - smooth(1500, 3300, Math.abs(z) / funnel(x)), side = 1 - c;
   laneW(LANES.centre, x, c, out);
   laneW(z > 0 ? LANES.north : LANES.south, x, side, out);
+  // around the great lake the land is told by shore: the north bank, the south bank, Karakol at the far end
+  if (z < 0) {
+    const le = lakeE(x, z);
+    if (le < 3.4) {
+      const r = 1 - smooth(1.8, 3.4, le), kar = smooth(0.45, 0.85, (x - LK.x) / LK.a), n = smooth(-0.3, 0.3, (z / funnel(x) - LK.z) / LK.b);
+      for (let i = 0; i < NB; i++) out[i] *= 1 - r;
+      out[BIX.karakol] += r * kar; out[BIX.issyk] += r * (1 - kar) * n; out[BIX.issykS] += r * (1 - kar) * (1 - n);
+    }
+  }
   return out;
 }
+// Issyk-Kul: a long lake between the mountain belt (north) and the edge range (south), on the south lane
+const LK = { x: 15500, z: -5000, a: 8000, b: 1250 };
+function lakeE(x, z) {
+  if (biomeMode !== 'journey') return 99;
+  const u = (x - LK.x) / LK.a, v = (z / funnel(x) - LK.z) / LK.b; return u * u + v * v;
+}
+// the south-shore highway swings wide around the lake
+const lakeBend = (x) => biomeMode === 'journey' ? 950 * smooth(LK.x - LK.a - 2500, LK.x - LK.a + 500, x) * (1 - smooth(LK.x + LK.a - 500, LK.x + LK.a + 2500, x)) : 0;
 function cellW(x, z, out) {
   const ci = Math.floor(x / CELL + 0.5), cj = Math.floor(z / CELL + 0.5);
   let dmin = Infinity, k = 0;
@@ -502,7 +539,11 @@ function rawHeight(x, z) {
   const land = h * amp + big * amp * 0.9 + r * r * r * ridge + off + 0.45 * swell * zone * cr * cr;
   // the last few kilometres settle into a quiet open floor, so the goal is seen across it, not found in a tunnel
   const gk = biomeMode === 'journey' ? smooth(X_GOAL - 7000, X_GOAL - 2000, x) * 0.92 : 0;
-  return (gk ? lerp(land, big * amp * 0.9 * 0.5 + off + 0.5, gk) : land) + relief(x, z);
+  let hh = gk ? lerp(land, big * amp * 0.9 * 0.5 + off + 0.5, gk) : land;
+  // the lake: beaches and summer meadows rising gently from the water, then deep blue
+  const le = lakeE(x, z);
+  if (le < 2.4) { hh = lerp(hh, WATER + 1.6 + Math.max(0, le - 1) * 16, (1 - smooth(1.0, 2.4, le)) * 0.88); hh = lerp(hh, WATER - 26, 1 - smooth(0.8, 1.0, le)); }
+  return hh + relief(x, z);
 }
 // the massif lifts the middle belt as you go east; edge ranges close the world to the north, south and behind
 const EDGE_Z = 10500, EDGE_BACK = -4500;
@@ -522,11 +563,11 @@ function relief(x, z) {
 // in shallow dips it is banked up, and deep valleys are spanned by viaducts.
 const HS = 3200, HW_HALF = 14;
 // rows follow the wedge: they draw together as the land narrows and meet at its point
-const hwZ = (j, x) => (j * HS + 260 * Math.sin(x / 1900 + j * 1.3) + 90 * Math.sin(x / 700 + j * 2.1)) * funnel(x);
+const hwZ = (j, x) => (j * HS + 260 * Math.sin(x / 1900 + j * 1.3) + 90 * Math.sin(x / 700 + j * 2.1) - (j === -2 ? lakeBend(x) : 0)) * funnel(x);
 const hwZd = (j, x) => (hwZ(j, x + 2) - hwZ(j, x - 2)) / 4;
 // where a highway runs at all: rows stop just past the goal; columns keep off the edge walls and the last approach
 const rowOn = (x) => biomeMode !== 'journey' || x < X_GOAL + 400;
-const colOn = (x, z) => biomeMode !== 'journey' || (Math.abs(z) < halfW(x) - 600 && x < X_GOAL - 2500);
+const colOn = (x, z) => biomeMode !== 'journey' || (Math.abs(z) < halfW(x) - 600 && x < X_GOAL - 2500 && lakeE(x, z) > 1.6);
 const hwX = (i, z) => i * HS + HS / 2 + 260 * Math.sin(z / 2100 + i * 0.7) + 90 * Math.sin(z / 760 + i * 1.9);
 const hwXd = (i, z) => 260 / 2100 * Math.cos(z / 2100 + i * 0.7) + 90 / 760 * Math.cos(z / 760 + i * 1.9);
 const _hw = { d: Infinity, cx: 0, cz: 0, nx: 0, nz: 1 }, _wb = [];
@@ -1535,7 +1576,7 @@ function buildLandmark(rx, rz) {
   const far = biomeMode === 'journey' ? smooth(2000, 22000, (rx + 0.5) * RG) : 0.6;
   if (rng() < lerp(0.45, 0.0, far)) return;
   let x = (rx + 0.2 + rng() * 0.6) * RG, z = (rz + 0.2 + rng() * 0.6) * RG;
-  if (biomeMode === 'journey' && (Math.abs(z) > halfW(x) - 1200 || x > X_GOAL - 2500)) return;
+  if (biomeMode === 'journey' && (Math.abs(z) > halfW(x) - 1200 || x > X_GOAL - 2500 || lakeE(x, z) < 1.4)) return;
   { const hw = highway(x, z); if (hw.d < 140) { const dz = (z - hw.cz) || 1; z = hw.cz + Math.sign(dz) * 160; } }
   const d0 = Math.hypot(x, z); if (d0 < 700) { const k = 700 / Math.max(d0, 1); x = d0 < 1 ? 700 : x * k; z *= k; }
   L.x = x; L.z = z; CUR = L;
@@ -2249,7 +2290,7 @@ function updateWind() {
 // ---------------------------------------------------------------- physics
 function stepPhysics(dt) {
   const sx = clamp(inp.jx + inp.kx, -1, 1), sy = clamp(inp.jy + inp.ky, -1, 1);
-  const steer = Math.sign(sx) * Math.pow(Math.abs(sx), 1.4);
+  const steer = Math.sign(sx) * Math.pow(Math.abs(sx), 1.2);
   steerSm = lerp(steerSm, steer, 1 - Math.exp(-10 * dt));
   P.grindCD -= dt; P.dashCD -= dt; P.coyote -= dt; P.jumpBuf -= dt;
   if (inp.jumpPressed) P.jumpBuf = 0.15;
@@ -2269,9 +2310,19 @@ function stepPhysics(dt) {
     // so the same lean carves a much wider arc at speed. Laying over takes time: that delay is the weight.
     const maxLean = Math.min(1.2, 0.8 * S.turn) * (P.drifting ? 1.25 : 1) * (P.tuck ? 0.85 : 1);
     P.lean += (steer * maxLean - P.lean) * (1 - Math.exp(-V.roll * (P.drifting ? 1.4 : 1) * dt));
-    const vTurn = Math.max(Math.hypot(P.vel.x, P.vel.z), 10);
-    P.yawRate = clamp(-(P.grounded ? 62 : 50) * Math.tan(P.lean) / vTurn * (P.drifting ? 1.6 : 1), -2.2, 2.2);
+    // yaw ~ tan(lean)/v^0.88: the same at town speeds, a touch tighter flat out than pure bike physics
+    const vTurn = Math.pow(Math.max(Math.hypot(P.vel.x, P.vel.z), 10), 0.88);
+    P.yawRate = clamp(-(P.grounded ? 43 : 35) * Math.tan(P.lean) / vTurn * (P.drifting ? 1.6 : 1), -2.2, 2.2);
     P.yaw += P.yawRate * dt;
+    // road sense: with the stick near centre on a highway, the machine settles onto the line of the road
+    if (P.grounded && !P.drifting && Math.abs(steer) < 0.3) {
+      const hw = highway(P.pos.x, P.pos.z);
+      if (hw.d < HW_HALF + 2) {
+        let ty = Math.atan2(hw.nz, -hw.nx); if (Math.cos(ty - P.yaw) < 0) ty += Math.PI;
+        const dy = Math.atan2(Math.sin(ty - P.yaw), Math.cos(ty - P.yaw));
+        if (Math.abs(dy) < 0.45) { const k = (1 - Math.abs(steer) / 0.3) * (1 - Math.abs(dy) / 0.45); P.yaw += dy * (1 - Math.exp(-1.8 * k * dt)); }
+      }
+    }
     fwd.set(Math.sin(P.yaw), 0, Math.cos(P.yaw));
 
     if (P.grounded) {
@@ -2285,7 +2336,7 @@ function stepPhysics(dt) {
       if (gf < 0) gf *= 0.7 / S.inertia;
       let vf = P.vel.dot(fPl), vs = P.vel.dot(side);
       vf += gf * dt; vs += gs * dt;
-      const grip = (P.drifting ? 1.3 : V.grip * lerp(1, 0.6, sf)) / S.inertia;
+      const grip = (P.drifting ? 1.3 : V.grip * lerp(1, 0.78, sf)) / S.inertia;
       const nvs = vs * Math.exp(-grip * dt);
       if (vf >= 0) vf += (Math.abs(vs) - Math.abs(nvs)) * (P.drifting ? 0.9 : 0.86); else vf *= Math.exp(-3 * dt);
       const cruiseNow = S.cruise * (1 + P.flow * 0.5), maxNow = S.maxSpeed * (1 + P.flow * 0.3);
@@ -2485,11 +2536,11 @@ function collide() {
 // kills the inbound part, bleeds speed into friction, swings the machine along the wall and throws sparks.
 const WALL_CRASH = 18;
 let scrapeT = 0;
-function wallImpact(nx, nz) {
+function wallImpact(nx, nz, soft) {
   const vn = P.vel.x * nx + P.vel.z * nz;
   if (vn >= 0) return false;
   const hit = -vn;
-  if (hit > WALL_CRASH && P.invuln <= 0) { P.vel.x += nx * hit * 0.3; P.vel.z += nz * hit * 0.3; crash(); P.yawRate = 0; return true; }
+  if (hit > WALL_CRASH * (soft ? 1.6 : 1) && P.invuln <= 0) { P.vel.x += nx * hit * 0.3; P.vel.z += nz * hit * 0.3; crash(); P.yawRate = 0; return true; }
   P.vel.x -= vn * nx * 1.15; P.vel.z -= vn * nz * 1.15;
   const fr = 1 - Math.min(0.22, 0.004 + hit * 0.011); P.vel.x *= fr; P.vel.z *= fr;
   P.flow *= 1 - Math.min(0.5, hit / 36);
@@ -2513,7 +2564,15 @@ function tunnelWalls() {
   const cx = hw.cx, cz = hw.cz, nx = hw.nx, nz = hw.nz, dk = deckAt(cx, cz) + 0.25;
   if (P.pos.y > dk + 12 || P.pos.y < dk - 3) return;
   const hangar = biomeMode === 'journey' && cx > BASE_X - BASE_LEN / 2 && cx < BASE_X + BASE_LEN / 2 && Math.abs(cz - hwZ(0, cx)) < 2;
-  if (!hangar && rawHeight(cx, cz) - dk <= 22) return;
+  const rh = rawHeight(cx, cz), off0 = (P.pos.x - cx) * nx + (P.pos.z - cz) * nz;
+  if (!hangar && rh - dk <= 22) {
+    // viaduct parapets: a span keeps you on it unless you are already flying clear over the rail
+    if (dk - rh > 3 && Math.abs(off0) < HW_HALF + 1.5 && P.pos.y < dk + 2.2 && Math.abs(off0) > HW_HALF - 0.5) {
+      const sg = Math.sign(off0), push = off0 - sg * (HW_HALF - 0.5);
+      P.pos.x -= nx * push; P.pos.z -= nz * push; wallImpact(-sg * nx, -sg * nz, true);
+    }
+    return;
+  }
   P.inTunnel = true;
   if (hangar && P.pos.x < BASE_X - BASE_LEN / 2 + 2.5) { P.pos.x = BASE_X - BASE_LEN / 2 + 2.5; wallImpact(1, 0); }
   if (P.pos.y > dk + 8.5) { P.pos.y = dk + 8.5; if (P.vel.y > 0) P.vel.y *= -0.2; }
@@ -2532,6 +2591,8 @@ function resolveGround(dt) {
   const hsg = Math.hypot(P.vel.x, P.vel.z);
   if (gap <= 0 || (wasG && !P.hopping && gap < 1.1 + hsg * 0.03 && P.vel.dot(g.n) < 6)) {
     if (!wasG) { landing(g); P.hopping = false; }
+    // a slope steeper than about 60 degrees is a wall: you glance off it, you don't ride up it
+    if (g.n.y < 0.5 && !g.roof && !g.water) { const l = Math.hypot(g.n.x, g.n.z) || 1; wallImpact(g.n.x / l, g.n.z / l, true); }
     P.pos.y = target; P.n.copy(g.n);
     const vn = P.vel.dot(P.n); if (vn < 0 || wasG) P.vel.addScaledVector(P.n, -vn);
     P.grounded = true; P.air = 0; P.onWater = g.water;
@@ -2810,13 +2871,13 @@ const droneGeo = (() => {
   m.add(G.box, M(0, -0.42, 0.2, 0, 0.3, 0.3, 0.5), IRON);
   return m.build();
 })();
-const MAXD = 100;
+const MAXD = 160;
 const droneMesh = new THREE.InstancedMesh(droneGeo, new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 18 }), MAXD);
 const eyeMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), MAXD);
 const EYE_HOSTILE = new THREE.Color(0xffb050), EYE_PEACE = new THREE.Color(0xa8f0e8);
 for (let i = 0; i < MAXD; i++) eyeMesh.setColorAt(i, EYE_HOSTILE);
 for (const im of [droneMesh, eyeMesh]) { im.count = 0; im.frustumCulled = false; scene.add(im); }
-const BUL = 720, bPos = new Float32Array(BUL * 3), bVel = new Float32Array(BUL * 3), bLife = new Float32Array(BUL), bCol = new Float32Array(BUL * 3);
+const BUL = 1600, bPos = new Float32Array(BUL * 3), bVel = new Float32Array(BUL * 3), bLife = new Float32Array(BUL), bCol = new Float32Array(BUL * 3);
 const bulGeo = new THREE.BufferGeometry(); bulGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3)); bulGeo.setAttribute('color', new THREE.BufferAttribute(bCol, 3));
 const bulPts = new THREE.Points(bulGeo, new THREE.PointsMaterial({ size: 3.4, map: dotTex, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false, fog: false }));
 bulPts.frustumCulled = false; scene.add(bulPts);
@@ -2829,12 +2890,22 @@ function slotOf(f, i, out) {
   if (f.type === 'V') { const sd = i % 2 ? 1 : -1, k = Math.ceil(i / 2); return out.set(sd * k * 9, Math.sin(t * 1.2 + k * 0.5) * 1.5 - k * 0.8, -k * 8); }
   if (f.type === 'ring') { const a = i / n * TAU + t * 0.6; return out.set(Math.cos(a) * 26, Math.sin(a) * 26, Math.sin(a * 2 + t) * 3); }
   if (f.type === 'wave') { const x = (i - (n - 1) / 2) * 7.5; return out.set(x, Math.sin(t * 1.5 - i * 0.42) * 6, Math.cos(t * 1.1 - i * 0.3) * 4 - Math.abs(x) * 0.25); }
+  if (f.type === 'rose') { const th = i / n * TAU + t * 0.35, r = 30 * Math.abs(Math.cos(2.5 * (th - t * 0.35))) + 6; return out.set(Math.cos(th) * r, Math.sin(th) * r, Math.sin(th * 3 + t) * 2); } // five petals, turning
+  if (f.type === 'star') { // a pentagram traced by the swarm, slowly spinning
+    const k = (i / n) * 5, e = Math.floor(k), u = k - e, a0 = e * 4 * Math.PI / 5 - Math.PI / 2 + t * 0.4, a1 = (e + 1) * 4 * Math.PI / 5 - Math.PI / 2 + t * 0.4;
+    return out.set(lerp(Math.cos(a0), Math.cos(a1), u) * 30, lerp(Math.sin(a0), Math.sin(a1), u) * 30, 0);
+  }
+  if (f.type === 'lattice') { const c = i % 6, r = Math.floor(i / 6); return out.set((c - 2.5) * 10 + Math.sin(t * 1.3 + r) * 2, (r - 1.5) * 10 + Math.cos(t * 1.1 + c * 0.7) * 2, Math.sin(t * 2 + c * 0.6 + r) * 3); }
+  if (f.type === 'bloom') { const inner = i % 2, a = Math.floor(i / 2) / (n / 2) * TAU + (inner ? -t * 0.9 : t * 0.6), rr = inner ? 13 : 30; return out.set(Math.cos(a) * rr, Math.sin(a) * rr, inner ? 4 : 0); }
+  if (f.type === 'spiral') { const k = i / n, a = k * TAU * 2 + t * 0.8, rr = 6 + k * 30; return out.set(Math.cos(a) * rr, Math.sin(a) * rr, -k * 10); }
   const a = Math.floor(i / 2) * 0.6 + t * 1.1 + (i % 2) * Math.PI; return out.set(Math.cos(a) * 13, Math.sin(a) * 13, -Math.floor(i / 2) * 6); // double helix
 }
+const FORM_TYPES = ['V', 'ring', 'wave', 'helix', 'rose', 'star', 'lattice', 'bloom', 'spiral', 'rose', 'star', 'bloom', 'spiral'];
+const FORM_N = { V: 19, ring: 20, wave: 21, helix: 20, rose: 25, star: 30, lattice: 24, bloom: 28, spiral: 26 };
 function spawnFormation(forceMode) {
   const hs = Math.hypot(P.vel.x, P.vel.z) || 1, fx = P.vel.x / hs, fz = P.vel.z / hs;
   const mode = forceMode || 'pass';
-  const type = ['V', 'ring', 'wave', 'helix'][Math.random() * 4 | 0], n = type === 'ring' ? 20 : type === 'V' ? 19 : type === 'wave' ? 21 : 20;
+  const type = FORM_TYPES[Math.random() * FORM_TYPES.length | 0], n = FORM_N[type];
   // scenic approach: rise over the horizon far ahead, slightly off your line, and come on slowly
   const side = mode === 'flyby' ? (Math.random() < 0.5 ? -1 : 1) * (700 + Math.random() * 300) : (Math.random() - 0.5) * 320;
   const dist = mode === 'pass' ? 1400 : mode === 'flyby' ? 450 + Math.random() * 700 : -420;
@@ -2842,7 +2913,7 @@ function spawnFormation(forceMode) {
   pos.y = surfaceAt(pos.x, pos.z) + (mode === 'pass' ? 70 + Math.random() * 30 : mode === 'flyby' ? 60 + Math.random() * 90 : 34 + Math.random() * 20);
   // flybys cross your path far off, slowly, like birds; they never fire
   const vel = mode === 'pass' ? new V3(-fx, 0, -fz).multiplyScalar(34) : mode === 'flyby' ? new V3(fz, 0, -fx).multiplyScalar(Math.sign(side) * (28 + Math.random() * 12)) : new V3(fx, 0, fz).multiplyScalar(45);
-  const f = { mode, type, n, pos, vel, t: 0, fireT: 1.5, volley: 0, turned: false, peace: mode === 'flyby', drones: [] };
+  const f = { mode, type, n, pos, vel, t: 0, fireT: 1.5, volley: 0, turned: false, peace: mode === 'flyby', drones: [], seq: 0, seqT: 0 };
   for (let i = 0; i < n; i++) f.drones.push(slotOf(f, i, new V3()).add(pos));
   forms.push(f);
 }
@@ -2861,17 +2932,33 @@ function volley(f) {
     for (let k = 0; k < 20; k++) { const a = k / 20 * TAU + f.volley * 0.3; v.copy(aim).multiplyScalar(BULLET_SPD).addScaledVector(_r, Math.cos(a) * 15).addScaledVector(_u, Math.sin(a) * 15); shoot(f.pos, v, col); }
   } else if (f.type === 'helix') {
     for (let arm = 0; arm < 3; arm++) for (let k = 0; k < 5; k++) { const a = arm * TAU / 3 + k * 0.22 + f.volley * 0.5; v.copy(aim).multiplyScalar(BULLET_SPD - k * 3).addScaledVector(_r, Math.cos(a) * (6 + k * 3)).addScaledVector(_u, Math.sin(a) * (6 + k * 3)); shoot(f.pos, v, col); }
+  } else if (f.type === 'rose' || f.type === 'bloom') {
+    // a flower that opens as it comes: each drone fires outward from the centre, a little ahead of the aim
+    for (const d of f.drones) {
+      tmp2.subVectors(d, f.pos); const l = tmp2.length() || 1;
+      v.copy(aim).multiplyScalar(BULLET_SPD).addScaledVector(tmp2, 9 / l + (f.type === 'bloom' ? 0.25 : 0.12)); shoot(d, v, col);
+    }
+  } else if (f.type === 'star' || f.type === 'spiral') {
+    // spiral arms: several short bursts, each turned a little further, drawn out in sequence
+    if (!f.seq) { f.seq = 7; f.seqT = 0; f.spin = (Math.random() < 0.5 ? -1 : 1) * 0.32; }
+    const arms = f.type === 'star' ? 5 : 3, s0 = f.volley * 0.7 + (7 - f.seq) * f.spin;
+    for (let arm = 0; arm < arms; arm++) { const a = arm * TAU / arms + s0; v.copy(aim).multiplyScalar(BULLET_SPD).addScaledVector(_r, Math.cos(a) * 14).addScaledVector(_u, Math.sin(a) * 14); shoot(f.pos, v, col); }
+    f.seq--; if (f.seq > 0) { f.volley--; f.seqT = 0.11; } else f.seq = 0;
+  } else if (f.type === 'lattice') {
+    // a curtain with one gap: the grid fires straight along the aim, minus the cells around a hole
+    const gx = (Math.random() * 4 | 0) + 1, gy = (Math.random() * 2 | 0) + 1;
+    f.drones.forEach((d, i) => { const c = i % 6, r = Math.floor(i / 6); if (Math.abs(c - gx - 0.5) < 1 && Math.abs(r - gy - 0.5) < 1) return; v.copy(aim).multiplyScalar(BULLET_SPD); shoot(d, v, col); });
   } else {
     for (const d of f.drones) { v.subVectors(P.pos, d).normalize().multiplyScalar(BULLET_SPD); v.x += (Math.random() - 0.5) * 6; v.z += (Math.random() - 0.5) * 6; shoot(d, v, col); }
   }
-  sfx.volley();
+  if (f.seq === 0 || f.seq === 6) sfx.volley();
 }
 function updateDrones(dt) {
   const hs = Math.hypot(P.vel.x, P.vel.z);
   droneSpawnT -= dt;
-  if (!P.dead && droneSpawnT <= 0 && forms.length < 4) {
+  if (!P.dead && droneSpawnT <= 0 && forms.length < 5) {
     const r = Math.random(), heat = routeHeat(), mode = !shellsOn ? 'flyby' : hs < 30 && r < 0.4 ? 'chase' : r < lerp(0.7, 0.3, heat) ? 'flyby' : 'pass';
-    spawnFormation(mode); droneSpawnT = (hs > 50 ? 7 + Math.random() * 6 : 5 + Math.random() * 4) * lerp(1.3, 0.65, heat);
+    spawnFormation(mode); droneSpawnT = (hs > 50 ? 3.5 + Math.random() * 3.5 : 3 + Math.random() * 3) * lerp(1.25, 0.7, heat);
   }
   let nearest = Infinity, k = 0;
   const fx = hs > 1 ? P.vel.x / hs : fwd.x, fz = hs > 1 ? P.vel.z / hs : fwd.z;
@@ -2888,6 +2975,7 @@ function updateDrones(dt) {
     const gh = surfaceAt(f.pos.x, f.pos.z) + 16; if (f.pos.y < gh) f.pos.y = gh;
     const d = f.pos.distanceTo(P.pos); nearest = Math.min(nearest, d);
     f.fireT -= dt;
+    if (f.seq > 0 && (f.seqT -= dt) <= 0 && !P.dead && !P.inTunnel) volley(f);
     if (!f.peace && d < 180 && f.fireT <= 0 && !P.dead && shellsOn && !P.inTunnel) { volley(f); f.fireT = 1.0 + Math.random() * 0.8; }
     if ((d > 1700 && f.t > 20) || f.t > 90 || (!shellsOn && !f.peace)) { forms.splice(i, 1); continue; }
     // drones ease into their slots; the formation faces where it flies

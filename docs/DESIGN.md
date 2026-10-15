@@ -14,13 +14,15 @@ Mood: melancholy and beautiful. Wide pale skies whose colours drift, Soviet ruin
 2. **Don't stop.** After 2.1 s below 2.5 m/s a barrage starts. The engine stalls when you stop, and each crank has only about a 36% chance of catching.
 3. **Walls are real.** If more than 18 m/s of your velocity goes *into* a wall, you crash: hull −1, the engine stalls and a chase formation spawns. A shallower hit is a scrape: the inbound part is removed, speed and flow bleed off, the machine swings along the wall, and you get sparks and a grinding sound. Lean into the wall and you keep paying for it.
 4. **Roofs shelter.** In galleries, tunnels and the hangar, no shells are fired, no volleys land and bullets do nothing. A barrage cannot start there. Later, drones will come in sideways through the spine-like openings of galleries, so a roof should not stay a perfect refuge.
-5. **Drones are scenery first.** Formations (V, ring, wave, helix; about 20 drones each) cross the sky. Peaceful ones have teal eyes and hostile ones amber. At full speed you outrun them (`DRONE_MAX` 62 m/s).
+5. **Drones are scenery first.** Formations cross the sky every 3–7 s (at most five at once). There are nine shapes: V, ring, wave, helix, plus the geometric rose (five petals), pentagram, lattice, bloom (two counter-turning rings) and spiral. They have 19–30 drones each. Peaceful ones have teal eyes and hostile ones amber. Each shape fires its own pattern: an opening flower, spiral arms drawn in seven bursts, a curtain with one gap, or rings. Every pattern is aimed at where you are now and flies at `BULLET_SPD`. At full speed you outrun them (`DRONE_MAX` 62 m/s).
 6. **Route heat.** The mountain belt (centre lane) is technical but quieter. The lowland roads either side are faster but draw much heavier fire.
 
 ## Feel (numbers to protect)
 
 - Sidecar: cruise 40 m/s, max 75 m/s. Flow builds speed while you keep going: cruise × (1 + 0.5·flow), max × (1 + 0.3·flow).
-- Steering follows lean: yaw rate = g·tan(lean)/v. It should feel weighty, not twitchy. Measured turn radii were about 19 / 144 / 558 / 873 m at 80 / 250 / 540 / 800 km/h.
+- Steering follows lean: yaw rate = K·tan(lean)/v^0.88. The lean still takes time to build, which keeps the weight, but the response is quicker and more willing than before (roll rate: sidecar 4.3, chopper 5.0; grip keeps 78% at top speed).
+- Road sense: on a trunk highway, with the stick within 30% of centre, the heading settles onto the road's line when it is within about 25°. Any real steering input overrides it.
+- Walls also include viaduct parapets, which work as soft walls you can still fly over, and terrain steeper than about 60°, which you glance off and cannot ride up.
 - The machine hugs the ground: it snaps to terrain when the gap is under 1.1 + 0.03·v m. Normal launches are capped at a vertical speed of 10 m/s. Long glides happen only at top speed off real edges. "空は飛びすぎない".
 - Ground contact is visible. A spring suspension on the chassis takes vertical jolts. On asphalt you feel a fine buzz (about 1 cm). Off-road you get coarse bumps and pitch chatter (about 2–3 cm, growing with speed). A camera share and a compass needle that shivers carry the feel through. In the air the chassis hangs slightly.
 - Camera: wide and pulled back. The rider is small, with lots of sky. FOV opens with speed.
@@ -32,8 +34,14 @@ Mood: melancholy and beautiful. Wide pale skies whose colours drift, Soviet ruin
 - Lanes are chapters by distance (see `LANES`):
   - north: Soviet → steppe → Aktau → steppe → dusk …
   - centre: Soviet → Ferghana → Tian Shan → Pamir …
-  - south: Soviet → village → Issyk-Kul → Kyzylkum …
+  - south: Soviet → village → **Issyk-Kul** → Kyzylkum …
   - After 64 km the chapters cycle with variation.
+- **Issyk-Kul** (south lane, x ≈ 7.5–23.5 km): a 16 × 2.5 km lake of deep blue water, ringed with summer meadows and beaches.
+  - It lies between the mountain belt (to the north) and the edge range (to the south).
+  - North shore (`issyk`): golden-green meadows, sandy beaches, piers and old sanatoria. The highway runs close along the water.
+  - South shore (`issykS`): lush valleys, spruce, yurts and red-rock canyon slopes under the snow peaks. The highway swings wide inland.
+  - East end (`karakol`): a town of poplar avenues with a wooden cathedral and a Dungan-style mosque.
+  - No cross highways run over the lake.
 - Trunk highways: 28 m wide and graded. The land is cut down to them, or banked up, and deep valleys are spanned by viaducts. Cuts deeper than 22 m become galleries. Cuts deeper than 45 m close into tunnels with portals.
 - The last 5–7 km settle into a quiet open floor between converging walls, so the goal is seen across open ground rather than met in a tunnel.
 - **Goal:** a vast pale ring (r 130 m) standing across the end of the road, with a faint light inside it and a circle of stones around it. Reaching it ends the run with 「旅の果てに着いた」 and sends you home.
