@@ -3396,28 +3396,58 @@ function updateDrones(dt) {
     if (!f.peace && f.mode === 'pass' && !f.turned && (P.pos.x - f.pos.x) * f.vel.x + (P.pos.z - f.pos.z) * f.vel.z < 0) f.turned = true;
     if (f.mode === 'chase' || f.turned) {
       // try to get ahead of the rider and hang there, as fast as old rotors allow
-      tmp.set(P.pos.x + fx * 70, P.pos.y + 24 + Math.sin(f.t) * 4, P.pos.z + fz * 70).sub(f.pos).normalize().multiplyScalar(DRONE_MAX);
+      const leadDist = 70 + Math.sin(f.t * 2) * 15; // More dynamic movement
+      tmp.set(P.pos.x + fx * leadDist, P.pos.y + 24 + Math.sin(f.t * 1.8) * 6, P.pos.z + fz * leadDist).sub(f.pos).normalize().multiplyScalar(DRONE_MAX * (1 + Math.sin(f.t) * 0.1));
       f.vel.lerp(tmp, 1 - Math.exp(-1.1 * dt));
+      // Add vertical weaving for chase formations
+      if (f.mode === 'chase') f.pos.y += Math.sin(f.t * 3) * dt * 8;
     }
     if (f.mode === 'assault') assaultMove(f, dt, fx, fz, hs);
-    if (f.mode === 'pass' && !f.turned) { const dd = Math.hypot(f.pos.x - P.pos.x, f.pos.z - P.pos.z), ty = surfaceAt(f.pos.x, f.pos.z) + 26 + 50 * clamp(dd / 1500, 0, 1); f.pos.y += (ty - f.pos.y) * (1 - Math.exp(-0.6 * dt)); }
+    if (f.mode === 'pass' && !f.turned) {
+      const dd = Math.hypot(f.pos.x - P.pos.x, f.pos.z - P.pos.z), ty = surfaceAt(f.pos.x, f.pos.z) + 26 + 50 * clamp(dd / 1500, 0, 1);
+      f.pos.y += (ty - f.pos.y) * (1 - Math.exp(-0.6 * dt));
+      // Add gentle swaying for pass formations
+      f.pos.y += Math.sin(f.t * 1.5) * dt * 4;
+    }
     f.pos.addScaledVector(f.vel, dt);
     const gh = surfaceAt(f.pos.x, f.pos.z) + 16; if (f.pos.y < gh) f.pos.y = gh;
     const d = f.pos.distanceTo(P.pos); nearest = Math.min(nearest, d);
     f.fireT -= dt;
     if (f.seq > 0 && (f.seqT -= dt) <= 0 && !P.dead && !P.inTunnel) volley(f);
     if (f.pending && f.pending.length) for (let q = f.pending.length - 1; q >= 0; q--) { const pr = f.pending[q]; if (t >= pr.at) { pr.p.addScaledVector(pr.v, t - pr.at); shoot(pr.p, pr.v, pr.c); f.pending.splice(q, 1); } }
-    if (f.mode === 'assault') { if (f.phase === 'hold' && f.fireT <= 0 && !P.dead && shellsOn && !P.inTunnel) { assaultVolley(f); f.fireT = f.gap; } }
-    else if (!f.peace && d < 180 && f.fireT <= 0 && !P.dead && shellsOn && !P.inTunnel) { volley(f); f.fireT = 1.0 + Math.random() * 0.8; }
+    if (f.mode === 'assault') { 
+      if (f.phase === 'hold' && f.fireT <= 0 && !P.dead && shellsOn && !P.inTunnel) { 
+        assaultVolley(f); 
+        f.fireT = f.gap * (0.8 + Math.random() * 0.4); // More varied firing rate
+      }
+    }
+    else if (!f.peace && d < 180 && f.fireT <= 0 && !P.dead && shellsOn && !P.inTunnel) { 
+      volley(f); 
+      f.fireT = 1.0 + Math.random() * 0.8;
+      // Add sound feedback for firing
+      if (d < 100) sfx.volley();
+    }
     if ((d > 1700 && f.t > 20 && f.mode !== 'assault') || (f.mode === 'assault' && f.phase === 'leave' && d > 1400) || f.t > 90 || (!shellsOn && !f.peace)) { forms.splice(i, 1); continue; }
     // drones ease into their slots; the formation faces where it flies
     _f.copy(f.vel).normalize(); _r.crossVectors(_f, UP).normalize(); _u.crossVectors(_r, _f);
     for (let j = 0; j < f.n && k < MAXD; j++, k++) {
       slotOf(f, j, tmp2); const tx = f.pos.x + _r.x * tmp2.x + _u.x * tmp2.y + _f.x * tmp2.z, ty = f.pos.y + _r.y * tmp2.x + _u.y * tmp2.y + _f.y * tmp2.z, tz = f.pos.z + _r.z * tmp2.x + _u.z * tmp2.y + _f.z * tmp2.z;
       const dp = f.drones[j], kk = 1 - Math.exp(-5 * dt); dp.x += (tx - dp.x) * kk; dp.y += (ty - dp.y) * kk; dp.z += (tz - dp.z) * kk;
-      _dm.position.copy(dp); _dm.rotation.set(Math.sin(t * 3 + j) * 0.15, Math.atan2(_f.x, _f.z), Math.cos(t * 2.6 + j) * 0.15); _dm.scale.setScalar(2.6); _dm.updateMatrix();
+      // More dynamic drone animations
+      _dm.position.copy(dp); 
+      _dm.rotation.set(Math.sin(t * 3 + j * 0.5) * 0.25, Math.atan2(_f.x, _f.z), Math.cos(t * 2.6 + j * 0.3) * 0.25); 
+      _dm.scale.setScalar(2.6 + Math.sin(t * 2 + j) * 0.1); 
+      _dm.updateMatrix();
       droneMesh.setMatrixAt(k, _dm.matrix);
-      _dm.position.addScaledVector(_f, 1.2); _dm.position.y -= 1.0; _dm.scale.setScalar(2.4 + 2.6 * Math.max(0, Math.sin(t * 3.2 - j * 0.45))); _dm.updateMatrix(); eyeMesh.setMatrixAt(k, _dm.matrix); eyeMesh.setColorAt(k, f.peace ? f.eye : EYE_HOSTILE);
+      _dm.position.addScaledVector(_f, 1.2); _dm.position.y -= 1.0; 
+      _dm.scale.setScalar(2.4 + 2.6 * Math.max(0, Math.sin(t * 3.2 - j * 0.45))); 
+      _dm.updateMatrix(); 
+      eyeMesh.setMatrixAt(k, _dm.matrix); 
+      // Eye color changes based on formation mode and state
+      if (f.peace) eyeMesh.setColorAt(k, f.eye);
+      else if (f.mode === 'assault') eyeMesh.setColorAt(k, new THREE.Color(0xff4444)); // Red for assault
+      else if (d < 200) eyeMesh.setColorAt(k, new THREE.Color(0xff8844)); // Orange when close
+      else eyeMesh.setColorAt(k, EYE_HOSTILE);
     }
   }
   droneMesh.count = eyeMesh.count = k; droneMesh.instanceMatrix.needsUpdate = eyeMesh.instanceMatrix.needsUpdate = true; if (eyeMesh.instanceColor) eyeMesh.instanceColor.needsUpdate = true;
@@ -3982,8 +4012,18 @@ const sfx = (() => {
     start() { burst(140, 1.0, 0.5, 0.5); burst(220, 1.2, 0.3, 0.3); },
     volley() {
       if (!ctx) return; const now = ctx.currentTime;
-      [0, 0.05, 0.1].forEach((dl, i) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(1600 - i * 240, now + dl); o.frequency.exponentialRampToValueAtTime(700, now + dl + 0.2);
-        g.gain.setValueAtTime(0, now + dl); g.gain.linearRampToValueAtTime(0.03, now + dl + 0.01); g.gain.exponentialRampToValueAtTime(0.001, now + dl + 0.25); o.connect(g); g.connect(master); o.start(now + dl); o.stop(now + dl + 0.3); });
+      [0, 0.05, 0.1].forEach((dl, i) => { 
+        const o = ctx.createOscillator(), g = ctx.createGain(); 
+        o.type = 'triangle'; 
+        o.frequency.setValueAtTime(1600 - i * 240, now + dl); 
+        o.frequency.exponentialRampToValueAtTime(700, now + dl + 0.2);
+        g.gain.setValueAtTime(0, now + dl); 
+        g.gain.linearRampToValueAtTime(0.03, now + dl + 0.01); 
+        g.gain.exponentialRampToValueAtTime(0.001, now + dl + 0.25); 
+        o.connect(g); g.connect(master); o.start(now + dl); o.stop(now + dl + 0.3); 
+      });
+      // Add whoosh sound for incoming volley
+      burst(2000, 1.2, 0.12, 0.15, 1500);
     },
     hum(k) {
       if (!ctx) return;
@@ -4000,14 +4040,17 @@ const sfx = (() => {
       eng.lfo.frequency.setTargetAtTime(5 + speed * 0.13, now, 0.1); eng.lp.frequency.setTargetAtTime(180 + speed * 5, now, 0.1);
       eng.g.gain.setTargetAtTime(bike ? 0.05 + clamp(speed / 110, 0, 1) * 0.05 : 0, now, 0.2); eng.lg.gain.setTargetAtTime(bike ? 0.035 : 0, now, 0.2);
     },
-    land(v) { burst(180, 0.8, 0.25, 0.25 + v * 0.5); },
+    land(v) { burst(180, 0.8, 0.25, 0.25 + v * 0.5); if (v > 0.5) burst(90, 0.6, 0.4, 0.15 * v); },
     // ガチャン: a latch slamming home, iron on iron, over a dull thump
     clank(v = 1) { burst(2600, 9, 0.07, 0.32 * v, 1900); burst(1200, 6, 0.1, 0.22 * v); burst(95, 0.9, 0.22, 0.45 * v); },
     // ガッ: powder and iron. A blast of charge, the breech slamming, a ring of steel and a thump in the chest
     gun() {
       if (!ctx) return; const now = ctx.currentTime;
-      burst(1900 + Math.random() * 700, 0.9, 0.045, 0.3, 700); burst(380 + Math.random() * 90, 0.8, 0.09, 0.42, 120);
-      burst(5200, 14, 0.06, 0.07); // the steel ring of the action
+      burst(1900 + Math.random() * 700, 0.9, 0.045, 0.3, 700); 
+    burst(380 + Math.random() * 90, 0.8, 0.09, 0.42, 120);
+    burst(5200, 14, 0.06, 0.07); // the steel ring of the action
+    // Add gunshot echo
+    setTimeout(() => burst(2800, 8, 0.04, 0.12, 1800), 50);
       const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(95, now); o.frequency.exponentialRampToValueAtTime(34, now + 0.09);
       g.gain.setValueAtTime(0.5, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.12); o.connect(g); g.connect(master); o.start(now); o.stop(now + 0.13);
     },
@@ -4023,14 +4066,27 @@ const sfx = (() => {
       if (!ctx) return; const now = ctx.currentTime, f0 = 196 * Math.pow(2, [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26, 28, 31, 33][step] / 12);
       // a deep blast that falls away, then shrapnel and burning bits rattling down after it
       burst(70, 0.6, 0.9, 0.55, 30); burst(420, 0.8, 0.35, 0.3, 90); burst(2600, 1.0, 0.14, 0.14, 700);
+    // Add metallic debris sounds
+    for (let k = 0; k < 3; k++) setTimeout(() => burst(800 + Math.random() * 1800, 4, 0.03, 0.1), 50 + k * 100);
       const sub = ctx.createOscillator(), sg = ctx.createGain(); sub.type = 'sine'; sub.frequency.setValueAtTime(62, now); sub.frequency.exponentialRampToValueAtTime(26, now + 0.6);
       sg.gain.setValueAtTime(0.55, now); sg.gain.exponentialRampToValueAtTime(0.001, now + 0.7); sub.connect(sg); sg.connect(master); sub.start(now); sub.stop(now + 0.72);
-      for (let k = 0; k < 4; k++) setTimeout(() => burst(1400 + Math.random() * 2600, 3, 0.05, 0.06), 90 + k * 70 + Math.random() * 60);
+      // Add deep rumble
+      const rumble = ctx.createOscillator(), rg = ctx.createGain(); rumble.type = 'sine'; rumble.frequency.setValueAtTime(40, now); rumble.frequency.exponentialRampToValueAtTime(20, now + 0.4);
+      rg.gain.setValueAtTime(0.3, now); rg.gain.exponentialRampToValueAtTime(0.001, now + 0.5); rumble.connect(rg); rg.connect(master); rumble.start(now); rumble.stop(now + 0.55);
+      for (let k = 0; k < 6; k++) setTimeout(() => burst(1400 + Math.random() * 2600, 3, 0.05, 0.06), 90 + k * 50 + Math.random() * 40);
       const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(f0 * 1.5, now); o.frequency.exponentialRampToValueAtTime(f0, now + 0.05);
       g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.09, now + 0.01); g.gain.exponentialRampToValueAtTime(0.001, now + 0.35); o.connect(g); g.connect(master); o.start(now); o.stop(now + 0.36);
+      // Add harmony note
+      const o2 = ctx.createOscillator(), g2 = ctx.createGain(); o2.type = 'triangle'; o2.frequency.setValueAtTime(f0 * 1.5 * 1.5, now); o2.frequency.exponentialRampToValueAtTime(f0 * 1.5, now + 0.05);
+      g2.gain.setValueAtTime(0, now); g2.gain.linearRampToValueAtTime(0.045, now + 0.01); g2.gain.exponentialRampToValueAtTime(0.001, now + 0.35); o2.connect(g2); g2.connect(master); o2.start(now); o2.stop(now + 0.36);
     },
-    scrape(v) { burst(3400 + Math.random() * 1600, 2.2, 0.14, 0.12 + v * 0.3, 1600); burst(420, 1.4, 0.12, 0.08 + v * 0.22); },
-    boom(v) { burst(90, 0.6, 1.4, 0.9 * v); burst(260, 0.7, 0.5, 0.5 * v); },
+    scrape(v) { 
+      burst(3400 + Math.random() * 1600, 2.2, 0.14, 0.12 + v * 0.3, 1600); 
+      burst(420, 1.4, 0.12, 0.08 + v * 0.22);
+      // Add spark sound
+      if (v > 2) burst(6000, 3, 0.03, 0.1);
+    },
+    boom(v) { burst(90, 0.6, 1.4, 0.9 * v); burst(260, 0.7, 0.5, 0.5 * v); burst(60, 0.5, 0.3, 0.3 * v, 40); },
     whistle(dur) {
       if (!ctx) return; const now = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
       o.type = 'sine'; o.frequency.setValueAtTime(1500 + Math.random() * 300, now); o.frequency.exponentialRampToValueAtTime(420, now + dur);
@@ -4039,9 +4095,20 @@ const sfx = (() => {
     },
     alarm() {
       if (!ctx) return; const now = ctx.currentTime;
-      [0, 0.18].forEach((dl, i) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'square'; o.frequency.value = i ? 620 : 780;
-        g.gain.setValueAtTime(0.0, now + dl); g.gain.linearRampToValueAtTime(0.035, now + dl + 0.01); g.gain.linearRampToValueAtTime(0, now + dl + 0.15);
-        o.connect(g); g.connect(master); o.start(now + dl); o.stop(now + dl + 0.2); });
+      [0, 0.18].forEach((dl, i) => { 
+        const o = ctx.createOscillator(), g = ctx.createGain(); 
+        o.type = 'square'; 
+        o.frequency.value = i ? 620 : 780;
+        g.gain.setValueAtTime(0.0, now + dl); 
+        g.gain.linearRampToValueAtTime(0.035, now + dl + 0.01); 
+        g.gain.linearRampToValueAtTime(0, now + dl + 0.15);
+        o.connect(g); g.connect(master); o.start(now + dl); o.stop(now + dl + 0.2); 
+      });
+      // Add pulsing effect
+      const pulseOsc = ctx.createOscillator(), pulseGain = ctx.createGain();
+      pulseOsc.type = 'sine'; pulseOsc.frequency.value = 3;
+      pulseGain.gain.setValueAtTime(0, now); pulseGain.gain.linearRampToValueAtTime(0.02, now + 0.05); pulseGain.gain.linearRampToValueAtTime(0, now + 0.25);
+      pulseOsc.connect(pulseGain); pulseGain.connect(master); pulseOsc.start(now); pulseOsc.stop(now + 0.3);
     },
     jump() { burst(700, 1.2, 0.18, 0.18, 1600); },
     dash() { burst(500, 0.9, 0.5, 0.45, 2600); },
