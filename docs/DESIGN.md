@@ -26,7 +26,8 @@ Mood: melancholy and beautiful. Wide pale skies whose colours drift, Soviet ruin
 ## Feel (numbers to protect)
 
 - Sidecar: cruise 40 m/s, max 98 m/s (chopper 95, board 80). Flow builds speed while you keep going: cruise × (1 + 0.5·flow), max × (1 + 0.3·flow).
-- Lateral feel: the lean rides a damped spring (natural frequency 1.55 × roll rate, damping ratio 0.62), so it goes over with weight, overshoots a touch and settles. Yaw from lean is about 14% lazier than before. On top of that, a sideways float of up to 5.5 m/s toward the turn builds quickly and dies slowly. The machine first slides across while still pointing ahead, the heading follows, and the line sways. The rider hangs into the bend a beat late and looks into it, and the dog looks too.
+- Short inputs are sidesteps, held inputs are arcs. Holding the stick to one side builds `P.hold`. Yaw from lean starts at 30% and reaches full strength only after about 2.4 s of holding (yaw K 33). The sideways float is the main short-input response: up to 8.5 m/s, building at 3.2/s. Measured at about 180 km/h: a 1 s input gives about 9° of heading and 5 m of sidestep, while a held input turns the line in a wide arc. A drift is unaffected.
+- Lateral feel (spring): the lean rides a damped spring (natural frequency 1.55 × roll rate, damping ratio 0.62), so it goes over with weight, overshoots a touch and settles. Yaw from lean is about 14% lazier than before. On top of that, a sideways float of up to 5.5 m/s toward the turn builds quickly and dies slowly. The machine first slides across while still pointing ahead, the heading follows, and the line sways. The rider hangs into the bend a beat late and looks into it, and the dog looks too.
 - The long pull: held straight, the engine keeps winding up toward 96% of the top end at about 2.3 m/s² × (1 − v/top), which is slow, and 30% stronger on tarmac. Light direction changes keep the pull. Only a really hard bend (lean beyond about 0.6) bleeds speed back toward about 1.3 × cruise (around 190 km/h).
 - Off the tarmac grip is 68% of the on-road value, so the machine slides more. The slide is still turned back into forward speed, so the sliding feels like flowing rather than braking.
 - Steering follows lean: yaw rate = K·tan(lean)/v^0.88. The lean still takes time to build, which keeps the weight, but the response is quicker and more willing than before (roll rate: sidecar 4.3, chopper 5.0; grip keeps 78% at top speed).
@@ -99,21 +100,40 @@ The other half are the biome's own marks and the uncanny geometric ones, which g
 
 Cuts shallower than 22 m are now graded into wide, rolling banks (14 m + 2.6 × depth) rather than steep walls. You can ride up off the road, look around and come back down. Deep cuts keep their steep sides, galleries and tunnels.
 
+## Assault formations (dodge them, or answer them)
+
+Some hostile formations come straight up the road at you (`mode: 'assault'`). Only one runs at a time, and it becomes more likely when you are moving fast.
+- They turn about 230 m ahead and hold there, weaving, for 15 s, then climb away.
+- Their rounds keep your pace and close at 72 m/s, so each pattern takes about three seconds to arrive. That is long enough to read it and slide into the gap.
+- There are six patterns in rotation:
+  1. A curtain with one gap, placed away from where you are.
+  2. An opening fan.
+  3. A widening ring: stay in the eye, or ride out past it.
+  4. Three aimed streams.
+  5. A sweeping spiral.
+  6. A staggered double curtain.
+- Grazing a round (passing within about 5 m without being hit) gives a bright chime that climbs with a run of grazes, a spark, and a little flow.
+- With the turret up, these formations are the natural prey. Its 560 m forward reach usually starts the chain before they settle.
+
 ## The turret
 
 Hold the compass for 0.45 s and a steam-age twin gun unfolds out of the sidecar chair: two latches, two clanks (ガチャン、ガチャン), and a lurch each. Press the compass again to fold it away. (On a keyboard, T toggles it.) It is built from iron and brass, with a copper boiler, a pressure gauge, an ammunition drum and a shield plate.
 
-Raised, it idles with a slow watchful sweep. It tracks hostile drones ahead from 560 m, but only opens fire inside 290 m. It fires small fast rounds (950 m/s) at 22 a second from alternate barrels, with recoil kick, muzzle flashes and spent brass cases flying out of the side.
+Raised, it idles with a slow watchful sweep. It guards the road ahead: it tracks hostile drones in a forward cone from 900 m and opens fire inside 560 m. It fires small fast rounds (1100 m/s) at 22 a second from alternate barrels, with recoil kick, muzzle flashes and spent brass cases flying out of the side.
 - Three rounds kill a drone: two clinking hits, then the blast.
 - A blast is a white core, a swelling fireball, a pale shock ring, falling debris and smoke.
 - A neighbour within 11 m has a 50% chance of going up a beat later, so blasts run through a formation as a chain.
 - Kills that follow within 0.6 s climb a pentatonic scale. The chain rings out as one rising phrase, with the screen punching a little harder as it climbs.
-- The gun sound is a crack, the bark of the charge and a short chest thump, slightly different on every round (ダダダ).
+- The gun sound is powder and iron (ガガガ): a blast of charge, the breech slamming, a ring of steel and a thump in the chest. Each kill is a deep falling blast with a sub-bass drop, then shrapnel rattling down after it.
 - Measured: a 27-drone formation was gone in about 2 s once it came in range.
 
 Peaceful formations are never targeted, and it does not fire under a roof.
 
 This is deliberately overpowered for now. Variations, stamina and balance come later, along with boss targets.
+
+## Sky by place
+
+The mood palette (ten moods, including green-grey haze, faded peach over slate, cold silver, and violet with a gold horizon) is chosen by position as much as by time. Each stretch of land keeps its own pale sky, which drifts slowly with the hour, and the strength of the mood tint varies across the land (0.36–0.6). The biome palette and the altitude sky still sit underneath.
 
 ## HUD
 

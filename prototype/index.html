@@ -2517,7 +2517,7 @@ for (let i = 0; i < LINES; i++) { const a = Math.random() * TAU, r = 2.2 + Math.
 const P = {
   pos: new V3(), vel: new V3(), yaw: 0, n: new V3(0, 1, 0), grounded: false, air: 0, coyote: 0, jumpBuf: 0,
   grind: null, gS: 0, gSpeed: 0, gDir: 1, gSeg: 0, grindCD: 0, gauge: 40, dashCD: 0, inStream: false, inUpdraft: false, onWater: false,
-  motes: 0, stalled: false, crankT: 0, sputT: 0, flow: 0, carve: 0, ajCD: 0, skipT: 0, hull: 3, braking: false, brakeHeat: 0, danger: 0, stopT: 0, dead: false, invuln: 0, found: foundKeys.size, drift: 0, drifting: false, tuck: false, yawRate: 0, lean: 0, onRoad: false, assistLean: 0, leanV: 0, sway: 0, inTunnel: false, reached: false, dist: store.get('windlover.dist4', 0),
+  motes: 0, stalled: false, crankT: 0, sputT: 0, flow: 0, carve: 0, ajCD: 0, skipT: 0, hull: 3, braking: false, brakeHeat: 0, danger: 0, stopT: 0, dead: false, invuln: 0, found: foundKeys.size, drift: 0, drifting: false, tuck: false, yawRate: 0, lean: 0, onRoad: false, assistLean: 0, leanV: 0, sway: 0, hold: 0, holdSign: 0, grazes: 0, inTunnel: false, reached: false, dist: store.get('windlover.dist4', 0),
 };
 let HOVER = VEHICLES[vehKey].hover;
 const fwd = new V3(), fPl = new V3(), side = new V3(), tmp = new V3(), tmp2 = new V3(), UP = new V3(0, 1, 0), windDir = new V3(1, 0, 0);
@@ -2573,12 +2573,15 @@ function stepPhysics(dt) {
     P.lean = clamp(P.lean + P.leanV * dt, -1.3, 1.3);
     // yaw ~ tan(lean)/v^0.88: the same at town speeds, a touch tighter flat out than pure bike physics
     const vTurn = Math.pow(Math.max(Math.hypot(P.vel.x, P.vel.z), 10), 0.88);
-    P.yawRate = clamp(-(P.grounded ? 37 : 30) * Math.tan(P.lean) / vTurn * (P.drifting ? 1.6 : 1), -2.2, 2.2);
+    // a short input is mostly a sidestep: the heading only comes round as the input is held
+    if (Math.abs(steer) > 0.15 && Math.sign(steer) === P.holdSign) P.hold += dt; else { P.hold = Math.max(0, P.hold - dt * 3); if (Math.abs(steer) > 0.15) { P.holdSign = Math.sign(steer); P.hold = 0; } }
+    const holdK = P.drifting ? 1 : lerp(0.3, 1, smooth(0.5, 2.4, P.hold));
+    P.yawRate = clamp(-(P.grounded ? 33 : 27) * holdK * Math.tan(P.lean) / vTurn * (P.drifting ? 1.6 : 1), -2.2, 2.2);
     P.yaw += P.yawRate * dt;
     roadAffinity(steer, dt);
     // the float: laid over, the machine first slides sideways while still pointing ahead, and the heading follows
-    { const hsx = Math.hypot(P.vel.x, P.vel.z), swayT = P.grounded && !P.drifting && !P.dead ? steer * 5.5 * clamp((hsx - 8) / 30, 0, 1) : 0;
-      P.sway += (swayT - P.sway) * (1 - Math.exp(-(Math.abs(swayT) > Math.abs(P.sway) ? 2.4 : 1.5) * dt)); }
+    { const hsx = Math.hypot(P.vel.x, P.vel.z), swayT = P.grounded && !P.drifting && !P.dead ? steer * 8.5 * clamp((hsx - 8) / 30, 0, 1) : 0;
+      P.sway += (swayT - P.sway) * (1 - Math.exp(-(Math.abs(swayT) > Math.abs(P.sway) ? 3.2 : 2.0) * dt)); }
     fwd.set(Math.sin(P.yaw), 0, Math.cos(P.yaw));
 
     if (P.grounded) {
@@ -3211,12 +3214,20 @@ const eyeMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 8, 6), new
 const EYE_HOSTILE = new THREE.Color(0xffb050), EYE_PEACE = new THREE.Color(0xa8f0e8);
 for (let i = 0; i < MAXD; i++) eyeMesh.setColorAt(i, EYE_HOSTILE);
 for (const im of [droneMesh, eyeMesh]) { im.count = 0; im.frustumCulled = false; scene.add(im); }
-const BUL = 1600, bPos = new Float32Array(BUL * 3), bVel = new Float32Array(BUL * 3), bLife = new Float32Array(BUL), bCol = new Float32Array(BUL * 3);
+const BUL = 2400, bPos = new Float32Array(BUL * 3), bVel = new Float32Array(BUL * 3), bLife = new Float32Array(BUL), bCol = new Float32Array(BUL * 3);
 const bulGeo = new THREE.BufferGeometry(); bulGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3)); bulGeo.setAttribute('color', new THREE.BufferAttribute(bCol, 3));
 const bulPts = new THREE.Points(bulGeo, new THREE.PointsMaterial({ size: 3.4, map: dotTex, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false, fog: false }));
 bulPts.frustumCulled = false; scene.add(bulPts);
 for (let i = 0; i < BUL; i++) bPos[i * 3 + 1] = -9999;
 let bulI = 0, droneSpawnT = 5;
+const bGraze = new Uint8Array(BUL);
+// a graze: a round slips past within a couple of metres. A bright tick, a spark, a little flow, and a chime that climbs with a run of them
+let grazeRun = 0, grazeT = -9;
+function graze(x, y, z) {
+  grazeRun = t - grazeT < 0.8 ? Math.min(grazeRun + 1, 10) : 0; grazeT = t; P.grazes++;
+  P.flow = Math.min(1, P.flow + 0.012); P.gauge += 2;
+  sparks(tmp.set(x, y, z), 0, 0, 4); sfx.graze(grazeRun);
+}
 const forms = [], _dm = new THREE.Object3D(), _f = new V3(), _r = new V3(), _u = new V3();
 const VOLLEY_COLS = [[1, 0.5, 0.16], [0.95, 0.36, 0.58], [0.3, 0.68, 1], [1, 0.78, 0.22]];
 function shapeSlot(type, n, t, i, out) {
@@ -3266,19 +3277,65 @@ function spawnFormation(forceMode) {
   const type = FORM_TYPES[Math.random() * FORM_TYPES.length | 0], n = FORM_N[type];
   // scenic approach: rise over the horizon far ahead, slightly off your line, and come on slowly
   const side = mode === 'flyby' ? (Math.random() < 0.5 ? -1 : 1) * (700 + Math.random() * 300) : (Math.random() - 0.5) * 320;
-  const dist = mode === 'pass' ? 1400 : mode === 'flyby' ? 450 + Math.random() * 700 : -420;
+  const dist = mode === 'assault' ? 1150 : mode === 'pass' ? 1400 : mode === 'flyby' ? 450 + Math.random() * 700 : -420;
   const pos = new V3(P.pos.x + fx * dist - fz * side, 0, P.pos.z + fz * dist + fx * side);
-  pos.y = surfaceAt(pos.x, pos.z) + (mode === 'pass' ? 70 + Math.random() * 30 : mode === 'flyby' ? 60 + Math.random() * 90 : 34 + Math.random() * 20);
+  pos.y = surfaceAt(pos.x, pos.z) + (mode === 'assault' ? 34 : mode === 'pass' ? 70 + Math.random() * 30 : mode === 'flyby' ? 60 + Math.random() * 90 : 34 + Math.random() * 20);
   // flybys cross your path far off, slowly, like birds; they never fire
   const vel = mode === 'pass' ? new V3(-fx, 0, -fz).multiplyScalar(34) : mode === 'flyby' ? new V3(fz, 0, -fx).multiplyScalar(Math.sign(side) * (28 + Math.random() * 12)) : new V3(fx, 0, fz).multiplyScalar(45);
   const morph = MORPHABLE.includes(type) && Math.random() < 0.55 ? MORPHABLE[Math.random() * MORPHABLE.length | 0] : null;
-  const f = { mode, type, n, pos, vel, t: Math.random() * 4, fireT: 1.5, volley: 0, turned: false, peace: mode === 'flyby', drones: [], seq: 0, seqT: 0, morph: morph === type ? null : morph, eye: EYE_PEACES[Math.random() * EYE_PEACES.length | 0] };
+  if (mode === 'assault') vel.set(-fx * 40, 0, -fz * 40);
+  const f = { mode, type, n, pos, vel, t: Math.random() * 4, age: 0, phase: 'approach', gap: 1.15, pat: 0, fireT: 1.5, volley: 0, turned: false, peace: mode === 'flyby', drones: [], seq: 0, seqT: 0, morph: morph === type ? null : morph, eye: EYE_PEACES[Math.random() * EYE_PEACES.length | 0] };
   for (let i = 0; i < n; i++) f.drones.push(slotOf(f, i, new V3()).add(pos));
   forms.push(f);
 }
+// The assault: up the road at you, then it turns and holds about 230 m ahead, weaving, and fires patterns
+// built to be read and dodged, not merely survived. Rounds keep pace with you and close at a set speed, so a
+// pattern takes about three seconds to arrive: long enough to read the gap and slide into it.
+const AS_HOLD = 230, AS_REL = 72, AS_TIME = 15;
+const AS_COLS = [[1, 0.42, 0.62], [0.42, 0.78, 1], [1, 0.74, 0.3], [0.7, 1, 0.6], [0.86, 0.6, 1]];
+function assaultMove(f, dt, fx, fz, hs) {
+  f.age += dt;
+  const ahead = (f.pos.x - P.pos.x) * fx + (f.pos.z - P.pos.z) * fz;
+  if (f.phase === 'approach' && ahead < AS_HOLD + 40) { f.phase = 'hold'; f.fireT = 0.8; f.age = 0; toast('編隊、正面', '', 900); }
+  if (f.phase === 'hold' && f.age > AS_TIME) f.phase = 'leave';
+  if (f.phase === 'hold') {
+    const w = Math.sin(f.t * 0.45) * 46, tx = P.pos.x + fx * AS_HOLD - fz * w, tz = P.pos.z + fz * AS_HOLD + fx * w, ty = surfaceAt(tx, tz) + 26 + Math.sin(f.t * 0.7) * 6;
+    tmp.set((tx - f.pos.x) * 1.6 + P.vel.x, (ty - f.pos.y) * 1.2, (tz - f.pos.z) * 1.6 + P.vel.z);
+    f.vel.lerp(tmp, 1 - Math.exp(-2.5 * dt));
+  } else if (f.phase === 'leave') { tmp.set(P.vel.x + fx * 50, 26, P.vel.z + fz * 50); f.vel.lerp(tmp, 1 - Math.exp(-1 * dt)); }
+  else { tmp.set(-fx * 40, 0, -fz * 40); f.vel.lerp(tmp, 1 - Math.exp(-1 * dt)); const ty = surfaceAt(f.pos.x, f.pos.z) + 30; f.pos.y += (ty - f.pos.y) * (1 - Math.exp(-0.8 * dt)); }
+}
+function assaultVolley(f) {
+  const col = AS_COLS[f.pat % AS_COLS.length], hs = Math.hypot(P.vel.x, P.vel.z) || 1, fx = P.vel.x / hs, fz = P.vel.z / hs;
+  const rx = -fz, rz = fx, base = new V3(P.vel.x, 0, P.vel.z), v = new V3(), at = new V3();
+  // each round: start at the formation, keep the rider's pace, close along the road at AS_REL with a lateral drift
+  const fire = (lat, delay, latSpd, upOff = 0) => {
+    at.copy(f.pos).addScaledVector(tmp2.set(rx, 0, rz), lat);
+    const tArr = Math.max(0.5, ((f.pos.x - P.pos.x) * fx + (f.pos.z - P.pos.z) * fz) / AS_REL);
+    v.copy(base).addScaledVector(tmp2.set(fx, 0, fz), -AS_REL).addScaledVector(tmp2.set(rx, 0, rz), latSpd);
+    v.y = (P.pos.y + 0.6 + upOff - at.y) / tArr; // arrive at rider height
+    if (delay) { f.pending = f.pending || []; f.pending.push({ p: at.clone(), v: v.clone(), c: col, at: t + delay }); } else shoot(at, v, col);
+  };
+  const p = f.pat++ % 6, off = (P.pos.x - f.pos.x) * rx + (P.pos.z - f.pos.z) * rz; // the rider's lateral offset from the formation
+  if (p === 0) { // a curtain with one gap, placed away from where you are
+    const gapAt = off + (Math.random() < 0.5 ? -1 : 1) * (10 + Math.random() * 12);
+    for (let k = -14; k <= 14; k++) { const lat = off + k * 3.6; if (Math.abs(lat - gapAt) < 5.5) continue; fire(lat, 0, 0); }
+  } else if (p === 1) { // an opening fan: rays that spread as they come
+    for (let k = -7; k <= 7; k++) fire(0, 0, k * 4.2 + off / (AS_HOLD / AS_REL));
+  } else if (p === 2) { // a ring that widens on its way: stay in the eye, or ride out past it
+    for (let k = 0; k < 22; k++) { const a = k / 22 * TAU; fire(off + Math.cos(a) * 2, 0, Math.cos(a) * 9, Math.sin(a) * 9); }
+  } else if (p === 3) { // aimed streams: three lines laid down where you are, a beat apart
+    for (let k = 0; k < 6; k++) for (const s of [-7, 0, 7]) fire(off + s, k * 0.09, 0);
+  } else if (p === 4) { // a sweeping spiral: the arms turn as they are fired
+    for (let k = 0; k < 18; k++) { const a = k * 0.55; fire(Math.cos(a) * 30 + off, k * 0.05, -Math.sin(a) * 6); }
+  } else { // double curtain, staggered: the gaps of one sit behind the bars of the other
+    for (let row = 0; row < 2; row++) for (let k = -10; k <= 10; k++) { if ((k + row) % 3 === 0) continue; fire(off + k * 4.4 + row * 2.2, row * 0.35, 0); }
+  }
+  sfx.volley();
+}
 function clearDrones() { forms.length = 0; for (let i = 0; i < BUL; i++) { bLife[i] = 0; bPos[i * 3 + 1] = -9999; } droneMesh.count = eyeMesh.count = 0; }
 function shoot(p, v, c) {
-  const i = bulI = (bulI + 1) % BUL;
+  const i = bulI = (bulI + 1) % BUL; bGraze[i] = 0;
   bPos[i * 3] = p.x; bPos[i * 3 + 1] = p.y; bPos[i * 3 + 2] = p.z; bVel[i * 3] = v.x; bVel[i * 3 + 1] = v.y; bVel[i * 3 + 2] = v.z; bLife[i] = 5;
   bCol[i * 3] = c[0]; bCol[i * 3 + 1] = c[1]; bCol[i * 3 + 2] = c[2];
 }
@@ -3323,7 +3380,9 @@ function updateDrones(dt) {
   const hs = Math.hypot(P.vel.x, P.vel.z);
   droneSpawnT -= dt;
   if (!P.dead && droneSpawnT <= 0 && forms.length < 7) {
-    const r = Math.random(), heat = routeHeat(), mode = !shellsOn ? 'flyby' : hs < 30 && r < 0.4 ? 'chase' : r < lerp(0.78, 0.45, heat) ? 'flyby' : 'pass';
+    const r = Math.random(), heat = routeHeat(), assaulting = forms.some((f) => f.mode === 'assault');
+    let mode = !shellsOn ? 'flyby' : hs < 30 && r < 0.4 ? 'chase' : r < lerp(0.7, 0.4, heat) ? 'flyby' : 'pass';
+    if (shellsOn && mode === 'pass' && !assaulting && hs > 25 && Math.random() < 0.6) mode = 'assault';
     spawnFormation(mode); droneSpawnT = (hs > 50 ? 2.2 + Math.random() * 2.6 : 2 + Math.random() * 2.4) * lerp(1.2, 0.75, heat);
   }
   let nearest = Infinity, k = 0;
@@ -3336,14 +3395,17 @@ function updateDrones(dt) {
       tmp.set(P.pos.x + fx * 70, P.pos.y + 24 + Math.sin(f.t) * 4, P.pos.z + fz * 70).sub(f.pos).normalize().multiplyScalar(DRONE_MAX);
       f.vel.lerp(tmp, 1 - Math.exp(-1.1 * dt));
     }
+    if (f.mode === 'assault') assaultMove(f, dt, fx, fz, hs);
     if (f.mode === 'pass' && !f.turned) { const dd = Math.hypot(f.pos.x - P.pos.x, f.pos.z - P.pos.z), ty = surfaceAt(f.pos.x, f.pos.z) + 26 + 50 * clamp(dd / 1500, 0, 1); f.pos.y += (ty - f.pos.y) * (1 - Math.exp(-0.6 * dt)); }
     f.pos.addScaledVector(f.vel, dt);
     const gh = surfaceAt(f.pos.x, f.pos.z) + 16; if (f.pos.y < gh) f.pos.y = gh;
     const d = f.pos.distanceTo(P.pos); nearest = Math.min(nearest, d);
     f.fireT -= dt;
     if (f.seq > 0 && (f.seqT -= dt) <= 0 && !P.dead && !P.inTunnel) volley(f);
-    if (!f.peace && d < 180 && f.fireT <= 0 && !P.dead && shellsOn && !P.inTunnel) { volley(f); f.fireT = 1.0 + Math.random() * 0.8; }
-    if ((d > 1700 && f.t > 20) || f.t > 90 || (!shellsOn && !f.peace)) { forms.splice(i, 1); continue; }
+    if (f.pending && f.pending.length) for (let q = f.pending.length - 1; q >= 0; q--) { const pr = f.pending[q]; if (t >= pr.at) { pr.p.addScaledVector(pr.v, t - pr.at); shoot(pr.p, pr.v, pr.c); f.pending.splice(q, 1); } }
+    if (f.mode === 'assault') { if (f.phase === 'hold' && f.fireT <= 0 && !P.dead && shellsOn && !P.inTunnel) { assaultVolley(f); f.fireT = f.gap; } }
+    else if (!f.peace && d < 180 && f.fireT <= 0 && !P.dead && shellsOn && !P.inTunnel) { volley(f); f.fireT = 1.0 + Math.random() * 0.8; }
+    if ((d > 1700 && f.t > 20 && f.mode !== 'assault') || (f.mode === 'assault' && f.phase === 'leave' && d > 1400) || f.t > 90 || (!shellsOn && !f.peace)) { forms.splice(i, 1); continue; }
     // drones ease into their slots; the formation faces where it flies
     _f.copy(f.vel).normalize(); _r.crossVectors(_f, UP).normalize(); _u.crossVectors(_r, _f);
     for (let j = 0; j < f.n && k < MAXD; j++, k++) {
@@ -3362,9 +3424,11 @@ function updateDrones(dt) {
     bLife[i] -= dt;
     const o = i * 3; bPos[o] += bVel[o] * dt; bPos[o + 1] += bVel[o + 1] * dt; bPos[o + 2] += bVel[o + 2] * dt;
     const dx = bPos[o] - P.pos.x, dy = bPos[o + 1] - P.pos.y, dz = bPos[o + 2] - P.pos.z;
-    if (dx * dx + dy * dy + dz * dz < 5.8 && P.invuln <= 0 && !P.dead && !P.inTunnel) { bLife[i] = 0; hitByShell(); }
+    const d2 = dx * dx + dy * dy + dz * dz;
+    if (d2 < 5.8 && P.invuln <= 0 && !P.dead && !P.inTunnel) { bLife[i] = 0; hitByShell(); }
+    else if (d2 < 30 && !bGraze[i] && !P.dead) { bGraze[i] = 1; graze(bPos[o], bPos[o + 1], bPos[o + 2]); }
     else if (bPos[o + 1] < surfaceAt(bPos[o], bPos[o + 2])) bLife[i] = 0;
-    if (bLife[i] <= 0) bPos[o + 1] = -9999;
+    if (bLife[i] <= 0) { bPos[o + 1] = -9999; bGraze[i] = 0; }
   }
   bulGeo.attributes.position.needsUpdate = true; bulGeo.attributes.color.needsUpdate = true;
 }
@@ -3412,7 +3476,7 @@ const turretBarrels = [], turretFlash = [];
   }
 })();
 // tracers: homing rounds drawn as short bright streaks
-const TR_N = 96, trPos = new Float32Array(TR_N * 6), tracers = [];
+const TR_N = 160, trPos = new Float32Array(TR_N * 6), tracers = [];
 const trGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(trPos, 3));
 const trLines = new THREE.LineSegments(trGeo, new THREE.LineBasicMaterial({ color: 0xffe0a0, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
 trLines.frustumCulled = false; scene.add(trLines);
@@ -3425,7 +3489,7 @@ function setTurret(on) {
   else if (!on && (TURRET.state === 1 || TURRET.state === 2)) { TURRET.state = 3; TURRET.tau = 0; }
   $('#compass').classList.toggle('armed', on);
 }
-const ENGAGE = 290, TRACK = 560, HP = 3;
+const ENGAGE = 560, TRACK = 900, HP = 3;
 function pickTarget() {
   let best = null, bs = Infinity;
   for (const f of forms) {
@@ -3435,8 +3499,8 @@ function pickTarget() {
       const dx = d.x - P.pos.x, dy = d.y - P.pos.y, dz = d.z - P.pos.z, dist = Math.hypot(dx, dy, dz);
       if (dist > TRACK) continue;
       const ahead = (dx * fwd.x + dz * fwd.z) / Math.max(1, Math.hypot(dx, dz));
-      if (ahead < -0.25) continue;
-      const sc = dist * (2 - ahead);
+      if (ahead < 0.35) continue; // it guards the road ahead
+      const sc = dist * (2.4 - ahead * 1.4);
       if (sc < bs) { bs = sc; best = { f, d, dist }; }
     }
   }
@@ -3526,7 +3590,7 @@ function updateTurret(dt) {
   } else T.fireT = Math.min(T.fireT, 0.02);
   for (let i = 0; i < 2; i++) { turretBarrels[i].position.z += (0 - turretBarrels[i].position.z) * (1 - Math.exp(-20 * dt)); turretFlash[i].material.opacity *= Math.exp(-34 * dt); }
   // rounds: fast and nearly straight; each one that arrives is a hit
-  const SPD = 950;
+  const SPD = 1100;
   for (let i = tracers.length - 1; i >= 0; i--) {
     const r = tracers[i]; r.life -= dt;
     const alive = r.f.drones.includes(r.d);
@@ -3574,7 +3638,7 @@ function updateTurret(dt) {
 const camDir = new V3(0, 0, 1), camPos = new V3(), lookSm = new V3(), visN = new V3(0, 1, 0), camOff = new V3(0, 3, -7);
 let camBaseY = 0, lift = 0, lookAng = 0, suspY = 0, suspV = 0, lastVy = 0;
 function applyLens() {
-  const w = innerWidth, h = innerHeight, shift = w < h ? 0.07 : 0.04;
+  const w = innerWidth, h = innerHeight, shift = w < h ? 0.095 : 0.055;
   camera.aspect = w / h; camera.setViewOffset(w, h, 0, -h * shift, w, h); camera.updateProjectionMatrix();
 }
 const basis = new THREE.Matrix4(), bx = new V3(), bz = new V3();
@@ -3592,6 +3656,10 @@ const MOODS = [
   { top: new THREE.Color(0x8b86c2), hor: new THREE.Color(0xe8d9e8), sun: new THREE.Color(0xf0d8ff) }, // lilac
   { top: new THREE.Color(0x5f7fae), hor: new THREE.Color(0xc9d6e6), sun: new THREE.Color(0xdfe8ff) }, // blue hour
   { top: new THREE.Color(0x6ea4b6), hor: new THREE.Color(0xd8ebe6), sun: new THREE.Color(0xe0fff4) }, // teal mist
+  { top: new THREE.Color(0x8fa3a0), hor: new THREE.Color(0xe2e6da), sun: new THREE.Color(0xf4f2e0) }, // green-grey haze
+  { top: new THREE.Color(0x7f8fa8), hor: new THREE.Color(0xf0d6c4), sun: new THREE.Color(0xffe2cc) }, // faded peach over slate
+  { top: new THREE.Color(0x9aa8bc), hor: new THREE.Color(0xe8ecf0), sun: new THREE.Color(0xf4f8ff) }, // cold silver
+  { top: new THREE.Color(0x6e6a9e), hor: new THREE.Color(0xf0d4a8), sun: new THREE.Color(0xffd89a) }, // violet with a gold horizon
 ];
 const moodTop = new THREE.Color(), moodHor = new THREE.Color(), moodSun = new THREE.Color();
 const SUN_PERIOD = 540;
@@ -3616,9 +3684,11 @@ function updatePalette(dt, snap) {
   // altitude: deeper sky, clearer air, cloud sea underfoot
   altK = lerp(altK, smooth(130, 290, P.pos.y), snap ? 1 : 1 - Math.exp(-0.7 * dt));
   // mood cycle (about 8 minutes): rose dawn, pale gold, lilac, teal mist
-  const mp = (t / 70) % MOODS.length, mi = Math.floor(mp), mf = smooth(0, 1, mp - mi), A = MOODS[mi], B = MOODS[(mi + 1) % MOODS.length];
+  // each stretch of land keeps its own sky, drifting slowly with the hour: ride on and the light changes with the place
+  const place = vnoise(P.pos.x / 6500 + 3.7, P.pos.z / 6500 - 1.3, 97) * MOODS.length * 1.6 + vnoise(P.pos.x / 2200, P.pos.z / 2200, 98) * 1.2;
+  const mp = ((place + t / 160) % MOODS.length + MOODS.length) % MOODS.length, mi = Math.floor(mp), mf = smooth(0, 1, mp - mi), A = MOODS[mi], B = MOODS[(mi + 1) % MOODS.length];
   moodTop.copy(A.top).lerp(B.top, mf); moodHor.copy(A.hor).lerp(B.hor, mf); moodSun.copy(A.sun).lerp(B.sun, mf);
-  const mk = 0.46;
+  const mk = 0.36 + 0.24 * vnoise(P.pos.x / 4000 - 8.1, P.pos.z / 4000 + 2.2, 99);
   skyMat.uniforms.top.value.copy(pal.top).lerp(moodTop, mk); skyMat.uniforms.hor.value.copy(pal.hor).lerp(moodHor, mk); skyMat.uniforms.bot.value.copy(pal.bot).lerp(moodHor, mk * 0.6);
   skyMat.uniforms.sunCol.value.copy(pal.sunCol).lerp(moodSun, mk); skyMat.uniforms.sunDir.value.copy(pal.sunDir).normalize();
   skyMat.uniforms.top.value.lerp(HIGH_TOP, altK * 0.55); skyMat.uniforms.hor.value.lerp(HIGH_HOR, altK * 0.4);
@@ -3912,18 +3982,29 @@ const sfx = (() => {
     land(v) { burst(180, 0.8, 0.25, 0.25 + v * 0.5); },
     // ガチャン: a latch slamming home, iron on iron, over a dull thump
     clank(v = 1) { burst(2600, 9, 0.07, 0.32 * v, 1900); burst(1200, 6, 0.1, 0.22 * v); burst(95, 0.9, 0.22, 0.45 * v); },
-    // ダッ: a hard crack, the bark of the charge and a short chest thump, a little different every round
+    // ガッ: powder and iron. A blast of charge, the breech slamming, a ring of steel and a thump in the chest
     gun() {
       if (!ctx) return; const now = ctx.currentTime;
-      burst(2400 + Math.random() * 900, 1.4, 0.03, 0.26); burst(520 + Math.random() * 120, 1.0, 0.05, 0.3, 180);
-      const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(120, now); o.frequency.exponentialRampToValueAtTime(42, now + 0.06);
-      g.gain.setValueAtTime(0.38, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.08); o.connect(g); g.connect(master); o.start(now); o.stop(now + 0.09);
+      burst(1900 + Math.random() * 700, 0.9, 0.045, 0.3, 700); burst(380 + Math.random() * 90, 0.8, 0.09, 0.42, 120);
+      burst(5200, 14, 0.06, 0.07); // the steel ring of the action
+      const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(95, now); o.frequency.exponentialRampToValueAtTime(34, now + 0.09);
+      g.gain.setValueAtTime(0.5, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.12); o.connect(g); g.connect(master); o.start(now); o.stop(now + 0.13);
     },
     tick() { burst(3600, 5, 0.025, 0.09); },
+    graze(step = 0) {
+      if (!ctx) return; const now = ctx.currentTime, f0 = 880 * Math.pow(2, [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24][step] / 12);
+      const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(f0, now);
+      g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.05, now + 0.005); g.gain.exponentialRampToValueAtTime(0.001, now + 0.18); o.connect(g); g.connect(master); o.start(now); o.stop(now + 0.2);
+      burst(6000, 6, 0.04, 0.05);
+    },
     // ドン, climbing a scale while the kills keep coming: the chain sings as it goes
     kill(step = 0) {
       if (!ctx) return; const now = ctx.currentTime, f0 = 196 * Math.pow(2, [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26, 28, 31, 33][step] / 12);
-      burst(80, 0.7, 0.5, 0.42); burst(700, 0.9, 0.18, 0.2, 140); burst(3000, 1.2, 0.09, 0.1);
+      // a deep blast that falls away, then shrapnel and burning bits rattling down after it
+      burst(70, 0.6, 0.9, 0.55, 30); burst(420, 0.8, 0.35, 0.3, 90); burst(2600, 1.0, 0.14, 0.14, 700);
+      const sub = ctx.createOscillator(), sg = ctx.createGain(); sub.type = 'sine'; sub.frequency.setValueAtTime(62, now); sub.frequency.exponentialRampToValueAtTime(26, now + 0.6);
+      sg.gain.setValueAtTime(0.55, now); sg.gain.exponentialRampToValueAtTime(0.001, now + 0.7); sub.connect(sg); sg.connect(master); sub.start(now); sub.stop(now + 0.72);
+      for (let k = 0; k < 4; k++) setTimeout(() => burst(1400 + Math.random() * 2600, 3, 0.05, 0.06), 90 + k * 70 + Math.random() * 60);
       const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(f0 * 1.5, now); o.frequency.exponentialRampToValueAtTime(f0, now + 0.05);
       g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.09, now + 0.01); g.gain.exponentialRampToValueAtTime(0.001, now + 0.35); o.connect(g); g.connect(master); o.start(now); o.stop(now + 0.36);
     },
