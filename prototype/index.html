@@ -2235,7 +2235,7 @@ function limb(parent, a, b, r, mat) {
   add(new THREE.BoxGeometry(0.2, 0.16, 0.08), lam(0x4e5435), 0.16, 1.06, -0.36, 0, 0, 0, rider);
   const scarfA = new THREE.Object3D(); scarfA.position.set(0, 1.66, -0.08); rider.add(scarfA);
   const trailA = new THREE.Object3D(); trailA.position.set(0.6, 0.1, -1.2); rig.add(trailA);
-  models.sidecar = { group: g, rider, scarf: scarfA, trail: trailA, arms: null, ears };
+  models.sidecar = { group: g, rider, scarf: scarfA, trail: trailA, arms: null, ears, dogHead };
   boardPivot.add(g);
 })();
 const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
@@ -2299,7 +2299,7 @@ for (let i = 0; i < LINES; i++) { const a = Math.random() * TAU, r = 2.2 + Math.
 const P = {
   pos: new V3(), vel: new V3(), yaw: 0, n: new V3(0, 1, 0), grounded: false, air: 0, coyote: 0, jumpBuf: 0,
   grind: null, gS: 0, gSpeed: 0, gDir: 1, gSeg: 0, grindCD: 0, gauge: 40, dashCD: 0, inStream: false, inUpdraft: false, onWater: false,
-  motes: 0, stalled: false, crankT: 0, sputT: 0, flow: 0, carve: 0, ajCD: 0, skipT: 0, hull: 3, braking: false, brakeHeat: 0, danger: 0, stopT: 0, dead: false, invuln: 0, found: foundKeys.size, drift: 0, drifting: false, tuck: false, yawRate: 0, lean: 0, onRoad: false, assistLean: 0, inTunnel: false, reached: false, dist: store.get('windlover.dist4', 0),
+  motes: 0, stalled: false, crankT: 0, sputT: 0, flow: 0, carve: 0, ajCD: 0, skipT: 0, hull: 3, braking: false, brakeHeat: 0, danger: 0, stopT: 0, dead: false, invuln: 0, found: foundKeys.size, drift: 0, drifting: false, tuck: false, yawRate: 0, lean: 0, onRoad: false, assistLean: 0, leanV: 0, sway: 0, inTunnel: false, reached: false, dist: store.get('windlover.dist4', 0),
 };
 let HOVER = VEHICLES[vehKey].hover;
 const fwd = new V3(), fPl = new V3(), side = new V3(), tmp = new V3(), tmp2 = new V3(), UP = new V3(0, 1, 0), windDir = new V3(1, 0, 0);
@@ -2349,12 +2349,18 @@ function stepPhysics(dt) {
     // bike-like steering: the stick lays the machine over; the lean makes the turn (yaw = g·tan(lean)/v),
     // so the same lean carves a much wider arc at speed. Laying over takes time: that delay is the weight.
     const maxLean = Math.min(1.2, 0.8 * S.turn) * (P.drifting ? 1.25 : 1) * (P.tuck ? 0.85 : 1);
-    P.lean += (steer * maxLean - P.lean) * (1 - Math.exp(-V.roll * (P.drifting ? 1.4 : 1) * dt));
+    // the lean rides a damped spring: it goes over with weight, overshoots a touch and settles, so the line sways
+    const w0 = V.roll * 1.55 * (P.drifting ? 1.3 : 1);
+    P.leanV += (w0 * w0 * (steer * maxLean - P.lean) - 2 * 0.62 * w0 * P.leanV) * dt;
+    P.lean = clamp(P.lean + P.leanV * dt, -1.3, 1.3);
     // yaw ~ tan(lean)/v^0.88: the same at town speeds, a touch tighter flat out than pure bike physics
     const vTurn = Math.pow(Math.max(Math.hypot(P.vel.x, P.vel.z), 10), 0.88);
-    P.yawRate = clamp(-(P.grounded ? 43 : 35) * Math.tan(P.lean) / vTurn * (P.drifting ? 1.6 : 1), -2.2, 2.2);
+    P.yawRate = clamp(-(P.grounded ? 37 : 30) * Math.tan(P.lean) / vTurn * (P.drifting ? 1.6 : 1), -2.2, 2.2);
     P.yaw += P.yawRate * dt;
     roadAffinity(steer, dt);
+    // the float: laid over, the machine first slides sideways while still pointing ahead, and the heading follows
+    { const hsx = Math.hypot(P.vel.x, P.vel.z), swayT = P.grounded && !P.drifting && !P.dead ? steer * 5.5 * clamp((hsx - 8) / 30, 0, 1) : 0;
+      P.sway += (swayT - P.sway) * (1 - Math.exp(-(Math.abs(swayT) > Math.abs(P.sway) ? 2.4 : 1.5) * dt)); }
     fwd.set(Math.sin(P.yaw), 0, Math.cos(P.yaw));
 
     if (P.grounded) {
@@ -2431,6 +2437,7 @@ function stepPhysics(dt) {
     autoHop();
     if (P.vel.length() > S.maxSpeed * 1.6) P.vel.multiplyScalar(1 - 1.5 * dt);
     P.pos.addScaledVector(P.vel, dt);
+    P.pos.x += -fwd.z * P.sway * dt; P.pos.z += fwd.x * P.sway * dt; // sway is to the rider's right
     collide();
     resolveGround(dt);
     tunnelWalls();
@@ -2643,7 +2650,7 @@ function wallImpact(nx, nz, soft) {
   const fr = 1 - Math.min(0.22, 0.004 + hit * 0.011); P.vel.x *= fr; P.vel.z *= fr;
   P.flow *= 1 - Math.min(0.5, hit / 36);
   const ty = Math.atan2(P.vel.x, P.vel.z), dy = Math.atan2(Math.sin(ty - P.yaw), Math.cos(ty - P.yaw));
-  P.yaw += dy * 0.7; P.yawRate *= 0.35; P.lean *= 0.6; fwd.set(Math.sin(P.yaw), 0, Math.cos(P.yaw));
+  P.yaw += dy * 0.7; P.yawRate *= 0.35; P.lean *= 0.6; P.leanV *= 0.3; P.sway *= 0.3; fwd.set(Math.sin(P.yaw), 0, Math.cos(P.yaw));
   // contact point: the side of the machine against the wall
   tmp.set(P.pos.x - nx * 1.1, P.pos.y - HOVER + 0.6, P.pos.z - nz * 1.1);
   sparks(tmp, nx, nz, 3 + Math.min(18, hit * 1.6));
@@ -3147,7 +3154,7 @@ function updateDrones(dt) {
 // ---------------------------------------------------------------- the turret: an old steam-age gun that unfolds out of the chair
 // Hold the compass to raise it (two latches: ガチャン、ガチャン), press again to fold it away. Raised, it picks
 // the nearest hostile drone ahead and hammers it with homing tracers, one round a kill, about fifteen a second.
-const TURRET = { state: 0, tau: 0, k: 0, yaw: 0, pitch: -1.3, fireT: 0, barrel: 0, kills: 0 };
+const TURRET = { state: 0, tau: 0, k: 0, yaw: 0, pitch: -1.3, fireT: 0, barrel: 0, kills: 0, combo: 0, lastKill: -9, kick: 0 };
 const turretRoot = new THREE.Group(), turretLift = new THREE.Group(), turretYaw = new THREE.Group(), turretPitch = new THREE.Group();
 turretRoot.add(turretLift); turretLift.add(turretYaw); turretYaw.add(turretPitch); boardPivot.add(turretRoot); turretRoot.visible = false;
 const TURRET_MOUNT = { sidecar: [-0.75, 1.02, 0.4], bike: [0, 1.22, -1.05], board: [0, 0.55, -0.55] };
@@ -3192,7 +3199,7 @@ const trGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.Buff
 const trLines = new THREE.LineSegments(trGeo, new THREE.LineBasicMaterial({ color: 0xffe0a0, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
 trLines.frustumCulled = false; scene.add(trLines);
 const trHeadPos = new Float32Array(TR_N * 3), trHeadGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(trHeadPos, 3));
-const trHeads = new THREE.Points(trHeadGeo, new THREE.PointsMaterial({ size: 2.2, map: dotTex, color: 0xffd890, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+const trHeads = new THREE.Points(trHeadGeo, new THREE.PointsMaterial({ size: 0.9, map: dotTex, color: 0xffd890, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
 trHeads.frustumCulled = false; scene.add(trHeads);
 const _tw = new V3(), _tq = new THREE.Quaternion(), _td = new V3();
 function setTurret(on) {
@@ -3200,30 +3207,58 @@ function setTurret(on) {
   else if (!on && (TURRET.state === 1 || TURRET.state === 2)) { TURRET.state = 3; TURRET.tau = 0; }
   $('#compass').classList.toggle('armed', on);
 }
+const ENGAGE = 290, TRACK = 560, HP = 3;
 function pickTarget() {
   let best = null, bs = Infinity;
   for (const f of forms) {
     if (f.peace) continue;
     for (const d of f.drones) {
-      if (d.claimed) continue;
+      if ((d.incoming || 0) >= (d.hp ?? HP)) continue;
       const dx = d.x - P.pos.x, dy = d.y - P.pos.y, dz = d.z - P.pos.z, dist = Math.hypot(dx, dy, dz);
-      if (dist > 720) continue;
+      if (dist > TRACK) continue;
       const ahead = (dx * fwd.x + dz * fwd.z) / Math.max(1, Math.hypot(dx, dz));
       if (ahead < -0.25) continue;
       const sc = dist * (2 - ahead);
-      if (sc < bs) { bs = sc; best = { f, d }; }
+      if (sc < bs) { bs = sc; best = { f, d, dist }; }
     }
   }
   return best;
 }
-function killDrone(f, d) {
+// explosions: a hot core, a fireball that swells, a pale shock ring, falling debris and a smudge of smoke.
+// Kills that follow each other quickly climb a scale, so a run of them rings out as one rising chain.
+const ringTex = canvasTex(64, 64, (g, w) => { g.strokeStyle = 'rgba(255,255,255,1)'; g.lineWidth = 5; g.beginPath(); g.arc(w / 2, w / 2, w / 2 - 5, 0, TAU); g.stroke(); });
+const booms = [], chainQ = [];
+const DEB_N = 260, debP = new Float32Array(DEB_N * 3).fill(-9999), debV = new Float32Array(DEB_N * 3), debL = new Float32Array(DEB_N);
+const debGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(debP, 3));
+const debPts = new THREE.Points(debGeo, new THREE.PointsMaterial({ size: 0.7, map: dotTex, transparent: true, depthWrite: false, color: 0x2a2622 })); debPts.frustumCulled = false; scene.add(debPts);
+const CAS_N = 90, casP = new Float32Array(CAS_N * 3).fill(-9999), casV = new Float32Array(CAS_N * 3), casL = new Float32Array(CAS_N);
+const casGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(casP, 3));
+const casPts = new THREE.Points(casGeo, new THREE.PointsMaterial({ size: 0.13, color: 0xe2b85a })); casPts.frustumCulled = false; scene.add(casPts);
+let debI = 0, casI = 0;
+function boomFx(p, vel, big) {
+  const mk = (map, col, sc, life, grow, op) => { const o = new THREE.Sprite(new THREE.SpriteMaterial({ map, color: col, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); o.position.copy(p); o.scale.setScalar(sc); scene.add(o); booms.push({ o, life, max: life, grow, op, v: vel.clone().multiplyScalar(0.4) }); };
+  mk(dotTex, 0xfff4dc, big ? 7 : 4.5, 0.12, 6, 1);
+  mk(dotTex, 0xff9a40, big ? 14 : 10, 0.42, 22, 0.95);
+  mk(ringTex, 0xffe6c0, 4, 0.32, 70, 0.7);
+  const smoke = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0x4a4440, transparent: true, opacity: 0.45, depthWrite: false })); smoke.position.copy(p); smoke.scale.setScalar(6); scene.add(smoke); booms.push({ o: smoke, life: 1.4, max: 1.4, grow: 9, op: 0.45, v: vel.clone().multiplyScalar(0.25).setY(2.5) });
+  for (let i = 0; i < 12; i++) { const k = debI = (debI + 1) % DEB_N, o = k * 3; debP[o] = p.x; debP[o + 1] = p.y; debP[o + 2] = p.z; debV[o] = vel.x * 0.4 + (Math.random() - 0.5) * 22; debV[o + 1] = Math.random() * 14; debV[o + 2] = vel.z * 0.4 + (Math.random() - 0.5) * 22; debL[k] = 1 + Math.random(); }
+}
+function killDrone(f, d, chained) {
   const i = f.drones.indexOf(d); if (i < 0) return;
   f.drones.splice(i, 1); f.n = f.drones.length;
-  const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xffb060, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
-  fl.position.copy(d); fl.scale.setScalar(10 + Math.random() * 4); scene.add(fl); flashes.push({ o: fl, life: 0.4 });
-  emitDust(d, tmp2.set(f.vel.x * 0.3, -3, f.vel.z * 0.3), 10, 9);
-  sfx.kill(); TURRET.kills++;
+  const T = TURRET; T.combo = t - T.lastKill < 0.6 ? Math.min(T.combo + 1, 14) : 0; T.lastKill = t;
+  boomFx(d, f.vel, T.combo >= 6);
+  sfx.kill(T.combo); T.kills++;
+  shake = Math.max(shake, 0.12 + Math.min(0.25, T.combo * 0.02)); dashPunch = Math.max(dashPunch, Math.min(0.35, 0.08 + T.combo * 0.02));
+  // sympathetic detonation: neighbours caught in the blast go up a beat later
+  for (const o of f.drones) if (o.distanceToSquared(d) < 11 * 11 && Math.random() < 0.5 && !o.doomed) { o.doomed = true; chainQ.push({ f, d: o, at: t + 0.08 + Math.random() * 0.1 }); }
   if (!f.n) { const k = forms.indexOf(f); if (k >= 0) forms.splice(k, 1); }
+}
+function hitDrone(f, d, dir) {
+  d.hp = (d.hp ?? HP) - 1; d.incoming = Math.max(0, (d.incoming || 1) - 1);
+  const o = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xffd28a, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  o.position.copy(d); o.scale.setScalar(2.2); scene.add(o); booms.push({ o, life: 0.09, max: 0.09, grow: 4, op: 1, v: f.vel.clone() });
+  if (d.hp <= 0) killDrone(f, d); else sfx.tick();
 }
 function updateTurret(dt) {
   const T = TURRET, mount = TURRET_MOUNT[vehKey] || TURRET_MOUNT.sidecar;
@@ -3239,51 +3274,64 @@ function updateTurret(dt) {
   }
   turretRoot.visible = T.k > 0.01 || T.state === 1;
   turretLift.position.y = lerp(-0.5, 0, clamp(T.k, 0, 1.1)); turretLift.scale.setScalar(lerp(0.4, 1, clamp(T.k, 0, 1.06)));
-  // aim: turn the drum and lift the guns toward the target, as fast as old gears allow
+  // aim: track from far off, open up only once they are close
   let target = null;
   if (T.state === 2 && !P.dead && !P.inTunnel) {
-    if (!T.cur || T.cur.d.claimed || !T.cur.f.drones.includes(T.cur.d)) T.cur = pickTarget();
+    if (!T.cur || !T.cur.f.drones.includes(T.cur.d) || (T.cur.d.incoming || 0) >= (T.cur.d.hp ?? HP)) T.cur = pickTarget();
     target = T.cur;
   } else T.cur = null;
-  let wantYaw = 0, wantPitch = T.state === 2 ? 0.05 : -1.3;
+  let wantYaw = Math.sin(t * 0.7) * 0.25 * (T.state === 2 ? 1 : 0), wantPitch = T.state === 2 ? 0.05 : -1.3; // idle: a slow watchful sweep
   if (target) {
-    turretPitch.getWorldPosition(_tw); _td.subVectors(target.d, _tw);
+    turretPitch.getWorldPosition(_tw); _td.subVectors(target.d, _tw); target.dist = _td.length();
     turretLift.getWorldQuaternion(_tq); _td.applyQuaternion(_tq.invert());
     wantYaw = Math.atan2(_td.x, _td.z); wantPitch = -Math.atan2(_td.y, Math.hypot(_td.x, _td.z));
   }
   const dyw = Math.atan2(Math.sin(wantYaw - T.yaw), Math.cos(wantYaw - T.yaw));
   T.yaw += clamp(dyw, -9 * dt, 9 * dt); T.pitch += clamp(wantPitch - T.pitch, -6 * dt, 6 * dt);
-  turretYaw.rotation.y = T.yaw; turretPitch.rotation.x = lerp(-1.3, T.pitch, clamp(T.k, 0, 1));
-  // fire: alternate barrels, one homing round per drone
-  if (target && Math.abs(dyw) < 0.35) {
+  turretYaw.rotation.y = T.yaw; turretPitch.rotation.x = lerp(-1.3, T.pitch, clamp(T.k, 0, 1)) + T.kick;
+  T.kick *= Math.exp(-18 * dt);
+  // fire: ダダダ — small rounds, both barrels in turn, three to a drone
+  if (target && target.dist < ENGAGE && Math.abs(dyw) < 0.3) {
     T.fireT -= dt;
     while (T.fireT <= 0 && target) {
-      T.fireT += 1 / 15;
+      T.fireT += 1 / 22;
       const b = T.barrel = 1 - T.barrel, fl = turretFlash[b];
       fl.getWorldPosition(_tw);
-      target.d.claimed = true;
-      if (tracers.length < TR_N) tracers.push({ p: _tw.clone(), d: target.d, f: target.f, dir: new V3().subVectors(target.d, _tw).normalize(), life: 2 });
-      turretBarrels[b].position.z = -0.14; fl.material.opacity = 1; fl.scale.setScalar(0.7 + Math.random() * 0.5);
-      sfx.gun(); shake = Math.max(shake, 0.05);
-      T.cur = target = pickTarget();
+      target.d.incoming = (target.d.incoming || 0) + 1;
+      if (tracers.length < TR_N) tracers.push({ p: _tw.clone(), d: target.d, f: target.f, dir: new V3().subVectors(target.d, _tw).normalize(), life: 1 });
+      turretBarrels[b].position.z = -0.12; fl.material.opacity = 1; fl.scale.setScalar(0.5 + Math.random() * 0.4); T.kick = -0.035;
+      // a spent case flies out to the side
+      { const k = casI = (casI + 1) % CAS_N, o = k * 3; turretYaw.getWorldPosition(_tw); casP[o] = _tw.x; casP[o + 1] = _tw.y + 0.5; casP[o + 2] = _tw.z; casV[o] = P.vel.x * 0.9 - fwd.z * (3 + Math.random() * 2); casV[o + 1] = 3 + Math.random() * 2; casV[o + 2] = P.vel.z * 0.9 + fwd.x * (3 + Math.random() * 2); casL[k] = 0.7; }
+      sfx.gun(); shake = Math.max(shake, 0.06);
+      if ((target.d.incoming || 0) >= (target.d.hp ?? HP)) { T.cur = target = pickTarget(); if (target && target.dist > ENGAGE) target = null; }
     }
   } else T.fireT = Math.min(T.fireT, 0.02);
-  for (let i = 0; i < 2; i++) { turretBarrels[i].position.z += (0 - turretBarrels[i].position.z) * (1 - Math.exp(-14 * dt)); turretFlash[i].material.opacity *= Math.exp(-28 * dt); }
-  // tracers home in on their drone; a drone that is gone leaves its round flying straight on
-  const SPD = 360;
+  for (let i = 0; i < 2; i++) { turretBarrels[i].position.z += (0 - turretBarrels[i].position.z) * (1 - Math.exp(-20 * dt)); turretFlash[i].material.opacity *= Math.exp(-34 * dt); }
+  // rounds: fast and nearly straight; each one that arrives is a hit
+  const SPD = 950;
   for (let i = tracers.length - 1; i >= 0; i--) {
     const r = tracers[i]; r.life -= dt;
     const alive = r.f.drones.includes(r.d);
-    if (alive) { _td.subVectors(r.d, r.p); const dist = _td.length(); if (dist < SPD * dt + 1.5) { killDrone(r.f, r.d); tracers.splice(i, 1); continue; } r.dir.copy(_td).multiplyScalar(1 / dist); }
+    if (alive) { _td.subVectors(r.d, r.p); const dist = _td.length(); if (dist < SPD * dt + 1.2) { hitDrone(r.f, r.d, r.dir); tracers.splice(i, 1); continue; } r.dir.copy(_td).multiplyScalar(1 / dist); }
     r.p.addScaledVector(r.dir, SPD * dt);
-    if (r.life <= 0) { if (alive) r.d.claimed = false; tracers.splice(i, 1); }
+    if (r.life <= 0) { if (alive) r.d.incoming = Math.max(0, (r.d.incoming || 1) - 1); tracers.splice(i, 1); }
   }
   for (let i = 0; i < TR_N; i++) {
     const o = i * 6, r = tracers[i];
-    if (r) { trPos[o] = r.p.x; trPos[o + 1] = r.p.y; trPos[o + 2] = r.p.z; trPos[o + 3] = r.p.x - r.dir.x * 9; trPos[o + 4] = r.p.y - r.dir.y * 9; trPos[o + 5] = r.p.z - r.dir.z * 9; trHeadPos[i * 3] = r.p.x; trHeadPos[i * 3 + 1] = r.p.y; trHeadPos[i * 3 + 2] = r.p.z; }
+    if (r) { trPos[o] = r.p.x; trPos[o + 1] = r.p.y; trPos[o + 2] = r.p.z; trPos[o + 3] = r.p.x - r.dir.x * 4; trPos[o + 4] = r.p.y - r.dir.y * 4; trPos[o + 5] = r.p.z - r.dir.z * 4; trHeadPos[i * 3] = r.p.x; trHeadPos[i * 3 + 1] = r.p.y; trHeadPos[i * 3 + 2] = r.p.z; }
     else { for (let k = 0; k < 6; k++) trPos[o + k] = 0; trHeadPos[i * 3 + 1] = -9999; }
   }
   trGeo.attributes.position.needsUpdate = true; trHeadGeo.attributes.position.needsUpdate = true;
+  // the chain, the fireballs, the debris and the brass
+  for (let i = chainQ.length - 1; i >= 0; i--) { const c = chainQ[i]; if (t >= c.at) { chainQ.splice(i, 1); if (c.f.drones.includes(c.d)) killDrone(c.f, c.d, true); } }
+  for (let i = booms.length - 1; i >= 0; i--) {
+    const b = booms[i]; b.life -= dt; const u = 1 - b.life / b.max;
+    b.o.position.addScaledVector(b.v, dt); b.o.scale.addScalar(b.grow * dt); b.o.material.opacity = b.op * Math.pow(Math.max(0, 1 - u), 1.4);
+    if (b.life <= 0) { b.o.material.dispose(); scene.remove(b.o); booms.splice(i, 1); }
+  }
+  for (let k = 0; k < DEB_N; k++) { if (debL[k] <= 0) continue; const o = k * 3; debL[k] -= dt; debV[o + 1] -= 22 * dt; debP[o] += debV[o] * dt; debP[o + 1] += debV[o + 1] * dt; debP[o + 2] += debV[o + 2] * dt; if (debL[k] <= 0) debP[o + 1] = -9999; }
+  for (let k = 0; k < CAS_N; k++) { if (casL[k] <= 0) continue; const o = k * 3; casL[k] -= dt; casV[o + 1] -= 20 * dt; casP[o] += casV[o] * dt; casP[o + 1] += casV[o + 1] * dt; casP[o + 2] += casV[o + 2] * dt; if (casL[k] <= 0) casP[o + 1] = -9999; }
+  debGeo.attributes.position.needsUpdate = true; casGeo.attributes.position.needsUpdate = true;
 }
 // the compass is the switch: hold to raise the gun, press again to fold it away
 {
@@ -3437,6 +3485,11 @@ function updateVisuals(dt) {
   landSquash = lerp(landSquash, 0, 1 - Math.exp(-7 * dt));
   const crouch = (P.grind ? 0.12 : 0) + (gliding ? -0.05 : 0) + (P.tuck ? 0.18 : 0) + Math.max(0, landSquash);
   MD.rider.scale.y = lerp(MD.rider.scale.y, 1 - crouch, 1 - Math.exp(-12 * dt));
+  // the rider hangs into the bend a beat after the machine and looks where it is going; the dog looks too
+  { const mir = vehKey === 'sidecar' ? -1 : 1, tk = clamp((P.lean + P.assistLean) / 0.8, -1, 1);
+    MD.rider.rotation.z = lerp(MD.rider.rotation.z, mir * (P.grounded ? tk * 0.16 * (0.4 + sf) : 0), 1 - Math.exp(-4 * dt));
+    MD.rider.rotation.y = lerp(MD.rider.rotation.y, mir * -tk * 0.22, 1 - Math.exp(-3 * dt));
+    if (MD.dogHead) { MD.dogHead.rotation.y = lerp(MD.dogHead.rotation.y, mir * -tk * 0.6 + Math.sin(t * 0.9) * 0.15, 1 - Math.exp(-3 * dt)); MD.dogHead.position.y = 1.32 + suspY * 0.5; } }
   if (MD.arms) {
     MD.arms.scale.x = lerp(MD.arms.scale.x, gliding ? 1.45 : 1, 1 - Math.exp(-8 * dt));
     MD.arms.position.y = lerp(MD.arms.position.y, gliding ? 1.52 : 1.42, 1 - Math.exp(-8 * dt));
@@ -3636,8 +3689,21 @@ const sfx = (() => {
     land(v) { burst(180, 0.8, 0.25, 0.25 + v * 0.5); },
     // ガチャン: a latch slamming home, iron on iron, over a dull thump
     clank(v = 1) { burst(2600, 9, 0.07, 0.32 * v, 1900); burst(1200, 6, 0.1, 0.22 * v); burst(95, 0.9, 0.22, 0.45 * v); },
-    gun() { burst(150, 1.1, 0.09, 0.32); burst(2200, 3, 0.035, 0.1, 900); },
-    kill() { burst(85, 0.7, 0.5, 0.5); burst(520, 1.1, 0.22, 0.22, 160); },
+    // ダッ: a hard crack, the bark of the charge and a short chest thump, a little different every round
+    gun() {
+      if (!ctx) return; const now = ctx.currentTime;
+      burst(2400 + Math.random() * 900, 1.4, 0.03, 0.26); burst(520 + Math.random() * 120, 1.0, 0.05, 0.3, 180);
+      const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(120, now); o.frequency.exponentialRampToValueAtTime(42, now + 0.06);
+      g.gain.setValueAtTime(0.38, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.08); o.connect(g); g.connect(master); o.start(now); o.stop(now + 0.09);
+    },
+    tick() { burst(3600, 5, 0.025, 0.09); },
+    // ドン, climbing a scale while the kills keep coming: the chain sings as it goes
+    kill(step = 0) {
+      if (!ctx) return; const now = ctx.currentTime, f0 = 196 * Math.pow(2, [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26, 28, 31, 33][step] / 12);
+      burst(80, 0.7, 0.5, 0.42); burst(700, 0.9, 0.18, 0.2, 140); burst(3000, 1.2, 0.09, 0.1);
+      const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(f0 * 1.5, now); o.frequency.exponentialRampToValueAtTime(f0, now + 0.05);
+      g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.09, now + 0.01); g.gain.exponentialRampToValueAtTime(0.001, now + 0.35); o.connect(g); g.connect(master); o.start(now); o.stop(now + 0.36);
+    },
     scrape(v) { burst(3400 + Math.random() * 1600, 2.2, 0.14, 0.12 + v * 0.3, 1600); burst(420, 1.4, 0.12, 0.08 + v * 0.22); },
     boom(v) { burst(90, 0.6, 1.4, 0.9 * v); burst(260, 0.7, 0.5, 0.5 * v); },
     whistle(dur) {
