@@ -634,7 +634,8 @@ function ground(x, z, y) {
       if (dk >= h - 0.05 && y >= dk - 2.5) {
         h = dk; GI.water = false; GI.roof = true;
         const a = highway(x + 1.5, z), dkx = deckAt(a.cx, a.cz), b = highway(x, z + 1.5), dkz = deckAt(b.cx, b.cz);
-        GI.n.set(-(dkx + 0.25 - dk) / 1.5, 1, -(dkz + 0.25 - dk) / 1.5).normalize();
+        const nx = -(dkx + 0.25 - dk) / 1.5, nz = -(dkz + 0.25 - dk) / 1.5;
+        GI.n.set(nx, 1, nz).normalize();
       }
     }
     for (let i = 0; i < colliders.length; i++) {
@@ -1059,7 +1060,7 @@ function buildChunkHighway(ch) {
           if (deep || sd < 0) st.add(G.box, M(wm[0], mid[1] + 5, wm[1], yaw, 1.4, 10, segL), deep ? 0x5e5b56 : 0xb9b4a8);
           else if (i % 2 === 0) st.add(G.box, M(wm[0], mid[1] + 5, wm[1], yaw, 1.4, 10, 2.2), 0xb9b4a8);
         }
-        st.add(G.box, M(mid[0], mid[1] + 10.6, mid[2], yaw, HW_HALF * 2 + 4, 1.4, segL), deep ? 0x4f4c48 : 0xb4afa3);
+        st.add(G.box, M(mid[0], mid[1] + 10.6, mid[2], yaw, HW_HALF * 2 + 4, 1.4, segL + 4), deep ? 0x4f4c48 : 0xb4afa3);
         if (i % 3 === 0) st.add(G.box, M(mid[0], mid[1] + 9.7, mid[2], yaw, 6, 0.25, 1.2), 0xfff0c4);
         if (gal === 1) portal(mid, yaw);
       } else if (gal) { const c0 = at(i, 0); portal([c0[0], dk[i], c0[2]], Math.atan2(nrm[i][2], nrm[i][3])); gal = 0; }
@@ -2843,7 +2844,7 @@ function collide() {
     // near miss: skimming past (or just over) at speed
     const ox = Math.max(Math.abs(lx) - c.hw, 0), oz = Math.max(Math.abs(lz) - c.hd, 0), od = Math.hypot(ox, oz), hsp = Math.hypot(P.vel.x, P.vel.z);
     if (hsp > 28 && !P.dead && (c.nm || 0) < t && P.pos.y < topHere + 2.5 && P.pos.y > c.bottom && (od > 0 ? od < 3.2 : P.pos.y > topHere - 0.4)) { c.nm = t + 2.5; nearMiss(); }
-    if (P.pos.y >= topHere - 1.2 || P.pos.y < c.bottom) continue;
+    if (P.pos.y >= topHere - 1.2 || P.pos.y < c.bottom + 1.0) continue;
     const pad = 0.6;
     const px = c.hw + pad - Math.abs(lx), pz = c.hd + pad - Math.abs(lz);
     if (px <= 0 || pz <= 0) continue;
@@ -2911,10 +2912,10 @@ function tunnelWalls() {
   // the open side of a shallow gallery is the side the builder offsets with a positive normal
   // (its normal matches ours on rows and is reversed on columns)
   const deep = hangar || C.cut > 45, openSide = !deep && sg === (row ? 1 : -1);
-  if (aoff > HW_HALF + (openSide ? 0.5 : 1.9)) return; // already outside the structure
+  if (aoff > HW_HALF + 2 + (openSide ? 0.5 : 0)) return; // already outside the structure
   P.inTunnel = true;
   if (hangar && P.pos.x < BASE_X - BASE_LEN / 2 + 2.5) { P.pos.x = BASE_X - BASE_LEN / 2 + 2.5; wallImpact(1, 0); }
-  if (P.pos.y > dk + 8.5) { P.pos.y = dk + 8.5; if (P.vel.y > 0) P.vel.y *= -0.2; }
+  if (P.pos.y > dk + 10.5) { P.pos.y = dk + 10.5; if (P.vel.y > 0) P.vel.y *= -0.2; }
   if (aoff <= lim) return;
   if (!openSide) { push(false); return; }
   // open side: only the pillars (2.2 m long, at the middle of every other segment) are in the way
@@ -2930,6 +2931,7 @@ function resolveGround(dt) {
     if (!wasG) { landing(g); P.hopping = false; }
     // a slope steeper than about 60 degrees is a wall: you glance off it, you don't ride up it
     if (g.n.y < 0.5 && !g.roof && !g.water) { const l = Math.hypot(g.n.x, g.n.z) || 1; wallImpact(g.n.x / l, g.n.z / l, true); }
+    if (g.roof && g.n.y < 0.7) { const l = Math.hypot(g.n.x, g.n.z) || 1; P.pos.y = target + 0.5; }
     P.pos.y = target; P.n.copy(g.n);
     const vn = P.vel.dot(P.n); if (vn < 0 || wasG) P.vel.addScaledVector(P.n, -vn);
     P.grounded = true; P.air = 0; P.onWater = g.water;
@@ -3048,6 +3050,8 @@ function explode(s) {
   const d = Math.hypot(P.pos.x - s.x, P.pos.z - s.z);
   shake = Math.max(shake, clamp(1.1 - d / 90, 0, 0.9)); sfx.boom(clamp(1 - d / 400, 0.15, 1));
   if (d < s.radius && P.invuln <= 0 && !P.dead && !P.inTunnel) hitByShell();
+  // Also check if shell explodes very close to player even if not direct hit
+  else if (d < s.radius * 2 && P.invuln <= 0 && !P.dead && !P.inTunnel) { P.vel.multiplyScalar(0.9); nearMiss(); }
 }
 function hitByShell() {
   P.hull--; P.invuln = 1.1; P.vel.multiplyScalar(0.82); P.vel.y += 7; P.grounded = false; P.air = 0.01; shake = 1.2;
@@ -3426,7 +3430,8 @@ function updateDrones(dt) {
     const dx = bPos[o] - P.pos.x, dy = bPos[o + 1] - P.pos.y, dz = bPos[o + 2] - P.pos.z;
     const d2 = dx * dx + dy * dy + dz * dz;
     if (d2 < 5.8 && P.invuln <= 0 && !P.dead && !P.inTunnel) { bLife[i] = 0; hitByShell(); }
-    else if (d2 < 30 && !bGraze[i] && !P.dead) { bGraze[i] = 1; graze(bPos[o], bPos[o + 1], bPos[o + 2]); }
+    else if (d2 < 30 && !bGraze[i] && !P.dead && !P.inTunnel) { bGraze[i] = 1; graze(bPos[o], bPos[o + 1], bPos[o + 2]); }
+    else if (d2 < 12 && P.invuln <= 0 && !P.dead && !P.inTunnel) { P.vel.multiplyScalar(0.95); nearMiss(); }
     else if (bPos[o + 1] < surfaceAt(bPos[o], bPos[o + 2])) bLife[i] = 0;
     if (bLife[i] <= 0) { bPos[o + 1] = -9999; bGraze[i] = 0; }
   }
@@ -3561,7 +3566,16 @@ function updateTurret(dt) {
   if (T.state === 2 && !P.dead && !P.inTunnel) {
     if (!T.cur || !T.cur.f.drones.includes(T.cur.d) || (T.cur.d.incoming || 0) >= (T.cur.d.hp ?? HP)) T.cur = pickTarget();
     target = T.cur;
-  } else T.cur = null;
+    // Visual feedback: show target indicator when locked on
+    if (target && target.dist < TRACK) {
+      $('#compass').classList.add('tracking');
+    } else {
+      $('#compass').classList.remove('tracking');
+    }
+  } else {
+    T.cur = null;
+    $('#compass').classList.remove('tracking');
+  }
   let wantYaw = Math.sin(t * 0.7) * 0.25 * (T.state === 2 ? 1 : 0), wantPitch = T.state === 2 ? 0.05 : -1.3; // idle: a slow watchful sweep
   if (target) {
     turretPitch.getWorldPosition(_tw); _td.subVectors(target.d, _tw); target.dist = _td.length();
@@ -3630,6 +3644,13 @@ function updateTurret(dt) {
     if (hold < 0) return;
     hold += dt; ring.setAttribute('stroke-dashoffset', (DASH * (1 - clamp(hold / HOLD, 0, 1))).toFixed(1));
     if (hold >= HOLD) { setTurret(true); hold = -1; ring.setAttribute('stroke-dashoffset', DASH); }
+    // Visual feedback: pulse the compass while holding
+    if (hold > 0 && hold < HOLD) {
+      const pulse = 0.5 + 0.5 * Math.sin(hold * 20);
+      el.style.filter = `drop-shadow(0 0 ${8 + pulse * 4}px rgba(255, 178, 92, ${0.6 + pulse * 0.4})) drop-shadow(0 2px 6px rgba(24, 16, 6, 0.5))`;
+    } else {
+      el.style.filter = 'drop-shadow(0 2px 6px rgba(24, 16, 6, 0.5))';
+    }
   };
   window.addEventListener('keydown', (e) => { if (e.code === 'KeyT' && !e.repeat) setTurret(!(TURRET.state === 1 || TURRET.state === 2)); });
 }
