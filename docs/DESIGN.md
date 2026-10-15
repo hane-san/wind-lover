@@ -27,7 +27,7 @@ Mood: melancholy and beautiful. Wide pale skies whose colours drift, Soviet ruin
 
 - Sidecar: cruise 40 m/s, max 98 m/s (chopper 95, board 80). Flow builds speed while you keep going: cruise × (1 + 0.5·flow), max × (1 + 0.3·flow).
 - Lateral feel: the lean rides a damped spring (natural frequency 1.55 × roll rate, damping ratio 0.62), so it goes over with weight, overshoots a touch and settles. Yaw from lean is about 14% lazier than before. On top of that, a sideways float of up to 5.5 m/s toward the turn builds quickly and dies slowly. The machine first slides across while still pointing ahead, the heading follows, and the line sways. The rider hangs into the bend a beat late and looks into it, and the dog looks too.
-- The long pull: held straight, the engine keeps winding up toward 96% of the top end at about 2.3 m/s² × (1 − v/top), which is slow, and 30% stronger on tarmac. Laid over in a bend, speed bleeds back toward about 1.3 × cruise (around 190 km/h).
+- The long pull: held straight, the engine keeps winding up toward 96% of the top end at about 2.3 m/s² × (1 − v/top), which is slow, and 30% stronger on tarmac. Light direction changes keep the pull. Only a really hard bend (lean beyond about 0.6) bleeds speed back toward about 1.3 × cruise (around 190 km/h).
 - Off the tarmac grip is 68% of the on-road value, so the machine slides more. The slide is still turned back into forward speed, so the sliding feels like flowing rather than braking.
 - Steering follows lean: yaw rate = K·tan(lean)/v^0.88. The lean still takes time to build, which keeps the weight, but the response is quicker and more willing than before (roll rate: sidecar 4.3, chopper 5.0; grip keeps 78% at top speed).
 - Road affinity (`roadAffinity`): the machine wants the road as much as the rider does, and only ever helps what the stick is already doing.
@@ -70,6 +70,34 @@ Mood: melancholy and beautiful. Wide pale skies whose colours drift, Soviet ruin
 
 - The sun walks an ellipse over the forward sky (period 540 s): high, then to one side, then low ahead, then to the other side.
 - The `MOODS` cycle (rose dawn, pale gold, amber dusk, lilac, blue hour, teal mist) blends over the biome palette. At altitude the sky deepens and a cloud sea forms.
+
+## Landmarks: the region remembered
+
+Half of the giants are homages to Central Asia. They are never replicas, but someone who has travelled there should catch the reference. Kyrgyz and Uzbek memories come up most often. Each land has its own list (`HOMAGE`), built by `HOMAGE_BUILD`:
+
+| Landmark | What it remembers | Where it appears |
+|---|---|---|
+| `registan` | A square framed by three madrasas: tiled portals with star tilework, ribbed blue domes, leaning minarets | Uzbek |
+| `kalon` | A banded brick tower with a lantern of arches and a broken mosque wall | Bukhara-like towns |
+| `burana` | A stubby brick tower on a grassy mound with a field of balbal stone figures | The Chuy valley |
+| `yurtFrame` | The bones of a giant yurt: red lattice, roof poles, the open crown ring, rags of felt | Kyrgyz and Kazakh |
+| `feltSlabs` | Contemporary felt: tall slabs in an arc, faced with the ram's-horn shyrdak ornament | Kyrgyz |
+| `girihDome` | A dome dressed in eight-point star tiles, with an extruded girih star sculpture | — |
+| `gateOfHell` | A burning crater in the desert: scorched pit walls, a floor of fire, rising embers | Turkmen |
+| `shipGraveyard` | Hulls left in the sand when the sea went away | The Aral Sea |
+| `caravanserai` | A stone caravan inn half sunk in a mountain meadow | Tash Rabat |
+| `sanatorium` | A curved Soviet lakeside sanatorium with an empty pool | Issyk-Kul |
+| `mosaicHall` | A Soviet mosaic wall on concrete legs: a sun, lake waves, three figures | — |
+
+The other half are the biome's own marks and the uncanny geometric ones, which grow more common as you go deeper in. The ornament textures (shyrdak, girih, mosaic) are drawn once on canvases.
+
+## Starting anywhere
+
+「どこかの道から走りだす」 sits at the top of the start screen. It switches to the connected journey and drops you onto a random trunk highway at cruising speed. The spot is chosen between 1.5 and 69.5 km in, clear of tunnels, the lake and the edges.
+
+## The land beside the road
+
+Cuts shallower than 22 m are now graded into wide, rolling banks (14 m + 2.6 × depth) rather than steep walls. You can ride up off the road, look around and come back down. Deep cuts keep their steep sides, galleries and tunnels.
 
 ## The turret
 

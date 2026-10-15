@@ -136,6 +136,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .world b { font-size: 13px; font-weight: 700; }
 .world em { font-style: normal; font-size: 11px; color: var(--muted); line-height: 1.45; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.go.wide { width: 100%; text-align: left; padding: 13px 20px; letter-spacing: 0.08em; }
+.go.wide small { display: block; margin-top: 3px; font-size: 11px; font-weight: 500; letter-spacing: 0.04em; opacity: 0.72; }
 .go { border: 0; border-radius: 999px; padding: 12px 28px; font-size: 16px; font-weight: 700; letter-spacing: 0.12em; background: var(--accent); color: var(--ink); }
 .ghost { border: 1px solid var(--line); border-radius: 999px; padding: 9px 16px; background: transparent; font-size: 13px; }
 .seg[aria-pressed="true"] { background: var(--accent); color: var(--ink); border-color: transparent; font-weight: 700; }
@@ -214,7 +216,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 
 <section class="sheet" id="start">
   <div class="card">
-    <div class="eyebrow">PROTOTYPE 0.8 · 止まるな</div>
+    <button class="go wide" id="btnRandom" type="button">どこかの道から走りだす<small>地続きの旅路のどこか、道の上から</small></button>
+    <div class="eyebrow">PROTOTYPE 0.9 · 止まるな</div>
     <h1 class="title">Wind Lover</h1>
     <p>壊れかけの鉄のサイドカーで、拠点の格納庫から太陽の方角へ。真ん中は天山の峠道、脇は低地の街道。土地は奥へ行くほど細り、最後はひとつに閉じる。そこに何かがある。止まればエンジンがかかる保証はない。遺された砲台とドローンは、遅い者だけを捕まえる。トンネルの屋根の下だけは、空から撃たれない。</p>
     <div class="row" id="vehCards"></div>
@@ -594,7 +597,7 @@ function heightAt(x, z) {
   const hw = highway(x, z);
   if (hw.d < 190) {
     const prof = deckAt(hw.cx, hw.cz), edge = HW_HALF + 3;
-    if (h > prof) { const bank = clamp((h - prof) * 0.7, 6, 80); h = prof + (h - prof) * smooth(edge, edge + bank, hw.d); }
+    if (h > prof) { const c = h - prof, bank = c < 22 ? 14 + c * 2.6 : clamp(c * 0.7, 6, 80); h = prof + c * smooth(edge, edge + bank, hw.d); }
     else if (prof - h < 14) { const bank = (prof - h) * 1.8 + 4; h = prof - (prof - h) * smooth(edge, edge + bank, hw.d); }
   }
   return h;
@@ -1606,6 +1609,217 @@ function disposeGroup(g) {
   g.parent && g.parent.remove(g);
 }
 
+// ---------------------------------------------------------------- homages: the region remembered, never copied
+// Which giants a land prefers. Kyrgyz and Uzbek memories come up most; Kazakh, Tajik and Turkmen ones are scattered.
+const HOMAGE = {
+  soviet: ['sanatorium', 'mosaicHall', 'yurtFrame', 'mosaicHall'],
+  village: ['registan', 'kalon', 'girihDome', 'feltSlabs', 'registan'],
+  fergana: ['registan', 'kalon', 'burana', 'girihDome', 'feltSlabs'],
+  tianshan: ['yurtFrame', 'burana', 'caravanserai', 'feltSlabs', 'yurtFrame'],
+  issyk: ['sanatorium', 'burana', 'yurtFrame', 'feltSlabs', 'mosaicHall'],
+  issykS: ['yurtFrame', 'caravanserai', 'burana', 'feltSlabs'],
+  karakol: ['burana', 'yurtFrame', 'feltSlabs', 'girihDome'],
+  kyzylkum: ['gateOfHell', 'shipGraveyard', 'registan', 'kalon', 'girihDome', 'registan'],
+  pamir: ['caravanserai', 'feltSlabs', 'burana'],
+  aktau: ['shipGraveyard', 'sanatorium', 'mosaicHall'],
+  steppe: ['yurtFrame', 'feltSlabs', 'burana', 'gateOfHell'],
+  default: ['girihDome', 'yurtFrame', 'mosaicHall', 'feltSlabs'],
+};
+// ornament textures, drawn once: shyrdak felt (the ram's-horn curl), girih tilework, a Soviet mosaic
+const SHYRDAK_COLS = [['#a8322a', '#1f3f7a', '#e9dcc0'], ['#c08a2e', '#5a3420', '#efe2c6'], ['#2a7f86', '#e8dcc4', '#9a3a2a']];
+const shyrdakTex = SHYRDAK_COLS.map(([bg, fg, edge]) => canvasTex(256, 384, (g, w, h) => {
+  g.fillStyle = bg; g.fillRect(0, 0, w, h);
+  g.strokeStyle = edge; g.lineWidth = 10; g.strokeRect(12, 12, w - 24, h - 24);
+  g.fillStyle = edge; for (let y = 24; y < h - 24; y += 22) { g.beginPath(); g.moveTo(24, y); g.lineTo(34, y + 11); g.lineTo(24, y + 22); g.fill(); g.beginPath(); g.moveTo(w - 24, y); g.lineTo(w - 34, y + 11); g.lineTo(w - 24, y + 22); g.fill(); }
+  const horn = (cx, cy, s, flip) => { // koshkar muyuz: a stem that splits into two curls
+    g.save(); g.translate(cx, cy); if (flip) g.scale(1, -1); g.strokeStyle = fg; g.lineWidth = s * 0.16; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(0, s * 0.45); g.lineTo(0, 0);
+    for (const sx of [-1, 1]) { g.moveTo(0, 0); g.bezierCurveTo(sx * s * 0.1, -s * 0.35, sx * s * 0.62, -s * 0.42, sx * s * 0.55, -s * 0.05); g.arc(sx * s * 0.38, -s * 0.05, s * 0.17, sx > 0 ? 0 : Math.PI, sx > 0 ? Math.PI * 1.15 : -Math.PI * 0.15, sx < 0); }
+    g.stroke(); g.restore(); };
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 2; c++) horn(80 + c * 96, 80 + r * 112, 70, (r + c) % 2 === 1);
+}));
+const girihTex = canvasTex(128, 128, (g, w) => {
+  g.fillStyle = '#1d4f8a'; g.fillRect(0, 0, w, w);
+  const star = (cx, cy, r, col) => { g.fillStyle = col; g.beginPath(); for (let i = 0; i < 16; i++) { const a = i / 16 * TAU, rr = i % 2 ? r * 0.62 : r; g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } g.closePath(); g.fill(); };
+  for (const [cx, cy] of [[0, 0], [w, 0], [0, w], [w, w], [w / 2, w / 2]]) { star(cx, cy, 34, '#e9e2cf'); star(cx, cy, 24, '#2fa3b3'); star(cx, cy, 9, '#d9b45a'); }
+  g.strokeStyle = '#e9e2cf'; g.lineWidth = 3; g.beginPath(); g.moveTo(w / 2, 0); g.lineTo(w, w / 2); g.lineTo(w / 2, w); g.lineTo(0, w / 2); g.closePath(); g.stroke();
+});
+girihTex.wrapS = girihTex.wrapT = THREE.RepeatWrapping;
+const mosaicHallTex = canvasTex(512, 256, (g, w, h) => {
+  const P = ['#d8c7a0', '#c9a86a', '#7a9cb8', '#3f6f9a', '#b9563e', '#e9e2cf', '#8a9a5a', '#2a3a4a'];
+  for (let y = 0; y < h; y += 8) for (let x = 0; x < w; x += 8) { g.fillStyle = P[(Math.abs(Math.sin(x * 12.9 + y * 78.2) * 43758) | 0) % 3]; g.fillRect(x, y, 7, 7); }
+  g.fillStyle = '#d9a43a'; g.beginPath(); g.arc(150, 92, 58, 0, TAU); g.fill(); // a sun
+  g.strokeStyle = '#d9a43a'; g.lineWidth = 6; for (let i = 0; i < 14; i++) { const a = i / 14 * TAU; g.beginPath(); g.moveTo(150 + Math.cos(a) * 70, 92 + Math.sin(a) * 70); g.lineTo(150 + Math.cos(a) * 96, 92 + Math.sin(a) * 96); g.stroke(); }
+  for (let k = 0; k < 4; k++) { g.strokeStyle = k % 2 ? '#3f6f9a' : '#7a9cb8'; g.lineWidth = 12; g.beginPath(); for (let x = 0; x <= w; x += 8) g.lineTo(x, 190 + k * 16 + Math.sin(x / 34 + k) * 8); g.stroke(); }
+  g.fillStyle = '#b9563e'; for (const [x, s] of [[330, 1], [400, 0.8], [455, 0.65]]) { g.fillRect(x, 150 - 90 * s, 22 * s, 90 * s); g.beginPath(); g.arc(x + 11 * s, 150 - 100 * s, 13 * s, 0, TAU); g.fill(); } // three standing figures
+  g.fillStyle = '#e9e2cf'; for (let i = 0; i < 9; i++) g.fillRect(270 + i * 26, 28, 14, 14); // a band of stars that are only squares
+});
+const fireTex = canvasTex(128, 128, (g, w) => { const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2); r.addColorStop(0, '#fff6d8'); r.addColorStop(0.25, '#ffc060'); r.addColorStop(0.6, '#ff6a1a'); r.addColorStop(0.85, '#a8280c'); r.addColorStop(1, '#3a120a'); g.fillStyle = r; g.fillRect(0, 0, w, w); for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(255,${180 + Math.random() * 70 | 0},90,${Math.random() * 0.5})`; g.fillRect(Math.random() * w, Math.random() * w, 2, 2); } });
+const pitTex = canvasTex(8, 64, (g, w, h) => { const r = g.createLinearGradient(0, 0, 0, h); r.addColorStop(0, '#2a1e16'); r.addColorStop(0.65, '#5a2a14'); r.addColorStop(1, '#ff7a2a'); g.fillStyle = r; g.fillRect(0, 0, w, h); });
+const ornMat = (map) => new THREE.MeshLambertMaterial({ map, side: THREE.DoubleSide });
+const HOMAGE_BUILD = {
+  // a square framed by three madrasas: tall tiled portals, ribbed blue domes, leaning minarets
+  registan({ m, B, col, rng, L }) {
+    const BRICK = 0xc9a878, TILE = 0x2a7fb0, DEEP = 0x1f4f7a, DOME = 0x2fa3b3;
+    m.part(B, G.box, 0, 1, 0, 130, 2, 130, 0xd8c7a0);
+    const madrasa = (px, pz, ry) => {
+      const Bm = B.clone().multiply(M(px, 0, pz, ry));
+      m.part(Bm, G.box, 0, 15, -6, 44, 30, 22, BRICK);
+      m.part(Bm, G.box, 0, 23, 6, 26, 46, 6, shade(BRICK, 1.05));
+      m.part(Bm, G.box, 0, 19, 8.6, 15, 34, 1.4, DEEP); m.part(Bm, G.box, 0, 37, 9.4, 18, 2, 0.6, TILE);
+      for (const sx of [-1, 1]) { m.part(Bm, G.box, sx * 10.5, 23, 9.2, 2, 44, 0.6, TILE); m.part(Bm, G.cyl, sx * 21, 26, 4, 2.6, 52, 2.6, BRICK, 0, 0, rng() < 0.3 ? sx * 0.07 : 0); m.part(Bm, G.cyl, sx * 21, 53, 4, 3.2, 3, 3.2, TILE); }
+      for (let i = 0; i < 4; i++) m.part(Bm, G.box, 0, 5 + i * 7, 8.2, 26.4, 0.8, 0.8, TILE);
+      if (rng() < 0.7) { m.part(Bm, G.cyl, 14, 32, -10, 8, 6, 8, BRICK); m.part(Bm, G.half, 14, 35, -10, 8.5, 10, 8.5, DOME); for (let k = 0; k < 12; k++) { const a = k / 12 * TAU; m.part(Bm, G.box, 14 + Math.cos(a) * 8.4, 39, -10 + Math.sin(a) * 8.4, 0.5, 8, 0.5, shade(DOME, 0.75), -a); } }
+    };
+    madrasa(0, -46, 0); madrasa(-46, 0, Math.PI / 2); madrasa(46, 0, -Math.PI / 2);
+    col(0, -52, 22, 11, -5, 30); col(-52, 0, 11, 22, -5, 30); col(52, 0, 11, 22, -5, 30);
+    // the tile panels of the portals carry the star pattern
+    const tm = ornMat(girihTex); tm.map.repeat.set(2, 4);
+    for (const [px, pz, ry] of [[0, -46, 0], [-46, 0, Math.PI / 2], [46, 0, -Math.PI / 2]]) {
+      const q = new THREE.Mesh(new THREE.PlaneGeometry(14, 32), tm); q.applyMatrix4(B.clone().multiply(M(px, 0, pz, ry)).multiply(M(0, 19, 9.4))); L.group.add(q);
+    }
+    return { top: 58, rad: 70 };
+  },
+  // a banded brick tower of the old trade towns, its lantern of arches still standing
+  kalon({ m, B, col }) {
+    const BR = 0xb88a58, BR2 = 0xd4a874;
+    m.part(B, G.box, 0, 2, 0, 30, 4, 30, 0xc9b48a);
+    m.part(B, G.taper8, 0, 48, 0, 10, 90, 10, BR);
+    for (let i = 0; i < 9; i++) m.part(B, G.cyl, 0, 10 + i * 9.5, 0, 9.6 - i * 0.37, 2, 9.6 - i * 0.37, i % 3 === 1 ? 0x2a8fa0 : BR2);
+    m.part(B, G.cyl, 0, 97, 0, 7.6, 10, 7.6, BR2);
+    for (let i = 0; i < 16; i++) { const a = i / 16 * TAU; m.part(B, G.box, Math.cos(a) * 7.5, 97, Math.sin(a) * 7.5, 1.6, 6, 0.6, 0x3a2e24, -a); }
+    m.part(B, G.cyl, 0, 103, 0, 8.6, 1.6, 8.6, BR); m.part(B, G.half, 0, 103.6, 0, 5, 4, 5, BR);
+    m.part(B, G.box, 26, 9, -6, 34, 18, 6, BR); m.part(B, G.box, 22, 21, -6, 18, 6, 6, BR, 0, 0, 0.3); // a broken stretch of mosque wall
+    col(0, 0, 9, 9, -5, 104); col(26, -6, 17, 3, -5, 18);
+    return { top: 106, rad: 14 };
+  },
+  // a stubby brick tower on a grassy mound, with a field of stone figures facing east
+  burana({ m, B, col, rng }) {
+    m.part(B, G.half, 0, 0, 0, 34, 9, 34, 0x8a9a5a);
+    m.part(B, G.taper8, 0, 23, 0, 8, 30, 8, 0xa87a54); m.part(B, G.cyl, 0, 38.5, 0, 6.2, 1.2, 6.2, 0x8a6446);
+    for (let i = 0; i < 5; i++) m.part(B, G.cyl, 0, 12 + i * 5.5, 0, 7.6 - i * 0.28, 0.8, 7.6 - i * 0.28, 0xc29a6a);
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 7; c++) {
+      const bx = 44 + r * 7 + (rng() - 0.5) * 2, bz = (c - 3) * 7 + (rng() - 0.5) * 2, h = 3 + rng() * 2.2, tl = (rng() - 0.5) * 0.25;
+      m.part(B, G.box, bx, h / 2 - 0.5, bz, 1.3, h, 0.8, 0x8f8a80, Math.PI / 2, tl); m.part(B, G.ico, bx, h + 0.2, bz, 0.75, 0.9, 0.65, 0x9a958b);
+    }
+    for (let i = 0; i < 14; i++) { const a = i / 14 * TAU; m.part(B, G.ico, -40 + Math.cos(a) * 12, 0.6, Math.sin(a) * 12, 1.4, 1, 1.2, 0x8a857c, a); }
+    col(0, 0, 8, 8, -5, 39);
+    return { top: 40, rad: 34 };
+  },
+  // the bones of a giant yurt: red lattice wall, roof poles, the crown ring open to the sky
+  yurtFrame({ m, B, col, rng }) {
+    const RED = 0xa8402c, WOOD = 0xc8a06a, R0 = 40, H = 18;
+    for (let i = 0; i < 64; i++) { const a = i / 64 * TAU; for (const s of [-1, 1]) { const a2 = a + s * 0.09; m.part(B, G.box, Math.cos((a + a2) / 2) * R0, H / 2, Math.sin((a + a2) / 2) * R0, 0.45, H * 1.04, 0.3, RED, -(a + a2) / 2 + Math.PI / 2, 0, s * 0.33); } }
+    for (const y of [0.6, H]) { const t = new THREE.TorusGeometry(R0, 0.4, 4, 64); m.add(t, B.clone().multiply(M(0, y, 0, 0, 1, 1, 1, Math.PI / 2)), WOOD); t.dispose(); }
+    const CR = 9, CY = 44;
+    for (let i = 0; i < 40; i++) {
+      if (rng() < 0.18) continue; // some poles have fallen
+      const a = i / 40 * TAU, ax = Math.cos(a) * R0, az = Math.sin(a) * R0, bx = Math.cos(a) * CR, bz = Math.sin(a) * CR;
+      const dx = bx - ax, dy = CY - H, dz = bz - az, len = Math.hypot(dx, dy, dz);
+      const q = new THREE.Quaternion().setFromUnitVectors(new V3(0, 1, 0), new V3(dx, dy, dz).normalize());
+      m.add(G.cyl, B.clone().multiply(new THREE.Matrix4().compose(new V3((ax + bx) / 2, (H + CY) / 2, (az + bz) / 2), q, new V3(0.35, len, 0.35))), RED);
+    }
+    { const t = new THREE.TorusGeometry(CR, 0.9, 6, 32); m.add(t, B.clone().multiply(M(0, CY, 0, 0, 1, 1, 1, Math.PI / 2)), WOOD); t.dispose(); }
+    for (let k = 0; k < 3; k++) for (const s of [-1, 1]) { const t = new THREE.TorusGeometry(CR, 0.45, 4, 20, Math.PI); m.add(t, B.clone().multiply(M(0, CY, s * (k - 1) * 3, k * Math.PI / 3)), WOOD); t.dispose(); }
+    for (let i = 0; i < 5; i++) { const a = rng() * TAU; m.part(B, G.box, Math.cos(a) * (R0 - 1), 8 + rng() * 8, Math.sin(a) * (R0 - 1), 9 + rng() * 8, 6 + rng() * 6, 0.25, 0xe6d9bc, -a + Math.PI / 2, 0, (rng() - 0.5) * 0.4); } // rags of felt
+    col(0, 0, 1, 1, -5, 1);
+    return { top: 46, rad: 42 };
+  },
+  // contemporary felt: tall slabs in an arc, each faced with the ram's-horn ornament
+  feltSlabs({ m, B, col, rng, L }) {
+    const mats = shyrdakTex.map(ornMat), n = 7;
+    for (let i = 0; i < n; i++) {
+      const a = (i / (n - 1) - 0.5) * 2.1, px = Math.sin(a) * 52, pz = -Math.cos(a) * 52 + 40, ry = -a, h = 26 + rng() * 10, tl = (rng() - 0.5) * 0.1;
+      const Bs = B.clone().multiply(M(px, 0, pz, ry, 1, 1, 1, tl));
+      m.part(Bs, G.box, 0, h / 2, 0, 18, h, 1.6, 0x4a3a30);
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(17, h - 1), mats[i % 3]);
+      for (const sd of [-1, 1]) { const f = face.clone(); f.applyMatrix4(Bs.clone().multiply(M(0, h / 2, sd * 0.85, sd < 0 ? Math.PI : 0))); L.group.add(f); }
+      col(px, pz, 9, 1.2, -5, h);
+    }
+    m.part(B, G.box, 0, 0.4, 20, 90, 0.8, 70, 0xd6c8a6);
+    return { top: 36, rad: 56 };
+  },
+  // a blue dome dressed in star tiles, standing on a broken drum; a girih star sculpture beside it
+  girihDome({ m, B, col, L, rng }) {
+    m.part(B, G.box, 0, 12, 0, 46, 24, 46, 0xcfb88e); m.part(B, G.cyl, 0, 28, 0, 20, 8, 20, 0xc4ab80);
+    m.part(B, G.box, 0, 20, 24, 24, 40, 4, 0xd8c29a); m.part(B, G.box, 0, 16, 26.1, 12, 28, 0.6, 0x1f4f7a);
+    const dm = ornMat(girihTex.clone()); dm.map.needsUpdate = true; dm.map.wrapS = dm.map.wrapT = THREE.RepeatWrapping; dm.map.repeat.set(10, 3);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 12, 0, TAU, 0, Math.PI / 2), dm); dome.applyMatrix4(B.clone().multiply(M(0, 32, 0, 0, 21, 24, 21))); L.group.add(dome);
+    // the star sculpture: eight points, extruded, leaning on one tip
+    const sh = new THREE.Shape(); for (let i = 0; i < 16; i++) { const a = i / 16 * TAU, r = i % 2 ? 7 : 13; i ? sh.lineTo(Math.cos(a) * r, Math.sin(a) * r) : sh.moveTo(Math.cos(a) * r, Math.sin(a) * r); }
+    const sg = new THREE.ExtrudeGeometry(sh, { depth: 2.4, bevelEnabled: false }); m.add(sg, B.clone().multiply(M(46, 12.5, -10, 0.6, 1, 1, 1, 0, 0.2)), 0x2a7fb0); sg.dispose();
+    col(0, 0, 23, 23, -5, 24); col(0, 24, 12, 2, -5, 40); col(46, -10, 7, 2, -5, 25);
+    return { top: 56, rad: 30 };
+  },
+  // a fire that has burned in the desert for longer than anyone remembers
+  gateOfHell({ m, B, col, L, gy, x, z, LS }) {
+    const t1 = new THREE.TorusGeometry(36, 7, 6, 40); m.add(t1, B.clone().multiply(M(0, 3, 0, 0, 1, 1, 0.55, Math.PI / 2)), 0x6a5844); t1.dispose();
+    for (let i = 0; i < 20; i++) { const a = i / 20 * TAU; m.part(B, G.ico, Math.cos(a) * 42, 2, Math.sin(a) * 42, 4 + (i % 3), 3, 3.5, 0x7a6a54, a); }
+    // the pit: dark scorched walls going down, a floor of fire hottest at the heart, embers lifting off it
+    const wall = new THREE.Mesh(new THREE.CylinderGeometry(31, 26, 7, 40, 1, true), new THREE.MeshBasicMaterial({ map: pitTex, side: THREE.DoubleSide, fog: false }));
+    wall.applyMatrix4(B.clone().multiply(M(0, 4.6, 0))); L.group.add(wall);
+    const glow = new THREE.Mesh(new THREE.CircleGeometry(30, 40), new THREE.MeshBasicMaterial({ map: fireTex, color: 0xffffff, fog: false, transparent: true, opacity: 0.95 }));
+    glow.applyMatrix4(B.clone().multiply(M(0, 2.15, 0, 0, 1, 1, 1, -Math.PI / 2))); L.group.add(glow);
+    const core = new THREE.Mesh(new THREE.CircleGeometry(20, 32), new THREE.MeshBasicMaterial({ map: dotTex, color: 0xffd890, fog: false, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+    core.applyMatrix4(B.clone().multiply(M(0, 2.3, 0, 0, 1, 1, 1, -Math.PI / 2))); L.group.add(core);
+    L.glow = [glow.material, core.material];
+    const EN = 70, ep = new Float32Array(EN * 3), seeds = [];
+    for (let i = 0; i < EN; i++) { const a = Math.random() * TAU, r = Math.sqrt(Math.random()) * 26 * LS; seeds.push({ x: x + Math.cos(a) * r, z: z + Math.sin(a) * r, y: Math.random() * 70, v: 6 + Math.random() * 10, w: Math.random() * TAU }); }
+    const eg = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(ep, 3));
+    const embers = new THREE.Points(eg, new THREE.PointsMaterial({ size: 1.4, map: dotTex, color: 0xffa040, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    embers.frustumCulled = false; L.group.add(embers); L.embers = { seeds, ep, eg, base: gy + 2 };
+    for (let i = 0; i < 10; i++) { const a = i / 10 * TAU; const c = Math.cos(a), s2 = Math.sin(a); col(c * 40, s2 * 40, 6, 6, -5, 9); L.colliders[L.colliders.length - 1].noHop = true; }
+    return { top: 14, rad: 46 };
+  },
+  // a fleet left behind when the sea went away: hulls in the sand, listing, rusting
+  shipGraveyard({ m, B, col, rng }) {
+    for (let i = 0; i < 5; i++) {
+      const px = (i - 2) * 26 + (rng() - 0.5) * 8, pz = (rng() - 0.5) * 40, ry = (rng() - 0.5) * 1.2, roll = (rng() - 0.5) * 0.4, Bs = B.clone().multiply(M(px, 2, pz, ry, 1, 1, 1, 0, roll));
+      const RUSTY = [0x7a4529, 0x8a5a3a, 0x5a4a40][i % 3];
+      m.part(Bs, G.box, 0, 4, 0, 9, 8, 34, RUSTY); m.part(Bs, G.prism, 0, 4.4, 20, 4.5, 8.8, 4.5, RUSTY);
+      m.part(Bs, G.box, 0, 10, -8, 7, 5, 9, 0xd8d0c0); m.part(Bs, G.box, 0, 13.5, -8, 6, 2, 7, 0x6f8a8f); m.part(Bs, G.cyl, 0, 16, -3, 1.3, 7, 1.3, 0x3a3836);
+      m.part(Bs, G.cyl, 0, 18, 6, 0.3, 14, 0.3, 0x4a4440);
+      col(px, pz, 5, 17, -5, 9);
+    }
+    return { top: 22, rad: 60 };
+  },
+  // a stone caravan inn half sunk in a mountain meadow: a low hall, a blind portal, one dome
+  caravanserai({ m, B, col }) {
+    const ST = 0x9a8f7e;
+    m.part(B, G.box, 0, 4, 0, 46, 8, 52, ST); m.part(B, G.box, 0, 1, 0, 50, 2, 56, shade(ST, 0.9));
+    m.part(B, G.box, 0, 7, 27, 18, 14, 4, shade(ST, 1.05)); m.part(B, G.box, 0, 5.5, 29.1, 7, 11, 0.6, 0x3a3630);
+    m.part(B, G.cyl, 0, 9, 0, 9, 3, 9, ST); m.part(B, G.half, 0, 10.5, 0, 9.5, 8, 9.5, shade(ST, 1.08));
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { m.part(B, G.cyl, sx * 23, 6, sz * 26, 3, 12, 3, ST); m.part(B, G.half, sx * 23, 12, sz * 26, 3, 2.5, 3, ST); }
+    for (let i = 0; i < 6; i++) m.part(B, G.half, -14 + i * 5.6, 8, -10, 2.4, 2, 2.4, shade(ST, 1.04));
+    col(0, 0, 25, 28, -5, 9); col(0, 27, 9, 2, -5, 14);
+    return { top: 19, rad: 30 };
+  },
+  // a lakeside sanatorium in the curved Soviet manner: a sweep of balconies, a drum of stairs, an empty pool
+  sanatorium({ m, B, col, rng }) {
+    const W = 0xe9e4d8, BAND = 0x6a7a86, R = 60;
+    for (let i = 0; i < 16; i++) {
+      const a = -1.05 + i / 15 * 2.1, px = Math.sin(a) * R, pz = Math.cos(a) * R - R;
+      if (rng() < 0.08) continue; // a bay has collapsed
+      m.part(B, G.box, px, 13, pz, 8.4, 26, 12, W, a);
+      for (let f = 0; f < 7; f++) m.part(B, G.box, Math.sin(a) * (R + 6.3), 2.8 + f * 3.4, Math.cos(a) * (R + 6.3) - R, 8.6, 0.5, 1.2, BAND, a);
+    }
+    m.part(B, G.cyl, -64, 17, -18, 7, 34, 7, 0xd8d2c4); for (let f = 0; f < 9; f++) m.part(B, G.cyl, -64, 3 + f * 3.6, -18, 7.2, 0.8, 7.2, 0x8fa2ae);
+    m.part(B, G.box, 0, 0.3, 14, 40, 0.6, 18, 0x9ab8c4); m.part(B, G.box, 0, 0.9, 14, 41, 1.2, 0.8, W); m.part(B, G.box, 0, 0.9, 5.4, 41, 1.2, 0.8, W);
+    col(0, -2, 52, 8, -5, 26); col(-64, -18, 7, 7, -5, 34);
+    return { top: 34, rad: 66 };
+  },
+  // a great mosaic wall on concrete legs: a sun, the waves of a lake, three figures, a band of stars
+  mosaicHall({ m, B, col, L }) {
+    m.part(B, G.box, 0, 24, 0, 66, 30, 3, 0xcfcac0);
+    for (const sx of [-27, -9, 9, 27]) m.part(B, G.box, sx, 4.5, 0, 2.2, 9, 2.2, 0xbab5aa);
+    m.part(B, G.box, 0, 39.5, 0, 70, 1.2, 6, 0xbab5aa);
+    const mm = ornMat(mosaicHallTex);
+    for (const sd of [-1, 1]) { const q = new THREE.Mesh(new THREE.PlaneGeometry(64, 28), mm); q.applyMatrix4(B.clone().multiply(M(0, 24, sd * 1.56, sd < 0 ? Math.PI : 0))); L.group.add(q); }
+    col(0, 0, 33, 2, 9, 39); for (const sx of [-27, -9, 9, 27]) col(sx, 0, 1.2, 1.2, -5, 9);
+    return { top: 41, rad: 36 };
+  },
+};
+
 // ---------------------------------------------------------------- landmarks: giant ruins on the horizon
 const RG = 2000, landmarks = new Map();
 let lastRX = null, lastRZ = null;
@@ -1621,8 +1835,10 @@ function buildLandmark(rx, rz) {
   const d0 = Math.hypot(x, z); if (d0 < 700) { const k = 700 / Math.max(d0, 1); x = d0 < 1 ? 700 : x * k; z *= k; }
   L.x = x; L.z = z; CUR = L;
   const dom = BKEYS[dominant(biomeW(x, z, newW()))]; T = BIOMES[dom];
-  const UNCANNY = ['monolith', 'rings', 'cubes', 'gates', 'niche', 'saucer', 'hand', 'colossus', 'tatlin', 'head'];
-  const type = rng() < far * 0.6 ? UNCANNY[rng() * UNCANNY.length | 0] : T.marks[rng() * T.marks.length | 0], yaw = rng() * TAU;
+  const UNCANNY = ['monolith', 'rings', 'cubes', 'gates', 'niche', 'saucer', 'hand', 'colossus', 'tatlin', 'head', 'feltSlabs', 'girihDome', 'yurtFrame'];
+  // most giants are homages to the region (Kyrgyz and Uzbek above all); the rest are the uncanny and the biome's own
+  const hom = HOMAGE[dom] || HOMAGE.default, r0 = rng();
+  const type = window.__forceMark || (r0 < 0.5 ? hom[rng() * hom.length | 0] : r0 < 0.5 + far * 0.3 ? UNCANNY[rng() * UNCANNY.length | 0] : T.marks[rng() * T.marks.length | 0]), yaw = rng() * TAU;
   L.type = type;
   const LS = 1.6; // giants at true scale
   const gy = Math.max(heightAt(x, z), WATER) - 3, B = M(x, gy, z, yaw, LS, LS, LS), m = new Merger();
@@ -1796,6 +2012,8 @@ function buildLandmark(rx, rz) {
     m.part(B, G.half, 0, 116.5, 0, 6.2, 5, 6.2, 0x2a9fa8);
     col(0, 0, 13, 13, -5, 8); col(0, 0, 8, 8, -5, 116);
     top = 118; rad = 16;
+  } else if (HOMAGE_BUILD[type]) {
+    const r = HOMAGE_BUILD[type]({ m, B, col, rng, LS, x, z, gy, yaw, L }); top = r.top; rad = r.rad;
   } else {
     const tilt = 0.12, Bt = B.clone().multiply(M(0, 0, 0, 0, 1, 1, 1, 0, tilt));
     m.part(Bt, G.box, 0, 75, 0, 90, 150, 24, 0xd5d1c6);
@@ -2389,7 +2607,7 @@ function stepPhysics(dt) {
       if (vf > cruiseNow) vf -= (vf - cruiseNow) * (P.onWater ? 0.02 : P.onRoad ? 0.003 : 0.007) * dt;
       // the long pull: held straight, the old engine keeps winding up toward the top end, slowly;
       // laid over in a bend, the speed bleeds back toward a cornering pace
-      const straight = 1 - smooth(0.06, 0.32, Math.abs(P.lean)), bend = smooth(0.2, 0.62, Math.abs(P.lean));
+      const straight = 1 - smooth(0.3, 0.7, Math.abs(P.lean)), bend = smooth(0.62, 0.95, Math.abs(P.lean)); // light direction changes keep the pull; only a hard bend bleeds speed
       if (S.auto && !braking && !P.stalled && !P.dead) { const top = maxNow * 0.96; if (vf > cruiseNow * 0.85 && vf < top) vf += 2.3 * straight * (1 - vf / top) * (P.onRoad ? 1.3 : 1) * dt; }
       if (vf > S.cruise * 1.3) vf -= (vf - S.cruise * 1.3) * 0.55 * bend * dt;
       if (vf > maxNow) vf -= (vf - maxNow) * 1.5 * dt;
@@ -3501,6 +3719,11 @@ function updateVisuals(dt) {
     const d = Math.hypot(f.p.x - P.pos.x, f.p.z - P.pos.z);
     f.pillar.material.opacity = started ? clamp((1650 - d) / 900, 0, 1) * 0.26 : 0;
   }
+  for (const L of landmarks.values()) if (L.embers) {
+    const E = L.embers; E.seeds.forEach((q, i) => { q.y += q.v * dt; if (q.y > 80) q.y = 0; E.ep[i * 3] = q.x + Math.sin(t * 0.8 + q.w) * q.y * 0.15; E.ep[i * 3 + 1] = E.base + q.y; E.ep[i * 3 + 2] = q.z + Math.cos(t * 0.6 + q.w) * q.y * 0.15; });
+    E.eg.attributes.position.needsUpdate = true;
+  }
+  for (const L of landmarks.values()) if (L.glow) { const f = 0.75 + 0.25 * Math.sin(t * 7.3 + L.x) * Math.sin(t * 3.1); L.glow[0].opacity = 0.82 + 0.15 * f; L.glow[0].color.setRGB(1, 0.85 + 0.15 * f, 0.8 + 0.2 * f); L.glow[1].opacity = 0.35 + 0.45 * f; }
   // landmarks fade toward the horizon colour with distance (they ignore fog so they stay on the skyline)
   if ((t * 10 | 0) % 3 === 0) for (const L of landmarks.values()) {
     if (!L.mat) continue;
@@ -3796,7 +4019,7 @@ function updateRadar(dt) {
 function worldCards(container, onPick) {
   container.innerHTML = '';
   const hex = (n) => '#' + n.toString(16).padStart(6, '0');
-  const entries = [['journey', { name: '旅する', sub: '6つの世界が地続きで移り変わる' }], ...BKEYS.map((k) => [k, BIOMES[k]])];
+  const entries = [['journey', { name: '旅する', sub: '14の土地が地続きで移り変わる' }], ...BKEYS.map((k) => [k, BIOMES[k]])];
   for (const [key, th] of entries) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'world'; b.setAttribute('aria-pressed', String(key === biomeMode));
     const bg = key === 'journey'
@@ -3872,16 +4095,32 @@ $('#overRetry').addEventListener('click', retry);
 $('#tuneReset').addEventListener('click', () => { S = { ...VEHICLES[vehKey].defaults }; saveS(); buildTune(); });
 $('#tuneClose').addEventListener('click', () => closeSheet('#tuneSheet'));
 
-$('#btnGo').addEventListener('click', () => {
+// somewhere on the road: any trunk highway of the journey, clear of tunnels, lake and the last approach
+function randomRoadSpot() {
+  for (let tries = 0; tries < 60; tries++) {
+    const x = 1500 + Math.random() * 68000, j = (Math.random() * 5 | 0) - 2, z = hwZ(j, x);
+    if (!rowOn(x) || lakeE(x, z) < 2 || Math.abs(z) > halfW(x) - 1500) continue;
+    if (rawHeight(x, z) - deckAt(x, z) > 12) continue;
+    return { x, z, yaw: Math.atan2(1, hwZd(j, x)) };
+  }
+  return { x: 3000, z: hwZ(0, 3000), yaw: Math.atan2(1, hwZd(0, 3000)) };
+}
+function begin(randomStart) {
   $('#start').hidden = true; started = true; paused = false;
   sfx.init(); sfx.resume();
   try { navigator.wakeLock && navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
-  placeHome(S.cruise * 0.45); last = performance.now();
+  if (randomStart) {
+    if (biomeMode !== 'journey') { biomeMode = 'journey'; store.set('windlover.world4', 'journey'); rebuildAll(); refreshCards(); }
+    const sp = randomRoadSpot(); P.pos.set(sp.x, 0, sp.z); updateChunks(true); placeAt(sp.x, sp.z, sp.yaw, S.cruise * 0.8); P.stalled = false; P.reached = false; updatePalette(0, true);
+  } else placeHome(S.cruise * 0.45);
+  last = performance.now();
   const hint = $('#hint'); hint.hidden = false;
   hint.innerHTML = (isTouch ? 'ドラッグで操作　上で前傾・下でブレーキ・下＋左右でドリフト' : 'A・D 曲がる　W 前傾　S ブレーキ　S＋A・D ドリフト　R 立て直す') + '<br>段差は最高速で滑空、越えられる障害物は自動で跳ぶ';
   setTimeout(() => { hint.style.opacity = 0; }, 7000);
-  toast('太陽の方へ', '針は、奥を指している', 3000);
-});
+  toast(randomStart ? 'どこかの道の上' : '太陽の方へ', '針は、奥を指している', 3000);
+}
+$('#btnGo').addEventListener('click', () => begin(false));
+$('#btnRandom').addEventListener('click', () => begin(true));
 
 const stickBase = $('#stickBase'), stickKnob = $('#stickKnob'), flashEl = $('#flash');
 // film grain: one noise tile, nudged a few times a second
@@ -3957,6 +4196,6 @@ function frame(now) {
 setVehicle(vehKey); applyLens();
 placeHome(0); buildHome(); updatePalette(0, true); refreshCards();
 requestAnimationFrame(frame);
-window.__wl = { TURRET, setTurret, deckAt, rawHeight, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
+window.__wl = { rebuildAll, TURRET, setTurret, deckAt, rawHeight, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
 })();
 </script>
