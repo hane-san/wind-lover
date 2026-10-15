@@ -25,14 +25,22 @@ Mood: melancholy and beautiful. Wide pale skies whose colours drift, Soviet ruin
 
 ## Feel (numbers to protect)
 
-- Sidecar: cruise 40 m/s, max 75 m/s. Flow builds speed while you keep going: cruise × (1 + 0.5·flow), max × (1 + 0.3·flow).
+- Sidecar: cruise 40 m/s, max 98 m/s (chopper 95, board 80). Flow builds speed while you keep going: cruise × (1 + 0.5·flow), max × (1 + 0.3·flow).
+- The long pull: held straight, the engine keeps winding up toward 96% of the top end at about 2.3 m/s² × (1 − v/top), which is slow, and 30% stronger on tarmac. Laid over in a bend, speed bleeds back toward about 1.3 × cruise (around 190 km/h).
+- Off the tarmac grip is 68% of the on-road value, so the machine slides more. The slide is still turned back into forward speed, so the sliding feels like flowing rather than braking.
 - Steering follows lean: yaw rate = K·tan(lean)/v^0.88. The lean still takes time to build, which keeps the weight, but the response is quicker and more willing than before (roll rate: sidecar 4.3, chopper 5.0; grip keeps 78% at top speed).
 - Road affinity (`roadAffinity`): the machine wants the road as much as the rider does, and only ever helps what the stick is already doing.
   1. With the stick near centre on a highway, the heading settles onto the road's line.
   2. Turning onto a road within 36 m of it, the turn is finished onto the line and leftover lean is eased off. Measured overshoot after letting go went from 12° to 5° at 110 km/h, and from 8° to 3° at 200 km/h.
   3. Near an edge and heading out without firm steering, there is a soft nudge back and the outward slide bleeds off.
   4. While the road is helping, grip rises by up to 45%.
+  5. The approach: heading toward a road within 95 m at under about 65°, and not steering harder into it, the machine flies a glide path. Its angle to the road shrinks with the distance left, so it eases in on a long S and banks visibly (`P.assistLean`). Measured: from 70 m out at 29° it ends on the centre line, and at 52° it ends in the lane. Without the help it would cross straight over. At 80° it treats the move as a crossing and does not help.
   Steering firmly off the road always wins: a full-lock exit still leaves the road (measured 40 m off in 2.5 s).
+- Tunnel and gallery walls are computed from the same 8 m samples the builder draws them from (`cutAt`). A gallery has a solid wall on one side and pillars every 16 m on the open side: you can leave through the gaps, but not through a pillar. A tunnel is solid on both sides.
+- Highways carry obstacles about once every 440 m, always leaving a lane open:
+  - Dead cars and fallen trunks are low enough for the auto-hop.
+  - Overturned lorries, concrete blocks and tree crowns are `noHop`, so you have to go round them.
+  - None are placed in tunnels, near home or in the last 3 km.
 - Walls also include viaduct parapets, which work as soft walls you can still fly over, and terrain steeper than about 60°, which you glance off and cannot ride up.
 - The machine hugs the ground: it snaps to terrain when the gap is under 1.1 + 0.03·v m. Normal launches are capped at a vertical speed of 10 m/s. Long glides happen only at top speed off real edges. "空は飛びすぎない".
 - Ground contact is visible. A spring suspension on the chassis takes vertical jolts. On asphalt you feel a fine buzz (about 1 cm). Off-road you get coarse bumps and pitch chatter (about 2–3 cm, growing with speed). A camera share and a compass needle that shivers carry the feel through. In the air the chassis hangs slightly.
@@ -61,6 +69,14 @@ Mood: melancholy and beautiful. Wide pale skies whose colours drift, Soviet ruin
 
 - The sun walks an ellipse over the forward sky (period 540 s): high, then to one side, then low ahead, then to the other side.
 - The `MOODS` cycle (rose dawn, pale gold, amber dusk, lilac, blue hour, teal mist) blends over the biome palette. At altitude the sky deepens and a cloud sea forms.
+
+## The turret
+
+Hold the compass for 0.45 s and a steam-age twin gun unfolds out of the sidecar chair: two latches, two clanks (ガチャン、ガチャン), and a lurch each. Press the compass again to fold it away. (On a keyboard, T toggles it.) It is built from iron and brass, with a copper boiler, a pressure gauge, an ammunition drum and a shield plate.
+
+Raised, it picks the nearest hostile drone ahead within 720 m and fires homing tracers from alternate barrels, 15 rounds a second. One round kills one drone, so a formation goes down in a fast rolling ドドドドドン. Measured: a 30-drone formation was gone in about 2 s. Peaceful formations are never targeted, and it does not fire under a roof.
+
+This is deliberately overpowered for now. Variations, stamina and balance come later, along with boss targets.
 
 ## HUD
 

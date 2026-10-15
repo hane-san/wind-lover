@@ -76,10 +76,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   white-space: nowrap;
 }
 #compass {
-  position: fixed; z-index: 5; pointer-events: none; width: 66px; height: 66px; opacity: 0.94;
+  position: fixed; z-index: 6; pointer-events: auto; touch-action: none; cursor: pointer; width: 66px; height: 66px; opacity: 0.94;
   right: calc(env(safe-area-inset-right, 0px) + 16px); bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
-  filter: drop-shadow(0 2px 6px rgba(24, 16, 6, 0.5));
+  filter: drop-shadow(0 2px 6px rgba(24, 16, 6, 0.5)); -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
 }
+#compass.armed { filter: drop-shadow(0 0 8px rgba(255, 178, 92, 0.8)) drop-shadow(0 2px 6px rgba(24, 16, 6, 0.5)); }
 #toast.on { opacity: 1; transform: translateX(-50%) translateY(-4px); }
 #toast small { display: block; margin-top: 4px; font-family: var(--font-ui); font-size: 12px; font-weight: 500; letter-spacing: 0.08em; color: var(--muted); }
 
@@ -185,6 +186,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     </defs>
     <circle cx="50" cy="50" r="48.5" fill="url(#cpBrass)"/>
     <circle cx="50" cy="50" r="44.6" fill="#33281a"/>
+    <circle id="cpHold" cx="50" cy="50" r="46.6" fill="none" stroke="#ffd27a" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="292.8" stroke-dashoffset="292.8" transform="rotate(-90 50 50)"/>
     <circle cx="50" cy="50" r="43.4" fill="url(#cpFace)"/>
     <circle cx="50" cy="50" r="43.4" fill="#fff" filter="url(#cpAge)"/>
     <circle cx="50" cy="50" r="31" fill="none" stroke="#7a6646" stroke-width="0.6" opacity="0.7"/>
@@ -279,19 +281,19 @@ const LOWQ = isTouch;
 // ---------------------------------------------------------------- settings
 // resp: how quickly the heading answers the bars (lower = heavier)
 const VEHICLES = {
-  sidecar: { name: 'サイドカー', hover: 1.0, grip: 5.2, accel: 17, lean: 0.06, resp: 5.2, roll: 4.3, defaults: { maxSpeed: 75, cruise: 40, minSpeed: 0, inertia: 1.6, tailwind: 8, gravity: 30, glide: 0.66, turn: 1.0, jump: 13, camDist: 15, fovKick: 1.1, auto: true } },
-  bike: { name: 'チョッパー', hover: 1.0, grip: 5.4, accel: 18, lean: 0.55, resp: 7, roll: 5.0, defaults: { maxSpeed: 72, cruise: 38, minSpeed: 0, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 1.0, jump: 14, camDist: 14, fovKick: 1.1, auto: true } },
-  board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 10, roll: 5, defaults: { maxSpeed: 60, cruise: 30, minSpeed: 0, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 12, fovKick: 1.1, auto: true } },
+  sidecar: { name: 'サイドカー', hover: 1.0, grip: 5.2, accel: 17, lean: 0.06, resp: 5.2, roll: 4.3, defaults: { maxSpeed: 98, cruise: 40, minSpeed: 0, inertia: 1.6, tailwind: 8, gravity: 30, glide: 0.66, turn: 1.0, jump: 13, camDist: 15, fovKick: 1.1, auto: true } },
+  bike: { name: 'チョッパー', hover: 1.0, grip: 5.4, accel: 18, lean: 0.55, resp: 7, roll: 5.0, defaults: { maxSpeed: 95, cruise: 38, minSpeed: 0, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 1.0, jump: 14, camDist: 14, fovKick: 1.1, auto: true } },
+  board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 10, roll: 5, defaults: { maxSpeed: 80, cruise: 30, minSpeed: 0, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 12, fovKick: 1.1, auto: true } },
 };
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
 };
 let vehKey = store.get('windlover.vehicle4', 'sidecar'); if (!VEHICLES[vehKey]) vehKey = 'sidecar';
-const allS = store.get('windlover.settings.v10', {}) || {};
+const allS = store.get('windlover.settings.v11', {}) || {};
 const loadS = () => ({ ...VEHICLES[vehKey].defaults, ...(allS[vehKey] || {}) });
 let S = loadS();
-const saveS = () => { allS[vehKey] = S; store.set('windlover.settings.v10', allS); };
+const saveS = () => { allS[vehKey] = S; store.set('windlover.settings.v11', allS); };
 
 // ---------------------------------------------------------------- biomes
 const BIOMES = {
@@ -576,7 +578,7 @@ function highway(x, z) {
   const i = Math.round((x - HS / 2) / HS), xx = hwX(i, z), s2 = hwXd(i, z), q2 = Math.sqrt(1 + s2 * s2);
   const d1 = rowOn(x) ? Math.abs(z - zz) / q1 : Infinity, d2 = colOn(xx, z) ? Math.abs(x - xx) / q2 : Infinity;
   // n: unit normal across the carriageway, for walls and lateral offsets
-  if (d1 <= d2) { _hw.d = d1; _hw.cx = x; _hw.cz = zz; _hw.nx = -s1 / q1; _hw.nz = 1 / q1; } else { _hw.d = d2; _hw.cx = xx; _hw.cz = z; _hw.nx = 1 / q2; _hw.nz = -s2 / q2; }
+  if (d1 <= d2) { _hw.d = d1; _hw.cx = x; _hw.cz = zz; _hw.nx = -s1 / q1; _hw.nz = 1 / q1; _hw.row = true; _hw.k = j; } else { _hw.d = d2; _hw.cx = xx; _hw.cz = z; _hw.nx = 1 / q2; _hw.nz = -s2 / q2; _hw.row = false; _hw.k = i; }
   return _hw;
 }
 // the road's own height: only the land's long swell, never below the water
@@ -980,10 +982,42 @@ function buildChunkHighway(ch) {
     for (const sd of [-1, 1]) st.add(G.box, M(c[0] + sn * sd * (HW_HALF + 3), c[1] + 6, c[2] + cs * sd * (HW_HALF + 3), yaw, 4, 16, 2.4), 0x9d988d);
   };
   const quad = (m, a, b, c, d, k) => { for (const v of [a, b, c, c, b, d]) { m.p.push(v[0], v[1], v[2]); m.c.push(k.r, k.g, k.b); } };
-  for (const pts of lines) {
-    const n = pts.length, dk = pts.map(([x, z]) => deckAt(x, z) + 0.25), raw = pts.map(([x, z]) => rawHeight(x, z));
-    const nrm = pts.map((p, i) => { const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1; return [-dz / l, dx / l, dx / l, dz / l]; });
-    const at = (i, off, dy = 0) => [pts[i][0] + nrm[i][0] * off, dk[i] + dy, pts[i][1] + nrm[i][1] * off];
+  let pts, dk, nrm, at;
+  const RUSTC = 0x7a4529, PAINTS = [0x6f8a8f, 0xa9a07a, 0x8a5a4a, 0x5f6f5a, 0xb8b2a2];
+  // obstacles sit across part of the carriageway and always leave a lane open. Cars and logs are low
+  // enough for the auto-hop; lorries, blocks and tree crowns are not, so you go round them.
+  const obstacle = (i, ra, rb, rc) => {
+    const yawR = Math.atan2(nrm[i][2], nrm[i][3]), side = rb < 0.5 ? -1 : 1, kind = ra < 0.4 ? 'car' : ra < 0.6 ? 'lorry' : ra < 0.85 ? 'tree' : 'blocks';
+    const lat = side * (kind === 'tree' ? HW_HALF - 6 : 2.5 + rc * (HW_HALF - 6.5)), c = at(i, lat), y = dk[i] - 0.25, paint = PAINTS[(rc * PAINTS.length) | 0];
+    const put = (lx, lz, yaw, hw, hd, top, noHop) => { const cs = Math.cos(yawR), sn = Math.sin(yawR); addCollider(c[0] + lx * cs + lz * sn, c[2] - lx * sn + lz * cs, yawR + yaw, hw, hd, y - 2, y + top); if (noHop) CUR.colliders[CUR.colliders.length - 1].noHop = true; };
+    if (kind === 'car') {
+      const yw = (rc - 0.5) * 1.6, B = M(c[0], y, c[2], yawR + yw);
+      st.add(G.box, B.clone().multiply(M(0, 0.75, 0, 0, 1.8, 0.8, 4.4)), paint); st.add(G.box, B.clone().multiply(M(0, 1.45, -0.3, 0, 1.6, 0.6, 2.2)), shade(paint, 0.85));
+      st.add(G.box, B.clone().multiply(M(0, 0.3, 0, 0, 1.7, 0.3, 4.2)), RUSTC); st.add(G.box, B.clone().multiply(M(0.3, 1.2, 0.9, 0.4, 1.2, 0.05, 0.9)), 0x2a2e30);
+      put(0, 0, yw, 1.0, 2.3, 1.75, false);
+    } else if (kind === 'lorry') {
+      const yw = (rc - 0.5) * 0.9, B = M(c[0], y, c[2], yawR + yw);
+      st.add(G.box, B.clone().multiply(M(0, 1.3, -1.5, 0, 2.5, 2.4, 6.4, 0, Math.PI / 2 * 0.98)), RUSTC); // the box lies on its side
+      st.add(G.box, B.clone().multiply(M(0.2, 1.1, 2.9, 0, 2.3, 2.1, 2.2, 0, 1.4)), paint); st.add(G.cyl, B.clone().multiply(M(1.3, 0.55, 0.6, 0, 0.55, 0.35, 0.55, 0, Math.PI / 2)), 0x1d1e20);
+      put(0, 0, yw, 1.6, 4.4, 2.8, true);
+    } else if (kind === 'tree') {
+      // a poplar fallen from the verge: trunk across half the road, crown at its tip
+      const len = 11 + rc * 4, B = M(c[0], y, c[2], yawR);
+      st.add(G.cyl, B.clone().multiply(M(-side * len / 2 + side * 6, 0.5, 0, 0, 0.45, len, 0.45, 0, Math.PI / 2)), 0x5a4a3a);
+      st.add(G.ico, B.clone().multiply(M(-side * (len - 6) - side * 1.2, 2.0, 0, rc * 3, 3.2, 2.6, 3.4)), 0x6f8a3e); st.add(G.ico, B.clone().multiply(M(-side * (len - 7.5), 1.5, 1.5, rc, 2.2, 1.8, 2.0)), 0x7f9a4a);
+      put(-side * len / 2 + side * 6, 0, 0, len / 2, 0.55, 1.0, false);
+      put(-side * (len - 6) - side * 1.2, 0, 0, 3.0, 3.0, 3.8, true);
+    } else {
+      const yw = (rc - 0.5) * 0.3;
+      for (let k = 0; k < 3; k++) { const B = M(c[0], y, c[2], yawR + yw); st.add(G.box, B.clone().multiply(M((k - 1) * 2.1, 0.95, (k % 2) * 0.6, k * 0.15, 1.9, 1.9, 0.8)), 0xb9b4a8); }
+      put(0, 0, yw, 3.3, 0.8, 1.95, true);
+    }
+  };
+  for (pts of lines) {
+    const n = pts.length, raw = pts.map(([x, z]) => rawHeight(x, z));
+    dk = pts.map(([x, z]) => deckAt(x, z) + 0.25);
+    nrm = pts.map((p, i) => { const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1; return [-dz / l, dx / l, dx / l, dz / l]; });
+    at = (i, off, dy = 0) => [pts[i][0] + nrm[i][0] * off, dk[i] + dy, pts[i][1] + nrm[i][1] * off];
     let gal = 0;
     for (let i = 0; i < n - 1; i++) {
       // deck, lane dashes, edge lines, the double centre line
@@ -1005,6 +1039,12 @@ function buildChunkHighway(ch) {
           for (const sd of [-8, 8]) { const p = at(i, sd); st.add(G.box, M(p[0], g + hgt / 2, p[2], yaw, 3.2, hgt, 4.2), CONC_D); }
           const c0 = at(i, 0); st.add(G.box, M(c0[0], dk[i] - 2.5, c0[2], yaw, 4, 1.6, HW_HALF * 2 + 1), CONC);
         }
+      }
+      // now and then the road is not clear: a dead car, an overturned lorry, a fallen poplar, a row of blocks
+      if (cutDepth <= 22 && !gal) {
+        const hx = Math.round(pts[i][0]), hz = Math.round(pts[i][1]), r0 = hash(hx, hz, 77);
+        const homeClear = biomeMode === 'journey' && (Math.hypot(pts[i][0] - BASE_X, pts[i][1]) < 1600 || pts[i][0] > X_GOAL - 3000);
+        if (r0 < 1 / 55 && !homeClear) obstacle(i, hash(hx, hz, 78), hash(hx, hz, 79), hash(hx, hz, 80));
       }
       // deep cuts become avalanche galleries, and the deepest close into tunnels
       if (cutDepth > 22) {
@@ -2259,7 +2299,7 @@ for (let i = 0; i < LINES; i++) { const a = Math.random() * TAU, r = 2.2 + Math.
 const P = {
   pos: new V3(), vel: new V3(), yaw: 0, n: new V3(0, 1, 0), grounded: false, air: 0, coyote: 0, jumpBuf: 0,
   grind: null, gS: 0, gSpeed: 0, gDir: 1, gSeg: 0, grindCD: 0, gauge: 40, dashCD: 0, inStream: false, inUpdraft: false, onWater: false,
-  motes: 0, stalled: false, crankT: 0, sputT: 0, flow: 0, carve: 0, ajCD: 0, skipT: 0, hull: 3, braking: false, brakeHeat: 0, danger: 0, stopT: 0, dead: false, invuln: 0, found: foundKeys.size, drift: 0, drifting: false, tuck: false, yawRate: 0, lean: 0, onRoad: false, inTunnel: false, reached: false, dist: store.get('windlover.dist4', 0),
+  motes: 0, stalled: false, crankT: 0, sputT: 0, flow: 0, carve: 0, ajCD: 0, skipT: 0, hull: 3, braking: false, brakeHeat: 0, danger: 0, stopT: 0, dead: false, invuln: 0, found: foundKeys.size, drift: 0, drifting: false, tuck: false, yawRate: 0, lean: 0, onRoad: false, assistLean: 0, inTunnel: false, reached: false, dist: store.get('windlover.dist4', 0),
 };
 let HOVER = VEHICLES[vehKey].hover;
 const fwd = new V3(), fPl = new V3(), side = new V3(), tmp = new V3(), tmp2 = new V3(), UP = new V3(0, 1, 0), windDir = new V3(1, 0, 0);
@@ -2328,7 +2368,8 @@ function stepPhysics(dt) {
       if (gf < 0) gf *= 0.7 / S.inertia;
       let vf = P.vel.dot(fPl), vs = P.vel.dot(side);
       vf += gf * dt; vs += gs * dt;
-      const grip = (P.drifting ? 1.3 : V.grip * lerp(1, 0.78, sf) * (1 + 0.45 * roadPull)) / S.inertia;
+      // off the tarmac the machine slides: less grip, but the slide is turned back into forward speed
+      const grip = (P.drifting ? 1.3 : V.grip * lerp(1, 0.78, sf) * (P.onRoad || P.onWater ? 1 : 0.68) * (1 + 0.45 * roadPull)) / S.inertia;
       const nvs = vs * Math.exp(-grip * dt);
       if (vf >= 0) vf += (Math.abs(vs) - Math.abs(nvs)) * (P.drifting ? 0.9 : 0.86); else vf *= Math.exp(-3 * dt);
       const cruiseNow = S.cruise * (1 + P.flow * 0.5), maxNow = S.maxSpeed * (1 + P.flow * 0.3);
@@ -2340,6 +2381,11 @@ function stepPhysics(dt) {
       P.onRoad = roadDist(P.pos.x, P.pos.z) < 5 || highway(P.pos.x, P.pos.z).d < HW_HALF;
       if (P.onRoad) vf += 5 * dt;
       if (vf > cruiseNow) vf -= (vf - cruiseNow) * (P.onWater ? 0.02 : P.onRoad ? 0.003 : 0.007) * dt;
+      // the long pull: held straight, the old engine keeps winding up toward the top end, slowly;
+      // laid over in a bend, the speed bleeds back toward a cornering pace
+      const straight = 1 - smooth(0.06, 0.32, Math.abs(P.lean)), bend = smooth(0.2, 0.62, Math.abs(P.lean));
+      if (S.auto && !braking && !P.stalled && !P.dead) { const top = maxNow * 0.96; if (vf > cruiseNow * 0.85 && vf < top) vf += 2.3 * straight * (1 - vf / top) * (P.onRoad ? 1.3 : 1) * dt; }
+      if (vf > S.cruise * 1.3) vf -= (vf - S.cruise * 1.3) * 0.55 * bend * dt;
       if (vf > maxNow) vf -= (vf - maxNow) * 1.5 * dt;
       if (vf < S.minSpeed) vf = lerp(vf, S.minSpeed, 1 - Math.exp(-3 * dt));
       if (P.drifting) {
@@ -2414,7 +2460,8 @@ function stepPhysics(dt) {
 let roadPull = 0; // 0..1, how much the road is helping right now (also tightens grip)
 function roadAffinity(steer, dt) {
   roadPull = Math.max(0, roadPull - dt * 2);
-  if (!P.grounded || P.drifting || P.grind) return;
+  P.assistLean *= Math.exp(-6 * dt);
+  if (!P.grounded || P.drifting || P.grind || window.__noAssist) return;
   const hw = highway(P.pos.x, P.pos.z), reach = HW_HALF + 36;
   if (hw.d > reach) return;
   let ty = Math.atan2(hw.nz, -hw.nx); if (Math.cos(ty - P.yaw) < 0) ty += Math.PI;
@@ -2422,7 +2469,7 @@ function roadAffinity(steer, dt) {
   const turningToward = as > 0.12 && Math.sign(P.yawRate) === Math.sign(dy) && Math.sign(P.yawRate) !== 0;
   const onRoad = hw.d < HW_HALF + 2;
   let k = 0;
-  if (onRoad && as < 0.3 && ady < 0.5) k = 1.9 * (1 - as / 0.3) * (1 - ady / 0.5);                 // (1) settle
+  if (onRoad && as < 0.3 && ady < 0.7) k = 2.6 * (1 - as / 0.3) * (1 - ady / 0.7);                 // (1) settle
   else if (turningToward && ady < 1.1) {                                                             // (2) finish the turn
     const near = onRoad ? 1 : 1 - (hw.d - HW_HALF - 2) / (reach - HW_HALF - 2);
     k = 1.3 * near * smooth(0.02, 0.25, ady) * (1 - smooth(0.7, 1.1, ady));
@@ -2431,14 +2478,30 @@ function roadAffinity(steer, dt) {
   else if (as < 0.12 && ady < 0.35) {                                                              // (2b) let go after the turn
     const near = onRoad ? 1 : 1 - (hw.d - HW_HALF - 2) / (reach - HW_HALF - 2);
     if (Math.sign(P.yawRate) === -Math.sign(dy)) P.lean *= Math.exp(-6 * near * dt);                // the leftover lean must not carry you past the line
-    k = 1.2 * near * (1 - ady / 0.35);
+    if (onRoad) k = 1.2 * (1 - ady / 0.35);                                                         // off the road, the approach (5) takes it from here
   }
+  const yaw0 = P.yaw;
   if (k > 0) { P.yaw += dy * (1 - Math.exp(-k * dt)); roadPull = Math.max(roadPull, Math.min(1, k)); }
+  // (5) the approach: clearly heading in at a moderate angle and not steering to cross, the machine flies a
+  // glide path whose angle to the road shrinks with the distance left, so it eases in on a long S
+  if (!onRoad && hw.d < 95 && k === 0) {
+    const off = (P.pos.x - hw.cx) * hw.nx + (P.pos.z - hw.cz) * hw.nz, sg = Math.sign(off) || 1;
+    const closing = -(P.vel.x * hw.nx + P.vel.z * hw.nz) * sg, hs = Math.hypot(P.vel.x, P.vel.z);
+    const crossing = as > 0.35 && Math.sign(P.yawRate) === -Math.sign(dy); // turning harder into the road: they mean to cross it
+    if (closing > 2 && ady < 1.15 && !crossing && hs > 8) {
+      const alpha = Math.min(ady, clamp((hw.d - HW_HALF + 8) * 0.009, 0, 0.6)), want = ty - Math.sign(dy) * alpha;
+      const dw = Math.atan2(Math.sin(want - P.yaw), Math.cos(want - P.yaw));
+      const intent = (1 - smooth(0.8, 1.15, ady)) * (as < 0.35 ? 1 : 0.5) * (1 - smooth(70, 95, hw.d));
+      P.yaw += dw * (1 - Math.exp(-2.4 * intent * dt)); roadPull = Math.max(roadPull, intent * 0.5);
+    }
+  }
+  // show the help as lean, so the machine banks through the turn it is being helped into
+  if (dt > 0) { const vT = Math.pow(Math.max(Math.hypot(P.vel.x, P.vel.z), 10), 0.88), rate = (P.yaw - yaw0) / dt; P.assistLean = lerp(P.assistLean, clamp(Math.atan(-rate * vT / 43), -0.55, 0.55), 1 - Math.exp(-8 * dt)); }
   if (onRoad) {
     // the edge: off is the signed offset from the centre line, out = how fast you are heading outward
     const off = (P.pos.x - hw.cx) * hw.nx + (P.pos.z - hw.cz) * hw.nz, sg = Math.sign(off) || 1, edge = smooth(HW_HALF - 6, HW_HALF - 1, Math.abs(off));
     const out = (Math.sin(P.yaw) * hw.nx + Math.cos(P.yaw) * hw.nz) * sg; // >0 heading outward
-    if (edge > 0 && out > 0) {
+    if (edge > 0 && out > 0 && ady < 0.6) { // a steep line across the road is a crossing: leave it alone
       const fight = as > 0.45 && Math.sign(P.yawRate) === -Math.sign(dy) && ady > 0.05; // steering firmly off the road: let them go
       if (!fight) {
         P.yaw += dy * (1 - Math.exp(-edge * (as < 0.3 ? 1.1 : 0.7) * dt));
@@ -2505,7 +2568,7 @@ function autoHop() {
   if (P.ajCD > 0 || P.dead || !(P.grounded || P.coyote > 0)) return;
   const hs = Math.hypot(P.vel.x, P.vel.z); if (hs < 12) return;
   const ux = P.vel.x / hs, uz = P.vel.z / hs, feet = P.pos.y - HOVER, reach = hs * 0.6;
-  const near = colliders.filter((c) => !(c.hw < 0.6 && c.hd < 0.6) && Math.hypot(c.x - P.pos.x, c.z - P.pos.z) < reach + Math.max(c.hw, c.hd) + 6);
+  const near = colliders.filter((c) => !c.noHop && !(c.hw < 0.6 && c.hd < 0.6) && Math.hypot(c.x - P.pos.x, c.z - P.pos.z) < reach + Math.max(c.hw, c.hd) + 6);
   if (!near.length) return;
   for (let d = 2; d <= reach; d += 2) {
     const qx = P.pos.x + ux * d, qz = P.pos.z + uz * d; let need = -Infinity;
@@ -2591,32 +2654,43 @@ function wallImpact(nx, nz, soft) {
 }
 // highway galleries, tunnels and the hangar: solid side walls, a roof, and no sky overhead
 const BASE_LEN = 96;
+// The walls are worked out from the same 8 m samples the builder draws them from: a segment whose cut is
+// deeper than 22 m is a gallery (solid wall on one side, pillars every 16 m on the open side), deeper than
+// 45 m a tunnel (solid both sides). Viaduct spans have parapets. The hangar is solid both sides.
+function cutAt(hw, x, z) {
+  // the drawn segment under (x, z): its two sample points, deck height, cut depth, and position along it
+  const along = hw.row ? x : z, a0 = Math.floor(along / 8) * 8, u = along - a0;
+  const p = (q) => hw.row ? [q, hwZ(hw.k, q)] : [hwX(hw.k, q), q];
+  const A = p(a0), B = p(a0 + 8), dk = deckAt(A[0], A[1]) + 0.25;
+  return { dk, cut: Math.min(rawHeight(A[0], A[1]), rawHeight(B[0], B[1])) - dk, span: dk - rawHeight(A[0], A[1]) > 3 || dk - rawHeight(B[0], B[1]) > 3, even: ((a0 / 8) % 2 + 2) % 2 === 0, u };
+}
 function tunnelWalls() {
   P.inTunnel = false;
   if (P.grind) return;
   const hw = highway(P.pos.x, P.pos.z);
   if (hw.d > HW_HALF + 6) return;
-  const cx = hw.cx, cz = hw.cz, nx = hw.nx, nz = hw.nz, dk = deckAt(cx, cz) + 0.25;
+  const cx = hw.cx, cz = hw.cz, nx = hw.nx, nz = hw.nz, row = hw.row;
+  const off = (P.pos.x - cx) * nx + (P.pos.z - cz) * nz, sg = Math.sign(off) || 1, aoff = Math.abs(off), lim = HW_HALF - 0.5;
+  const hangar = biomeMode === 'journey' && row && hw.k === 0 && cx > BASE_X - BASE_LEN / 2 && cx < BASE_X + BASE_LEN / 2;
+  const C = cutAt(hw, P.pos.x, P.pos.z), dk = hangar ? deckAt(cx, cz) + 0.25 : C.dk;
   if (P.pos.y > dk + 12 || P.pos.y < dk - 3) return;
-  const hangar = biomeMode === 'journey' && cx > BASE_X - BASE_LEN / 2 && cx < BASE_X + BASE_LEN / 2 && Math.abs(cz - hwZ(0, cx)) < 2;
-  const rh = rawHeight(cx, cz), off0 = (P.pos.x - cx) * nx + (P.pos.z - cz) * nz;
-  if (!hangar && rh - dk <= 22) {
+  const push = (soft) => { const p = off - sg * lim; P.pos.x -= nx * p; P.pos.z -= nz * p; wallImpact(-sg * nx, -sg * nz, soft); };
+  if (!hangar && C.cut <= 22) {
     // viaduct parapets: a span keeps you on it unless you are already flying clear over the rail
-    if (dk - rh > 3 && Math.abs(off0) < HW_HALF + 1.5 && P.pos.y < dk + 2.2 && Math.abs(off0) > HW_HALF - 0.5) {
-      const sg = Math.sign(off0), push = off0 - sg * (HW_HALF - 0.5);
-      P.pos.x -= nx * push; P.pos.z -= nz * push; wallImpact(-sg * nx, -sg * nz, true);
-    }
+    if (C.span && aoff > lim && aoff < HW_HALF + 1.5 && P.pos.y < dk + 2.2) push(true);
     return;
   }
+  // the open side of a shallow gallery is the side the builder offsets with a positive normal
+  // (its normal matches ours on rows and is reversed on columns)
+  const deep = hangar || C.cut > 45, openSide = !deep && sg === (row ? 1 : -1);
+  if (aoff > HW_HALF + (openSide ? 0.5 : 1.9)) return; // already outside the structure
   P.inTunnel = true;
   if (hangar && P.pos.x < BASE_X - BASE_LEN / 2 + 2.5) { P.pos.x = BASE_X - BASE_LEN / 2 + 2.5; wallImpact(1, 0); }
   if (P.pos.y > dk + 8.5) { P.pos.y = dk + 8.5; if (P.vel.y > 0) P.vel.y *= -0.2; }
-  const off = (P.pos.x - cx) * nx + (P.pos.z - cz) * nz, lim = HW_HALF - 0.5;
-  if (Math.abs(off) > lim) {
-    const sg = Math.sign(off), push = off - sg * lim;
-    P.pos.x -= nx * push; P.pos.z -= nz * push;
-    wallImpact(-sg * nx, -sg * nz);
-  }
+  if (aoff <= lim) return;
+  if (!openSide) { push(false); return; }
+  // open side: only the pillars (2.2 m long, at the middle of every other segment) are in the way
+  if (C.even && Math.abs(C.u - 4) < 1.1 + 0.7) push(false);
 }
 
 function resolveGround(dt) {
@@ -3070,6 +3144,166 @@ function updateDrones(dt) {
   bulGeo.attributes.position.needsUpdate = true; bulGeo.attributes.color.needsUpdate = true;
 }
 
+// ---------------------------------------------------------------- the turret: an old steam-age gun that unfolds out of the chair
+// Hold the compass to raise it (two latches: ガチャン、ガチャン), press again to fold it away. Raised, it picks
+// the nearest hostile drone ahead and hammers it with homing tracers, one round a kill, about fifteen a second.
+const TURRET = { state: 0, tau: 0, k: 0, yaw: 0, pitch: -1.3, fireT: 0, barrel: 0, kills: 0 };
+const turretRoot = new THREE.Group(), turretLift = new THREE.Group(), turretYaw = new THREE.Group(), turretPitch = new THREE.Group();
+turretRoot.add(turretLift); turretLift.add(turretYaw); turretYaw.add(turretPitch); boardPivot.add(turretRoot); turretRoot.visible = false;
+const TURRET_MOUNT = { sidecar: [-0.75, 1.02, 0.4], bike: [0, 1.22, -1.05], board: [0, 0.55, -0.55] };
+const turretBarrels = [], turretFlash = [];
+(() => {
+  const IRON = 0x3a3733, IRON2 = 0x56524a, BRASS = 0xb88e3e, COPPER = 0x9a5a32, GUN = 0x26272a;
+  const mat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 40, specular: 0x554433 });
+  const mesh = (build) => { const m = new Merger(); build(m); return new THREE.Mesh(m.build(), mat); };
+  const torus = (r, tb, arc = TAU) => new THREE.TorusGeometry(r, tb, 5, 18, arc);
+  // the turntable stays with the chair
+  turretLift.add(mesh((m) => {
+    m.add(G.cyl, M(0, 0.04, 0, 0, 0.44, 0.1, 0.44), IRON);
+    const t = torus(0.42, 0.035); m.add(t, M(0, 0.09, 0, 0, 1, 1, 1, Math.PI / 2), BRASS); t.dispose();
+  }));
+  // the drum, its rivets, a copper boiler and pipe, a pressure gauge, an ammunition drum and a shield
+  turretYaw.add(mesh((m) => {
+    m.add(G.cyl, M(0, 0.25, 0, 0, 0.34, 0.3, 0.34), IRON2); m.add(G.cyl, M(0, 0.42, 0, 0, 0.3, 0.06, 0.3), IRON);
+    for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; for (const y of [0.15, 0.35]) m.add(G.box, M(Math.sin(a) * 0.345, y, Math.cos(a) * 0.345, a, 0.035, 0.035, 0.02), BRASS); }
+    m.add(G.half, M(0, 0.44, -0.2, 0, 0.15, 0.15, 0.15), COPPER); m.add(G.cyl, M(0, 0.6, -0.2, 0, 0.03, 0.06, 0.03), BRASS);
+    const p = torus(0.13, 0.024, Math.PI); m.add(p, M(0.17, 0.4, -0.14, Math.PI / 2, 1, 1, 1), COPPER); p.dispose();
+    m.add(G.cyl, M(-0.25, 0.36, -0.04, 0, 0.075, 0.03, 0.075, 0, Math.PI / 2), BRASS); m.add(G.box, M(-0.27, 0.36, -0.04, 0, 0.005, 0.1, 0.1), 0xece4cc);
+    m.add(G.cyl, M(0.37, 0.27, 0.04, 0, 0.15, 0.13, 0.15, 0, Math.PI / 2), BRASS); m.add(G.cyl, M(0.37, 0.27, 0.04, 0, 0.155, 0.03, 0.155, 0, Math.PI / 2), IRON);
+    m.add(G.box, M(0, 0.33, 0.24, 0, 0.66, 0.3, 0.04, -0.28), IRON); m.add(G.box, M(0, 0.47, 0.205, 0, 0.66, 0.025, 0.05, -0.28), BRASS);
+  }));
+  turretPitch.position.set(0, 0.33, 0.06);
+  for (const sx of [-0.095, 0.095]) {
+    const b = new THREE.Group(); b.position.x = sx; turretPitch.add(b);
+    b.add(mesh((m) => {
+      m.add(G.cyl, M(0, 0, 0.5, 0, 0.042, 0.95, 0.042, Math.PI / 2), GUN);
+      m.add(G.cyl, M(0, 0, 0.24, 0, 0.068, 0.34, 0.068, Math.PI / 2), IRON2);
+      for (const z of [0.1, 0.38, 0.62]) m.add(G.cyl, M(0, 0, z, 0, 0.074, 0.035, 0.074, Math.PI / 2), BRASS);
+      m.add(G.box, M(0, 0, 0.98, 0, 0.09, 0.09, 0.1), IRON);
+    }));
+    const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xffc070, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+    fl.position.set(0, 0, 1.12); fl.scale.setScalar(0.9); b.add(fl);
+    turretBarrels.push(b); turretFlash.push(fl);
+  }
+})();
+// tracers: homing rounds drawn as short bright streaks
+const TR_N = 96, trPos = new Float32Array(TR_N * 6), tracers = [];
+const trGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(trPos, 3));
+const trLines = new THREE.LineSegments(trGeo, new THREE.LineBasicMaterial({ color: 0xffe0a0, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+trLines.frustumCulled = false; scene.add(trLines);
+const trHeadPos = new Float32Array(TR_N * 3), trHeadGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(trHeadPos, 3));
+const trHeads = new THREE.Points(trHeadGeo, new THREE.PointsMaterial({ size: 2.2, map: dotTex, color: 0xffd890, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+trHeads.frustumCulled = false; scene.add(trHeads);
+const _tw = new V3(), _tq = new THREE.Quaternion(), _td = new V3();
+function setTurret(on) {
+  if (on && (TURRET.state === 0 || TURRET.state === 3)) { TURRET.state = 1; TURRET.tau = 0; }
+  else if (!on && (TURRET.state === 1 || TURRET.state === 2)) { TURRET.state = 3; TURRET.tau = 0; }
+  $('#compass').classList.toggle('armed', on);
+}
+function pickTarget() {
+  let best = null, bs = Infinity;
+  for (const f of forms) {
+    if (f.peace) continue;
+    for (const d of f.drones) {
+      if (d.claimed) continue;
+      const dx = d.x - P.pos.x, dy = d.y - P.pos.y, dz = d.z - P.pos.z, dist = Math.hypot(dx, dy, dz);
+      if (dist > 720) continue;
+      const ahead = (dx * fwd.x + dz * fwd.z) / Math.max(1, Math.hypot(dx, dz));
+      if (ahead < -0.25) continue;
+      const sc = dist * (2 - ahead);
+      if (sc < bs) { bs = sc; best = { f, d }; }
+    }
+  }
+  return best;
+}
+function killDrone(f, d) {
+  const i = f.drones.indexOf(d); if (i < 0) return;
+  f.drones.splice(i, 1); f.n = f.drones.length;
+  const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xffb060, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  fl.position.copy(d); fl.scale.setScalar(10 + Math.random() * 4); scene.add(fl); flashes.push({ o: fl, life: 0.4 });
+  emitDust(d, tmp2.set(f.vel.x * 0.3, -3, f.vel.z * 0.3), 10, 9);
+  sfx.kill(); TURRET.kills++;
+  if (!f.n) { const k = forms.indexOf(f); if (k >= 0) forms.splice(k, 1); }
+}
+function updateTurret(dt) {
+  const T = TURRET, mount = TURRET_MOUNT[vehKey] || TURRET_MOUNT.sidecar;
+  turretRoot.position.set(mount[0], mount[1], mount[2]); turretRoot.scale.setScalar(1.45);
+  // unfolding and folding: two latches, each a lurch and a clank
+  if (T.state === 1 || T.state === 3) {
+    const t0 = T.tau; T.tau += dt;
+    for (const at of [0.02, 0.4]) if (t0 < at && T.tau >= at) { sfx.clank(T.state === 1 ? 1 : 0.8); shake = Math.max(shake, 0.22); if (navigator.vibrate) try { navigator.vibrate(25); } catch (e) {} }
+    const step = (u) => { const a = clamp(u / 0.22, 0, 1); return 1 + 1.6 * Math.pow(a - 1, 3) + 0.6 * Math.pow(a - 1, 2); }; // overshooting lurch
+    const prog = T.tau < 0.4 ? 0.55 * step(T.tau) : 0.55 + 0.45 * step(T.tau - 0.4);
+    T.k = T.state === 1 ? clamp(prog, 0, 1.06) : clamp(1 - prog, -0.03, 1);
+    if (T.tau > 0.75) { T.state = T.state === 1 ? 2 : 0; T.k = T.state === 2 ? 1 : 0; }
+  }
+  turretRoot.visible = T.k > 0.01 || T.state === 1;
+  turretLift.position.y = lerp(-0.5, 0, clamp(T.k, 0, 1.1)); turretLift.scale.setScalar(lerp(0.4, 1, clamp(T.k, 0, 1.06)));
+  // aim: turn the drum and lift the guns toward the target, as fast as old gears allow
+  let target = null;
+  if (T.state === 2 && !P.dead && !P.inTunnel) {
+    if (!T.cur || T.cur.d.claimed || !T.cur.f.drones.includes(T.cur.d)) T.cur = pickTarget();
+    target = T.cur;
+  } else T.cur = null;
+  let wantYaw = 0, wantPitch = T.state === 2 ? 0.05 : -1.3;
+  if (target) {
+    turretPitch.getWorldPosition(_tw); _td.subVectors(target.d, _tw);
+    turretLift.getWorldQuaternion(_tq); _td.applyQuaternion(_tq.invert());
+    wantYaw = Math.atan2(_td.x, _td.z); wantPitch = -Math.atan2(_td.y, Math.hypot(_td.x, _td.z));
+  }
+  const dyw = Math.atan2(Math.sin(wantYaw - T.yaw), Math.cos(wantYaw - T.yaw));
+  T.yaw += clamp(dyw, -9 * dt, 9 * dt); T.pitch += clamp(wantPitch - T.pitch, -6 * dt, 6 * dt);
+  turretYaw.rotation.y = T.yaw; turretPitch.rotation.x = lerp(-1.3, T.pitch, clamp(T.k, 0, 1));
+  // fire: alternate barrels, one homing round per drone
+  if (target && Math.abs(dyw) < 0.35) {
+    T.fireT -= dt;
+    while (T.fireT <= 0 && target) {
+      T.fireT += 1 / 15;
+      const b = T.barrel = 1 - T.barrel, fl = turretFlash[b];
+      fl.getWorldPosition(_tw);
+      target.d.claimed = true;
+      if (tracers.length < TR_N) tracers.push({ p: _tw.clone(), d: target.d, f: target.f, dir: new V3().subVectors(target.d, _tw).normalize(), life: 2 });
+      turretBarrels[b].position.z = -0.14; fl.material.opacity = 1; fl.scale.setScalar(0.7 + Math.random() * 0.5);
+      sfx.gun(); shake = Math.max(shake, 0.05);
+      T.cur = target = pickTarget();
+    }
+  } else T.fireT = Math.min(T.fireT, 0.02);
+  for (let i = 0; i < 2; i++) { turretBarrels[i].position.z += (0 - turretBarrels[i].position.z) * (1 - Math.exp(-14 * dt)); turretFlash[i].material.opacity *= Math.exp(-28 * dt); }
+  // tracers home in on their drone; a drone that is gone leaves its round flying straight on
+  const SPD = 360;
+  for (let i = tracers.length - 1; i >= 0; i--) {
+    const r = tracers[i]; r.life -= dt;
+    const alive = r.f.drones.includes(r.d);
+    if (alive) { _td.subVectors(r.d, r.p); const dist = _td.length(); if (dist < SPD * dt + 1.5) { killDrone(r.f, r.d); tracers.splice(i, 1); continue; } r.dir.copy(_td).multiplyScalar(1 / dist); }
+    r.p.addScaledVector(r.dir, SPD * dt);
+    if (r.life <= 0) { if (alive) r.d.claimed = false; tracers.splice(i, 1); }
+  }
+  for (let i = 0; i < TR_N; i++) {
+    const o = i * 6, r = tracers[i];
+    if (r) { trPos[o] = r.p.x; trPos[o + 1] = r.p.y; trPos[o + 2] = r.p.z; trPos[o + 3] = r.p.x - r.dir.x * 9; trPos[o + 4] = r.p.y - r.dir.y * 9; trPos[o + 5] = r.p.z - r.dir.z * 9; trHeadPos[i * 3] = r.p.x; trHeadPos[i * 3 + 1] = r.p.y; trHeadPos[i * 3 + 2] = r.p.z; }
+    else { for (let k = 0; k < 6; k++) trPos[o + k] = 0; trHeadPos[i * 3 + 1] = -9999; }
+  }
+  trGeo.attributes.position.needsUpdate = true; trHeadGeo.attributes.position.needsUpdate = true;
+}
+// the compass is the switch: hold to raise the gun, press again to fold it away
+{
+  const el = $('#compass'), ring = $('#cpHold'); let hold = -1, holdId = null;
+  const DASH = 292.8, HOLD = 0.45;
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation(); sfx.init(); sfx.resume();
+    if (TURRET.state === 1 || TURRET.state === 2) { setTurret(false); return; }
+    hold = 0; holdId = e.pointerId; try { el.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  const end = (e) => { if (holdId !== null && e.pointerId !== holdId) return; hold = -1; holdId = null; ring.setAttribute('stroke-dashoffset', DASH); };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  window.__turretHold = (dt) => {
+    if (hold < 0) return;
+    hold += dt; ring.setAttribute('stroke-dashoffset', (DASH * (1 - clamp(hold / HOLD, 0, 1))).toFixed(1));
+    if (hold >= HOLD) { setTurret(true); hold = -1; ring.setAttribute('stroke-dashoffset', DASH); }
+  };
+  window.addEventListener('keydown', (e) => { if (e.code === 'KeyT' && !e.repeat) setTurret(!(TURRET.state === 1 || TURRET.state === 2)); });
+}
+
 // ---------------------------------------------------------------- camera & visuals
 const camDir = new V3(0, 0, 1), camPos = new V3(), lookSm = new V3(), visN = new V3(0, 1, 0), camOff = new V3(0, 3, -7);
 let camBaseY = 0, lift = 0, lookAng = 0, suspY = 0, suspV = 0, lastVy = 0;
@@ -3193,9 +3427,9 @@ function updateVisuals(dt) {
   if (dt > 0) { suspV += (-150 * (suspY - (P.grounded ? bump : 0.1)) - 13 * suspV) * dt; suspY = clamp(suspY + suspV * dt, -0.42, 0.3); }
   player.position.copy(P.pos).addScaledVector(UP, -HOVER + 0.28 + suspY);
   const gliding = !P.grounded && !P.grind && inp.jumpHeld && P.vel.y < 1;
-  const turnK = clamp(P.lean / 0.8, -1, 1);
+  const turnK = clamp((P.lean + P.assistLean) / 0.8, -1, 1);
   // the machine shows the lean it is actually carrying; a sidecar outfit stays flat and lifts its chair instead
-  let lean = P.grind ? Math.sin(t * 9) * 0.06 : vehKey === 'sidecar' ? turnK * 0.08 : P.lean * (P.grounded ? 0.85 : 0.5);
+  let lean = P.grind ? Math.sin(t * 9) * 0.06 : vehKey === 'sidecar' ? turnK * 0.08 : (P.lean + P.assistLean) * (P.grounded ? 0.85 : 0.5);
   if (vehKey === 'sidecar') { lift = lerp(lift, P.grounded && turnK > 0.3 && sf > 0.25 ? (turnK - 0.3) * Math.min(1, sf * 1.4) * 0.38 : 0, 1 - Math.exp(-3 * dt)); lean -= lift; }
   boardPivot.rotation.z = lerp(boardPivot.rotation.z, lean, 1 - Math.exp(-6 * dt));
   if (MD.ears) MD.ears.forEach((e, i) => { e.rotation.x = -0.3 - sf * 1.1 + Math.sin(t * 22 + i) * 0.12 * sf; });
@@ -3400,6 +3634,10 @@ const sfx = (() => {
       eng.g.gain.setTargetAtTime(bike ? 0.05 + clamp(speed / 110, 0, 1) * 0.05 : 0, now, 0.2); eng.lg.gain.setTargetAtTime(bike ? 0.035 : 0, now, 0.2);
     },
     land(v) { burst(180, 0.8, 0.25, 0.25 + v * 0.5); },
+    // ガチャン: a latch slamming home, iron on iron, over a dull thump
+    clank(v = 1) { burst(2600, 9, 0.07, 0.32 * v, 1900); burst(1200, 6, 0.1, 0.22 * v); burst(95, 0.9, 0.22, 0.45 * v); },
+    gun() { burst(150, 1.1, 0.09, 0.32); burst(2200, 3, 0.035, 0.1, 900); },
+    kill() { burst(85, 0.7, 0.5, 0.5); burst(520, 1.1, 0.22, 0.22, 160); },
     scrape(v) { burst(3400 + Math.random() * 1600, 2.2, 0.14, 0.12 + v * 0.3, 1600); burst(420, 1.4, 0.12, 0.08 + v * 0.22); },
     boom(v) { burst(90, 0.6, 1.4, 0.9 * v); burst(260, 0.7, 0.5, 0.5 * v); },
     whistle(dur) {
@@ -3642,8 +3880,9 @@ function frame(now) {
     for (let i = 0; i < sub; i++) stepPhysics(dt / sub);
     updateWind(); updateChunks(false); updatePalette(dt, false);
     sfx.update(P.vel.length(), !!P.grind, P.inStream, P.stalled ? 'board' : vehKey); sfx.carve(P.grounded ? P.carve : 0, P.onWater);
-    updateHud(); updateEngine(dt); updateThreat(dt); updateDrones(dt);
+    updateHud(); updateEngine(dt); updateThreat(dt); updateDrones(dt); updateTurret(dt);
   }
+  if (window.__turretHold) window.__turretHold(paused ? 0 : dt);
   updateSparks(paused ? 0 : dt); updateVisuals(paused ? 0 : dt); updateCompass(paused ? 0 : dt);
   if (goalVeil) goalVeil.material.opacity = 0.08 + 0.05 * Math.sin(t * 0.7) + 0.03 * Math.sin(t * 2.3);
   if (window.__wlCam) window.__wlCam(camera, player); // inspection hook for close-ups
@@ -3652,6 +3891,6 @@ function frame(now) {
 setVehicle(vehKey); applyLens();
 placeHome(0); buildHome(); updatePalette(0, true); refreshCards();
 requestAnimationFrame(frame);
-window.__wl = { deckAt, rawHeight, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
+window.__wl = { TURRET, setTurret, deckAt, rawHeight, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
 })();
 </script>
