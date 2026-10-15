@@ -14,14 +14,25 @@ Mood: melancholy and beautiful. Wide pale skies whose colours drift, Soviet ruin
 2. **Don't stop.** After 2.1 s below 2.5 m/s a barrage starts. The engine stalls when you stop, and each crank has only about a 36% chance of catching.
 3. **Walls are real.** If more than 18 m/s of your velocity goes *into* a wall, you crash: hull −1, the engine stalls and a chase formation spawns. A shallower hit is a scrape: the inbound part is removed, speed and flow bleed off, the machine swings along the wall, and you get sparks and a grinding sound. Lean into the wall and you keep paying for it.
 4. **Roofs shelter.** In galleries, tunnels and the hangar, no shells are fired, no volleys land and bullets do nothing. A barrage cannot start there. Later, drones will come in sideways through the spine-like openings of galleries, so a roof should not stay a perfect refuge.
-5. **Drones are scenery first.** Formations cross the sky every 3–7 s (at most five at once). There are nine shapes: V, ring, wave, helix, plus the geometric rose (five petals), pentagram, lattice, bloom (two counter-turning rings) and spiral. They have 19–30 drones each. Peaceful ones have teal eyes and hostile ones amber. Each shape fires its own pattern: an opening flower, spiral arms drawn in seven bursts, a curtain with one gap, or rings. Every pattern is aimed at where you are now and flies at `BULLET_SPD`. At full speed you outrun them (`DRONE_MAX` 62 m/s).
+5. **Drones are scenery first.** Formations cross the sky every 2–5 s, with up to seven at once and most of them peaceful flybys. There are 19 figures:
+   - The original four: V, ring, wave and helix.
+   - Geometric figures: rose, pentagram, lattice, bloom, spiral, lotus (hexagon in triangle), mandala (three counter-turning rings), infinity, trefoil knot, Lissajous, sunburst, galaxy (two arms), chevrons, pinwheel and diamond.
+   - About half of the curved figures slowly breathe into a second figure and back.
+   - Peaceful eyes come in teal, pale gold, lilac, green or pink. Hostile eyes are always amber.
+   - Each figure fires its own pattern: an opening flower, spiral arms drawn in seven bursts, a curtain with one gap, rings, or spokes (lines of bullets at stepped speeds that unfold as turning rays).
+   - Every pattern is aimed at where you are now and flies at `BULLET_SPD`. At full speed you outrun them (`DRONE_MAX` 62 m/s).
 6. **Route heat.** The mountain belt (centre lane) is technical but quieter. The lowland roads either side are faster but draw much heavier fire.
 
 ## Feel (numbers to protect)
 
 - Sidecar: cruise 40 m/s, max 75 m/s. Flow builds speed while you keep going: cruise × (1 + 0.5·flow), max × (1 + 0.3·flow).
 - Steering follows lean: yaw rate = K·tan(lean)/v^0.88. The lean still takes time to build, which keeps the weight, but the response is quicker and more willing than before (roll rate: sidecar 4.3, chopper 5.0; grip keeps 78% at top speed).
-- Road sense: on a trunk highway, with the stick within 30% of centre, the heading settles onto the road's line when it is within about 25°. Any real steering input overrides it.
+- Road affinity (`roadAffinity`): the machine wants the road as much as the rider does, and only ever helps what the stick is already doing.
+  1. With the stick near centre on a highway, the heading settles onto the road's line.
+  2. Turning onto a road within 36 m of it, the turn is finished onto the line and leftover lean is eased off. Measured overshoot after letting go went from 12° to 5° at 110 km/h, and from 8° to 3° at 200 km/h.
+  3. Near an edge and heading out without firm steering, there is a soft nudge back and the outward slide bleeds off.
+  4. While the road is helping, grip rises by up to 45%.
+  Steering firmly off the road always wins: a full-lock exit still leaves the road (measured 40 m off in 2.5 s).
 - Walls also include viaduct parapets, which work as soft walls you can still fly over, and terrain steeper than about 60°, which you glance off and cannot ride up.
 - The machine hugs the ground: it snaps to terrain when the gap is under 1.1 + 0.03·v m. Normal launches are capped at a vertical speed of 10 m/s. Long glides happen only at top speed off real edges. "空は飛びすぎない".
 - Ground contact is visible. A spring suspension on the chassis takes vertical jolts. On asphalt you feel a fine buzz (about 1 cm). Off-road you get coarse bumps and pitch chatter (about 2–3 cm, growing with speed). A camera share and a compass needle that shivers carry the feel through. In the air the chassis hangs slightly.

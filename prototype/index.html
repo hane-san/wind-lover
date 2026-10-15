@@ -2314,15 +2314,7 @@ function stepPhysics(dt) {
     const vTurn = Math.pow(Math.max(Math.hypot(P.vel.x, P.vel.z), 10), 0.88);
     P.yawRate = clamp(-(P.grounded ? 43 : 35) * Math.tan(P.lean) / vTurn * (P.drifting ? 1.6 : 1), -2.2, 2.2);
     P.yaw += P.yawRate * dt;
-    // road sense: with the stick near centre on a highway, the machine settles onto the line of the road
-    if (P.grounded && !P.drifting && Math.abs(steer) < 0.3) {
-      const hw = highway(P.pos.x, P.pos.z);
-      if (hw.d < HW_HALF + 2) {
-        let ty = Math.atan2(hw.nz, -hw.nx); if (Math.cos(ty - P.yaw) < 0) ty += Math.PI;
-        const dy = Math.atan2(Math.sin(ty - P.yaw), Math.cos(ty - P.yaw));
-        if (Math.abs(dy) < 0.45) { const k = (1 - Math.abs(steer) / 0.3) * (1 - Math.abs(dy) / 0.45); P.yaw += dy * (1 - Math.exp(-1.8 * k * dt)); }
-      }
-    }
+    roadAffinity(steer, dt);
     fwd.set(Math.sin(P.yaw), 0, Math.cos(P.yaw));
 
     if (P.grounded) {
@@ -2336,7 +2328,7 @@ function stepPhysics(dt) {
       if (gf < 0) gf *= 0.7 / S.inertia;
       let vf = P.vel.dot(fPl), vs = P.vel.dot(side);
       vf += gf * dt; vs += gs * dt;
-      const grip = (P.drifting ? 1.3 : V.grip * lerp(1, 0.78, sf)) / S.inertia;
+      const grip = (P.drifting ? 1.3 : V.grip * lerp(1, 0.78, sf) * (1 + 0.45 * roadPull)) / S.inertia;
       const nvs = vs * Math.exp(-grip * dt);
       if (vf >= 0) vf += (Math.abs(vs) - Math.abs(nvs)) * (P.drifting ? 0.9 : 0.86); else vf *= Math.exp(-3 * dt);
       const cruiseNow = S.cruise * (1 + P.flow * 0.5), maxNow = S.maxSpeed * (1 + P.flow * 0.3);
@@ -2414,6 +2406,49 @@ function stepPhysics(dt) {
   inp.jumpPressed = false; inp.dashPressed = false;
 }
 
+// road affinity: the machine wants the road as much as the rider does. It reads intent and only ever
+// helps it along: (1) stick near centre on the road → settle onto the road's line; (2) turning onto a road
+// you are crossing into → finish the turn onto its line without overshooting; (3) steering back in from
+// the edge → the correction takes a little sooner; (4) drifting toward an edge without steering → a soft
+// nudge back. Strong opposite steering always wins, and nothing acts in the air or in a drift.
+let roadPull = 0; // 0..1, how much the road is helping right now (also tightens grip)
+function roadAffinity(steer, dt) {
+  roadPull = Math.max(0, roadPull - dt * 2);
+  if (!P.grounded || P.drifting || P.grind) return;
+  const hw = highway(P.pos.x, P.pos.z), reach = HW_HALF + 36;
+  if (hw.d > reach) return;
+  let ty = Math.atan2(hw.nz, -hw.nx); if (Math.cos(ty - P.yaw) < 0) ty += Math.PI;
+  const dy = Math.atan2(Math.sin(ty - P.yaw), Math.cos(ty - P.yaw)), ady = Math.abs(dy), as = Math.abs(steer);
+  const turningToward = as > 0.12 && Math.sign(P.yawRate) === Math.sign(dy) && Math.sign(P.yawRate) !== 0;
+  const onRoad = hw.d < HW_HALF + 2;
+  let k = 0;
+  if (onRoad && as < 0.3 && ady < 0.5) k = 1.9 * (1 - as / 0.3) * (1 - ady / 0.5);                 // (1) settle
+  else if (turningToward && ady < 1.1) {                                                             // (2) finish the turn
+    const near = onRoad ? 1 : 1 - (hw.d - HW_HALF - 2) / (reach - HW_HALF - 2);
+    k = 1.3 * near * smooth(0.02, 0.25, ady) * (1 - smooth(0.7, 1.1, ady));
+    if (ady < 0.14) P.lean *= Math.exp(-4 * (1 - ady / 0.14) * near * dt);                          // ease off the lean: no overshoot
+  }
+  else if (as < 0.12 && ady < 0.35) {                                                              // (2b) let go after the turn
+    const near = onRoad ? 1 : 1 - (hw.d - HW_HALF - 2) / (reach - HW_HALF - 2);
+    if (Math.sign(P.yawRate) === -Math.sign(dy)) P.lean *= Math.exp(-6 * near * dt);                // the leftover lean must not carry you past the line
+    k = 1.2 * near * (1 - ady / 0.35);
+  }
+  if (k > 0) { P.yaw += dy * (1 - Math.exp(-k * dt)); roadPull = Math.max(roadPull, Math.min(1, k)); }
+  if (onRoad) {
+    // the edge: off is the signed offset from the centre line, out = how fast you are heading outward
+    const off = (P.pos.x - hw.cx) * hw.nx + (P.pos.z - hw.cz) * hw.nz, sg = Math.sign(off) || 1, edge = smooth(HW_HALF - 6, HW_HALF - 1, Math.abs(off));
+    const out = (Math.sin(P.yaw) * hw.nx + Math.cos(P.yaw) * hw.nz) * sg; // >0 heading outward
+    if (edge > 0 && out > 0) {
+      const fight = as > 0.45 && Math.sign(P.yawRate) === -Math.sign(dy) && ady > 0.05; // steering firmly off the road: let them go
+      if (!fight) {
+        P.yaw += dy * (1 - Math.exp(-edge * (as < 0.3 ? 1.1 : 0.7) * dt));
+        const vout = (P.vel.x * hw.nx + P.vel.z * hw.nz) * sg; // outward slide, bled off gently
+        if (vout > 0) { const kk = vout * edge * 1.4 * dt; P.vel.x -= hw.nx * sg * kk; P.vel.z -= hw.nz * sg * kk; }
+        roadPull = Math.max(roadPull, edge * 0.6);
+      }
+    }
+  }
+}
 function doJump() {
   const n = P.grounded ? P.n : UP;
   P.vel.addScaledVector(n, S.jump * 0.35); P.vel.y += S.jump * 0.68;
@@ -2871,7 +2906,7 @@ const droneGeo = (() => {
   m.add(G.box, M(0, -0.42, 0.2, 0, 0.3, 0.3, 0.5), IRON);
   return m.build();
 })();
-const MAXD = 160;
+const MAXD = 240;
 const droneMesh = new THREE.InstancedMesh(droneGeo, new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 18 }), MAXD);
 const eyeMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), MAXD);
 const EYE_HOSTILE = new THREE.Color(0xffb050), EYE_PEACE = new THREE.Color(0xa8f0e8);
@@ -2885,23 +2920,47 @@ for (let i = 0; i < BUL; i++) bPos[i * 3 + 1] = -9999;
 let bulI = 0, droneSpawnT = 5;
 const forms = [], _dm = new THREE.Object3D(), _f = new V3(), _r = new V3(), _u = new V3();
 const VOLLEY_COLS = [[1, 0.5, 0.16], [0.95, 0.36, 0.58], [0.3, 0.68, 1], [1, 0.78, 0.22]];
-function slotOf(f, i, out) {
-  const n = f.n, t = f.t;
-  if (f.type === 'V') { const sd = i % 2 ? 1 : -1, k = Math.ceil(i / 2); return out.set(sd * k * 9, Math.sin(t * 1.2 + k * 0.5) * 1.5 - k * 0.8, -k * 8); }
-  if (f.type === 'ring') { const a = i / n * TAU + t * 0.6; return out.set(Math.cos(a) * 26, Math.sin(a) * 26, Math.sin(a * 2 + t) * 3); }
-  if (f.type === 'wave') { const x = (i - (n - 1) / 2) * 7.5; return out.set(x, Math.sin(t * 1.5 - i * 0.42) * 6, Math.cos(t * 1.1 - i * 0.3) * 4 - Math.abs(x) * 0.25); }
-  if (f.type === 'rose') { const th = i / n * TAU + t * 0.35, r = 30 * Math.abs(Math.cos(2.5 * (th - t * 0.35))) + 6; return out.set(Math.cos(th) * r, Math.sin(th) * r, Math.sin(th * 3 + t) * 2); } // five petals, turning
-  if (f.type === 'star') { // a pentagram traced by the swarm, slowly spinning
+function shapeSlot(type, n, t, i, out) {
+  if (type === 'V') { const sd = i % 2 ? 1 : -1, k = Math.ceil(i / 2); return out.set(sd * k * 9, Math.sin(t * 1.2 + k * 0.5) * 1.5 - k * 0.8, -k * 8); }
+  if (type === 'ring') { const a = i / n * TAU + t * 0.6; return out.set(Math.cos(a) * 26, Math.sin(a) * 26, Math.sin(a * 2 + t) * 3); }
+  if (type === 'wave') { const x = (i - (n - 1) / 2) * 7.5; return out.set(x, Math.sin(t * 1.5 - i * 0.42) * 6, Math.cos(t * 1.1 - i * 0.3) * 4 - Math.abs(x) * 0.25); }
+  if (type === 'rose') { const th = i / n * TAU + t * 0.35, r = 30 * Math.abs(Math.cos(2.5 * (th - t * 0.35))) + 6; return out.set(Math.cos(th) * r, Math.sin(th) * r, Math.sin(th * 3 + t) * 2); } // five petals, turning
+  if (type === 'star') { // a pentagram traced by the swarm, slowly spinning
     const k = (i / n) * 5, e = Math.floor(k), u = k - e, a0 = e * 4 * Math.PI / 5 - Math.PI / 2 + t * 0.4, a1 = (e + 1) * 4 * Math.PI / 5 - Math.PI / 2 + t * 0.4;
     return out.set(lerp(Math.cos(a0), Math.cos(a1), u) * 30, lerp(Math.sin(a0), Math.sin(a1), u) * 30, 0);
   }
-  if (f.type === 'lattice') { const c = i % 6, r = Math.floor(i / 6); return out.set((c - 2.5) * 10 + Math.sin(t * 1.3 + r) * 2, (r - 1.5) * 10 + Math.cos(t * 1.1 + c * 0.7) * 2, Math.sin(t * 2 + c * 0.6 + r) * 3); }
-  if (f.type === 'bloom') { const inner = i % 2, a = Math.floor(i / 2) / (n / 2) * TAU + (inner ? -t * 0.9 : t * 0.6), rr = inner ? 13 : 30; return out.set(Math.cos(a) * rr, Math.sin(a) * rr, inner ? 4 : 0); }
-  if (f.type === 'spiral') { const k = i / n, a = k * TAU * 2 + t * 0.8, rr = 6 + k * 30; return out.set(Math.cos(a) * rr, Math.sin(a) * rr, -k * 10); }
+  if (type === 'lattice') { const c = i % 6, r = Math.floor(i / 6); return out.set((c - 2.5) * 10 + Math.sin(t * 1.3 + r) * 2, (r - 1.5) * 10 + Math.cos(t * 1.1 + c * 0.7) * 2, Math.sin(t * 2 + c * 0.6 + r) * 3); }
+  if (type === 'bloom') { const inner = i % 2, a = Math.floor(i / 2) / (n / 2) * TAU + (inner ? -t * 0.9 : t * 0.6), rr = inner ? 13 : 30; return out.set(Math.cos(a) * rr, Math.sin(a) * rr, inner ? 4 : 0); }
+  if (type === 'spiral') { const k = i / n, a = k * TAU * 2 + t * 0.8, rr = 6 + k * 30; return out.set(Math.cos(a) * rr, Math.sin(a) * rr, -k * 10); }
+  if (type === 'lotus') { // a hexagon and a triangle nested, turning against each other
+    const hex = i < n * 0.6, m = hex ? Math.floor(n * 0.6) : n - Math.floor(n * 0.6), j = hex ? i : i - Math.floor(n * 0.6), sides = hex ? 6 : 3, rr = hex ? 30 : 15, rot = hex ? t * 0.3 : -t * 0.5;
+    const k = j / m * sides, e = Math.floor(k), u = k - e, a0 = e / sides * TAU + rot, a1 = (e + 1) / sides * TAU + rot;
+    return out.set(lerp(Math.cos(a0), Math.cos(a1), u) * rr, lerp(Math.sin(a0), Math.sin(a1), u) * rr, hex ? 0 : 3);
+  }
+  if (type === 'mandala') { const ring = i % 3, cnt = [6, 10, 14][ring], j = Math.floor(i / 3) % cnt, a = j / cnt * TAU + (ring % 2 ? -t * 0.4 : t * 0.3) + ring * 0.3, rr = [10, 21, 33][ring]; return out.set(Math.cos(a) * rr, Math.sin(a) * rr, ring * 2); }
+  if (type === 'infinity') { const a = i / n * TAU + t * 0.5, d = 1 + Math.sin(a) * Math.sin(a); return out.set(36 * Math.cos(a) / d, 18 * Math.sin(a) * Math.cos(a) / d * 2, Math.sin(a * 2 + t) * 3); }
+  if (type === 'trefoil') { const a = i / n * TAU + t * 0.35; return out.set((Math.sin(a) + 2 * Math.sin(2 * a)) * 9, (Math.cos(a) - 2 * Math.cos(2 * a)) * 9, -Math.sin(3 * a) * 9); } // a knot in the sky
+  if (type === 'lissajous') { const a = i / n * TAU; return out.set(Math.sin(3 * a + t * 0.4) * 32, Math.sin(2 * a) * 22, Math.cos(a + t) * 2); }
+  if (type === 'sunburst') { const spokes = 8, sp = i % spokes, r = Math.floor(i / spokes), a = sp / spokes * TAU + t * 0.25; return out.set(Math.cos(a) * (8 + r * 9), Math.sin(a) * (8 + r * 9), -r * 2); }
+  if (type === 'galaxy') { const arm = i % 2, k = Math.floor(i / 2) / (n / 2), a = arm * Math.PI + k * 4.2 + t * 0.45, rr = 5 * Math.exp(k * 1.9); return out.set(Math.cos(a) * rr, Math.sin(a) * rr * 0.75, -k * 6); }
+  if (type === 'chevrons') { const row = i % 3, k = Math.floor(i / 3), sd = k % 2 ? 1 : -1, kk = Math.ceil(k / 2); return out.set(sd * kk * 6, -kk * 4 + row * 12 + Math.sin(t * 2 + row) * 1.2, -row * 10 - kk * 2); }
+  if (type === 'pinwheel') { const blade = i % 4, k = Math.floor(i / 4), a = blade / 4 * TAU + t * 0.7 + k * 0.18, rr = 6 + k * 5; return out.set(Math.cos(a) * rr, Math.sin(a) * rr, 0); }
+  if (type === 'diamond') { const c = i % 5, r = Math.floor(i / 5), x = (c - 2) * 10 + (r % 2) * 5, y = (r - 2) * 9; const w = Math.sin(t * 1.4 + c * 0.5 + r * 0.7) * 3; return out.set(x * (1 - Math.abs(y) / 40), y + w, w); }
   const a = Math.floor(i / 2) * 0.6 + t * 1.1 + (i % 2) * Math.PI; return out.set(Math.cos(a) * 13, Math.sin(a) * 13, -Math.floor(i / 2) * 6); // double helix
 }
-const FORM_TYPES = ['V', 'ring', 'wave', 'helix', 'rose', 'star', 'lattice', 'bloom', 'spiral', 'rose', 'star', 'bloom', 'spiral'];
-const FORM_N = { V: 19, ring: 20, wave: 21, helix: 20, rose: 25, star: 30, lattice: 24, bloom: 28, spiral: 26 };
+// a formation can slowly breathe from one figure into another and back
+function slotOf(f, i, out) {
+  shapeSlot(f.type, f.n, f.t, i, out);
+  if (!f.morph) return out;
+  const m = 0.5 - 0.5 * Math.cos(f.t * 0.32); if (m < 0.001) return out;
+  const ax = out.x, ay = out.y, az = out.z; shapeSlot(f.morph, f.n, f.t, i, out);
+  return out.set(lerp(ax, out.x, m), lerp(ay, out.y, m), lerp(az, out.z, m));
+}
+const FORM_TYPES = ['V', 'ring', 'wave', 'helix', 'rose', 'star', 'lattice', 'bloom', 'spiral', 'lotus', 'mandala', 'infinity', 'trefoil', 'lissajous', 'sunburst', 'galaxy', 'chevrons', 'pinwheel', 'diamond'];
+const FORM_N = { V: 19, ring: 20, wave: 21, helix: 20, rose: 25, star: 30, lattice: 24, bloom: 28, spiral: 26, lotus: 30, mandala: 30, infinity: 28, trefoil: 30, lissajous: 30, sunburst: 32, galaxy: 30, chevrons: 27, pinwheel: 28, diamond: 25 };
+// figures that read well as each other's partners when a formation breathes between two shapes
+const MORPHABLE = ['ring', 'rose', 'star', 'bloom', 'spiral', 'lotus', 'mandala', 'infinity', 'trefoil', 'lissajous', 'galaxy', 'pinwheel'];
+const EYE_PEACES = [0xa8f0e8, 0xf4e2a8, 0xd6c4ff, 0xc8f0b0, 0xffd0dc].map((h) => new THREE.Color(h));
 function spawnFormation(forceMode) {
   const hs = Math.hypot(P.vel.x, P.vel.z) || 1, fx = P.vel.x / hs, fz = P.vel.z / hs;
   const mode = forceMode || 'pass';
@@ -2913,7 +2972,8 @@ function spawnFormation(forceMode) {
   pos.y = surfaceAt(pos.x, pos.z) + (mode === 'pass' ? 70 + Math.random() * 30 : mode === 'flyby' ? 60 + Math.random() * 90 : 34 + Math.random() * 20);
   // flybys cross your path far off, slowly, like birds; they never fire
   const vel = mode === 'pass' ? new V3(-fx, 0, -fz).multiplyScalar(34) : mode === 'flyby' ? new V3(fz, 0, -fx).multiplyScalar(Math.sign(side) * (28 + Math.random() * 12)) : new V3(fx, 0, fz).multiplyScalar(45);
-  const f = { mode, type, n, pos, vel, t: 0, fireT: 1.5, volley: 0, turned: false, peace: mode === 'flyby', drones: [], seq: 0, seqT: 0 };
+  const morph = MORPHABLE.includes(type) && Math.random() < 0.55 ? MORPHABLE[Math.random() * MORPHABLE.length | 0] : null;
+  const f = { mode, type, n, pos, vel, t: Math.random() * 4, fireT: 1.5, volley: 0, turned: false, peace: mode === 'flyby', drones: [], seq: 0, seqT: 0, morph: morph === type ? null : morph, eye: EYE_PEACES[Math.random() * EYE_PEACES.length | 0] };
   for (let i = 0; i < n; i++) f.drones.push(slotOf(f, i, new V3()).add(pos));
   forms.push(f);
 }
@@ -2932,7 +2992,14 @@ function volley(f) {
     for (let k = 0; k < 20; k++) { const a = k / 20 * TAU + f.volley * 0.3; v.copy(aim).multiplyScalar(BULLET_SPD).addScaledVector(_r, Math.cos(a) * 15).addScaledVector(_u, Math.sin(a) * 15); shoot(f.pos, v, col); }
   } else if (f.type === 'helix') {
     for (let arm = 0; arm < 3; arm++) for (let k = 0; k < 5; k++) { const a = arm * TAU / 3 + k * 0.22 + f.volley * 0.5; v.copy(aim).multiplyScalar(BULLET_SPD - k * 3).addScaledVector(_r, Math.cos(a) * (6 + k * 3)).addScaledVector(_u, Math.sin(a) * (6 + k * 3)); shoot(f.pos, v, col); }
-  } else if (f.type === 'rose' || f.type === 'bloom') {
+  } else if (f.type === 'sunburst' || f.type === 'pinwheel' || f.type === 'galaxy' || f.type === 'mandala') {
+    // spokes: on each arm a line of bullets at stepped speeds, so the burst unfolds as rays turning in the air
+    const arms = f.type === 'sunburst' ? 8 : f.type === 'mandala' ? 6 : f.type === 'pinwheel' ? 4 : 2, rot = f.volley * 0.4 + f.t * 0.3;
+    for (let arm = 0; arm < arms; arm++) for (let k = 0; k < 5; k++) {
+      const a = arm * TAU / arms + rot + (f.type === 'galaxy' ? k * 0.35 : f.type === 'pinwheel' ? k * 0.15 : 0);
+      v.copy(aim).multiplyScalar(BULLET_SPD - k * 4).addScaledVector(_r, Math.cos(a) * (8 + k * 2.5)).addScaledVector(_u, Math.sin(a) * (8 + k * 2.5)); shoot(f.pos, v, col);
+    }
+  } else if (f.type === 'rose' || f.type === 'bloom' || f.type === 'lotus' || f.type === 'trefoil' || f.type === 'infinity' || f.type === 'lissajous' || f.type === 'diamond') {
     // a flower that opens as it comes: each drone fires outward from the centre, a little ahead of the aim
     for (const d of f.drones) {
       tmp2.subVectors(d, f.pos); const l = tmp2.length() || 1;
@@ -2956,9 +3023,9 @@ function volley(f) {
 function updateDrones(dt) {
   const hs = Math.hypot(P.vel.x, P.vel.z);
   droneSpawnT -= dt;
-  if (!P.dead && droneSpawnT <= 0 && forms.length < 5) {
-    const r = Math.random(), heat = routeHeat(), mode = !shellsOn ? 'flyby' : hs < 30 && r < 0.4 ? 'chase' : r < lerp(0.7, 0.3, heat) ? 'flyby' : 'pass';
-    spawnFormation(mode); droneSpawnT = (hs > 50 ? 3.5 + Math.random() * 3.5 : 3 + Math.random() * 3) * lerp(1.25, 0.7, heat);
+  if (!P.dead && droneSpawnT <= 0 && forms.length < 7) {
+    const r = Math.random(), heat = routeHeat(), mode = !shellsOn ? 'flyby' : hs < 30 && r < 0.4 ? 'chase' : r < lerp(0.78, 0.45, heat) ? 'flyby' : 'pass';
+    spawnFormation(mode); droneSpawnT = (hs > 50 ? 2.2 + Math.random() * 2.6 : 2 + Math.random() * 2.4) * lerp(1.2, 0.75, heat);
   }
   let nearest = Infinity, k = 0;
   const fx = hs > 1 ? P.vel.x / hs : fwd.x, fz = hs > 1 ? P.vel.z / hs : fwd.z;
@@ -2985,7 +3052,7 @@ function updateDrones(dt) {
       const dp = f.drones[j], kk = 1 - Math.exp(-5 * dt); dp.x += (tx - dp.x) * kk; dp.y += (ty - dp.y) * kk; dp.z += (tz - dp.z) * kk;
       _dm.position.copy(dp); _dm.rotation.set(Math.sin(t * 3 + j) * 0.15, Math.atan2(_f.x, _f.z), Math.cos(t * 2.6 + j) * 0.15); _dm.scale.setScalar(2.6); _dm.updateMatrix();
       droneMesh.setMatrixAt(k, _dm.matrix);
-      _dm.position.addScaledVector(_f, 1.2); _dm.position.y -= 1.0; _dm.scale.setScalar(2.4 + 2.6 * Math.max(0, Math.sin(t * 3.2 - j * 0.45))); _dm.updateMatrix(); eyeMesh.setMatrixAt(k, _dm.matrix); eyeMesh.setColorAt(k, f.peace ? EYE_PEACE : EYE_HOSTILE);
+      _dm.position.addScaledVector(_f, 1.2); _dm.position.y -= 1.0; _dm.scale.setScalar(2.4 + 2.6 * Math.max(0, Math.sin(t * 3.2 - j * 0.45))); _dm.updateMatrix(); eyeMesh.setMatrixAt(k, _dm.matrix); eyeMesh.setColorAt(k, f.peace ? f.eye : EYE_HOSTILE);
     }
   }
   droneMesh.count = eyeMesh.count = k; droneMesh.instanceMatrix.needsUpdate = eyeMesh.instanceMatrix.needsUpdate = true; if (eyeMesh.instanceColor) eyeMesh.instanceColor.needsUpdate = true;
