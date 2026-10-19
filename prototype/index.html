@@ -706,9 +706,15 @@ function stationShelter(x, z, y) {
     if (Math.abs(x - s.x) > 85) continue;
     const yaw = Math.atan2(1, railZd(s.x)), dx = x - s.x, dz = z - railZ(s.x);
     const lx = (dx * Math.cos(yaw) - dz * Math.sin(yaw)) * s.side, lz = dx * Math.sin(yaw) + dz * Math.cos(yaw), floor = railY(s.x);
-    if (lx > 15 && lx < 43 && Math.abs(lz) < 45 && y > floor - 2 && y < floor + 7) return true;
+    if (lx > 15 && lx < 43 && Math.abs(lz) < 45 && canopyPanel(s, Math.floor((lz + 45) / 15)) && y > floor - 2 && y < floor + 7) return true;
   }
   return false;
+}
+const canopyPanel = (s, panel) => panel === 2 || panel === 3 || hash(s.x, panel, 611) > 0.46;
+function ageLand(colour, offset) {
+  if (biomeMode !== 'journey') return;
+  const grey = colour[offset] * 0.3 + colour[offset + 1] * 0.57 + colour[offset + 2] * 0.13;
+  for (let k = 0; k < 3; k++) colour[offset + k] = lerp(colour[offset + k], grey, 0.3) * 0.985;
 }
 
 // ---------------------------------------------------------------- world state (global views rebuilt from loaded chunks)
@@ -1036,6 +1042,7 @@ function buildChunkTerrain(ch) {
       let v2 = lerp(c[k], hi[k], th); v2 = lerp(v2, rk[k], tr); v2 = lerp(v2, sh[k], ts);
       col[v * 3 + k] = v2 * shadeK;
     }
+    ageLand(col, v * 3);
   }
   const idx = [];
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const a = j * (n + 1) + i, b = a + 1, c = a + n + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
@@ -1204,7 +1211,7 @@ function buildChunkRailway(ch) {
       for (const side of [-0.76, 0.76]) strip(a, b, track + side, 0.085, 0.27, RUST);
       for (const along of [4, 12]) {
         const p = sample(x + along), c = point(p, track);
-        structure.add(G.box, M(c.x, c.y + 0.16, c.z, p.yaw, 3.1, 0.14, 0.35), 0x655c4d);
+        if (hash(x + along, track, 613) > 0.16) structure.add(G.box, M(c.x, c.y + 0.16, c.z, p.yaw, 3.1, 0.14, 0.35), 0x655c4d);
       }
     }
     const terrain = heightAt(a.x, a.z), high = a.y - terrain;
@@ -1218,12 +1225,18 @@ function buildChunkRailway(ch) {
         addCollider(p.x, p.z, a.yaw, 1.3, 1.75, foot, foot + h);
       }
     }
+    // Grass has taken the ballast back; it stays low and never becomes a hidden driving obstacle.
+    if (x % 32 === 0) for (const offset of [-10, 9]) {
+      const p = point(a, offset), k = hash(x, offset, 614);
+      structure.add(G.cone, M(p.x, p.y + 0.35, p.z, k * TAU, 0.65 + k, 0.65 + k * 0.5, 0.45), 0x777b57);
+      structure.add(G.box, M(p.x, p.y + 0.14, p.z, a.yaw, 2.8 + k * 3, 0.05, 4 + k * 5), 0x73745b);
+    }
     // Old catenary masts establish a vanishing point without fences across the rideable bed.
     if (x % 96 === 0) {
-      const p = point(a, 16);
-      structure.add(G.box, M(p.x, p.y + 7, p.z, a.yaw, 0.45, 14, 0.45), 0x787b70);
-      structure.add(G.box, M(a.x + a.nx * 6, a.y + 13.5, a.z + a.nz * 6, a.yaw, 21, 0.25, 0.35), 0x787b70);
-      addCollider(p.x, p.z, a.yaw, 0.35, 0.35, p.y - 2, p.y + 14);
+      const p = point(a, 16), broken = hash(x, 0, 615) < 0.22, h = broken ? 6.5 : 14;
+      structure.add(G.box, M(p.x, p.y + h / 2, p.z, a.yaw, 0.45, h, 0.45), 0x716e61);
+      if (!broken) structure.add(G.box, M(a.x + a.nx * 6, a.y + 13.5, a.z + a.nz * 6, a.yaw, 21, 0.25, 0.35), 0x827260);
+      addCollider(p.x, p.z, a.yaw, 0.35, 0.35, p.y - 2, p.y + h);
     }
   }
   for (const loop of LOOPS) {
@@ -1249,30 +1262,72 @@ function buildChunkRailway(ch) {
     const pos = (lx, lz) => new V3(s.x + lx * Math.cos(yaw) + lz * Math.sin(yaw), y, z - lx * Math.sin(yaw) + lz * Math.cos(yaw));
     const box = (lx, ly, lz, w, h, d, colour) => structure.part(B, G.box, lx * side, ly, lz, w, h, d, colour);
     const collider = (lx, lz, hw, hd, bottom, top) => { const p = pos(lx * side, lz); addCollider(p.x, p.z, yaw, hw, hd, y + bottom, y + top); };
-    // A platform, an open canopy, a closed waiting room and a water tower. Nothing seals the track.
-    box(29, 0.25, 0, 28, 0.5, 94, 0xc7c0ac); collider(29, 0, 14, 47, -0.4, 0.5);
-    box(29, 7.2, 0, 30, 0.55, 90, T.roof); collider(29, 0, 15, 45, 6.9, 7.5);
+    const lived = s.x === 47500 || s.x === 109000, plaster = shade(T.wall, 0.79), rust = 0x795748;
+    // Broken outer roof panels leave real holes; the central bay remains a place to take shelter.
+    box(29, 0.25, 0, 28, 0.5, 94, 0xafa995); collider(29, 0, 14, 47, -0.4, 0.5);
+    for (let panel = 0; panel < 6; panel++) {
+      const along = -37.5 + panel * 15;
+      box(29, 6.95, along, 29, 0.18, 0.3, rust);
+      if (!canopyPanel(s, panel)) continue;
+      box(29, 7.2, along, 30, 0.55, 15, hash(s.x, panel, 616) > 0.5 ? shade(T.roof, 0.72) : rust);
+      collider(29, along, 15, 7.5, 6.9, 7.5);
+    }
     for (const along of [-39, -13, 13, 39]) for (const across of [16, 42]) {
       box(across, 3.8, along, 0.5, 6.7, 0.5, 0x828b7d); collider(across, along, 0.35, 0.35, 0.5, 7);
     }
-    box(55, 4, 0, 17, 8, 32, T.wall); box(55, 8.3, 0, 20, 0.8, 36, T.roof); collider(55, 0, 8.5, 16, -3, 8.7);
-    for (const along of [-10, 0, 10]) glow.part(B, G.box, 46.4 * side, 4.3, along, 0.08, 2.7, 3.5, 0xeac58b);
-    box(28, 1.2, -25, 8, 0.4, 1.5, 0x77684d); // a bench away from the through route
-    for (const along of [-33, 33]) glow.part(B, G.box, 28 * side, 6.8, along, 4, 0.12, 0.8, 0xffe5a8);
+    box(55, 3.8, -5.5, 17, 7.6, 21, plaster); collider(55, -5.5, 8.5, 10.5, -3, 8.5);
+    box(55, 1.75, 10.5, 17, 3.5, 11, shade(plaster, 0.9)); collider(55, 10.5, 8.5, 5.5, -3, 3.5);
+    for (const along of [-12, -4]) box(55, 8.0, along, 20, 0.65, 7.8, shade(T.roof, 0.7));
+    for (const along of [6, 12]) box(55, 6.7, along, 18, 0.22, 0.35, rust);
+    for (const along of [-11, -3]) {
+      box(46.4, 4.2, along, 0.08, 2.8, 4.2, 0x303632);
+      box(46.3, 4.2, along + 0.6, 0.1, 0.18, 4.5, 0x797363);
+      box(46.3, 2.6, along, 0.1, 0.5, 4.4, 0x918978);
+      if (!lived) box(46.2, 4.5, along, 0.12, 0.3, 4.8, 0x70644f);
+    }
+    // Rain runs below the gutters, and the clock no longer turns.
+    for (let stain = 0; stain < 9; stain++) {
+      const along = -15 + hash(s.x, stain, 617) * 19, h = 1.5 + hash(stain, s.x, 618) * 3.5;
+      box(46.42, 7.5 - h / 2, along, 0.035, h, 0.2 + hash(stain, 2, 619) * 0.5, 0x8b8270);
+    }
+    box(46.25, 6.3, -5, 0.12, 1.7, 1.7, 0xc7bda0); box(46.15, 6.45, -5, 0.08, 0.65, 0.08, 0x494b42);
+    box(46.15, 6.3, -4.8, 0.08, 0.08, 0.55, 0x494b42);
+    box(28, 1.2, -25, 6.5, 0.3, 1.3, 0x6f624c); box(31.8, 0.7, -25, 1.5, 0.25, 1.3, rust);
+    for (const along of [-34, 27, 39]) {
+      box(32, 0.55, along, 11, 0.035, 0.06, 0x65695a);
+      box(33, 0.9, along, 0.6, 0.8, 1.2, 0x727553);
+    }
+    if (lived) glow.part(B, G.box, 28 * side, 6.8, -33, 4, 0.12, 0.8, 0xe8c696);
     const tower = pos(88 * side, -75), base = heightAt(tower.x, tower.z), h = Math.max(18, y - base + 18);
     structure.add(G.cyl, M(tower.x, base + h / 2, tower.z, 0, 3.5, h, 3.5), 0x9c9381);
     structure.add(G.cyl, M(tower.x, base + h + 3, tower.z, 0, 7, 6, 7), 0x7b8077);
     addCollider(tower.x, tower.z, 0, 4, 4, base, base + h + 6);
     const sign = new THREE.Mesh(planeGeo, stationSign(s));
     sign.applyMatrix4(B.clone().multiply(M(29 * side, 5.2, -41, 0, 12, 3, 1))); ch.group.add(sign);
-    // A few homes beside the loop: warm windows and washing, rather than a quest marker.
+    // Only two settlements retain a lit window. Most of the line has been left to the wind.
     const loop = LOOPS.find((l) => l.station === s), vz = loopZ(loop, s.x), vy = loopY(loop, s.x);
     for (const [i, along] of [-80, 0, 80].entries()) {
       const xx = s.x + along, zz = vz + side * 30, yy = Math.max(vy, heightAt(xx, zz)), roof = i % 2 ? 0x637e7d : 0x8e7161;
-      structure.add(G.box, M(xx, yy + 3, zz, 0, 22, 6, 16), T.wall);
-      structure.add(G.box, M(xx, yy + 6.3, zz, 0, 25, 0.8, 19), roof);
-      glow.add(G.box, M(xx, yy + 3.5, zz - side * 8.05, 0, 5, 2.2, 0.1), 0xe6bb83);
+      structure.add(G.box, M(xx, yy + 3, zz, 0, 22, 6, 16), plaster);
+      structure.add(G.box, M(xx - 4, yy + 6.3, zz, 0, 17, 0.6, 19), shade(roof, 0.75));
+      for (const win of [-5, 4]) structure.add(G.box, M(xx + win, yy + 3.5, zz - side * 8.05, 0, 3.5, 2.2, 0.1), 0x303732);
+      if (lived && i === 1) glow.add(G.box, M(xx + 4, yy + 3.5, zz - side * 8.1, 0, 3.5, 2.2, 0.1), 0xdcb984);
       addCollider(xx, zz, 0, 11, 8, yy - 10, yy + 6.7);
+    }
+    // Empty carriages on an old siding, clear of the main bed and the service loop.
+    if (hash(s.x, 0, 620) > 0.25) {
+      const c = pos(-46 * side, 0), floor = Math.max(heightAt(c.x, c.z), WATER + 1), WB = M(c.x, floor, c.z, yaw);
+      for (const across of [-2.3, 2.3]) structure.part(WB, G.box, across, 0.18, 0, 0.12, 0.22, 112, 0x776455);
+      for (const along of [-26, 24]) {
+        structure.part(WB, G.box, 0, 1.8, along, 7, 2.6, 38, 0x745b4d);
+        for (const across of [-3.45, 3.45]) for (const window of [-14, -6, 2, 10, 16]) {
+          structure.part(WB, G.box, across, 3.65, along + window, 0.18, 1.5, 3.8, 0x2d3430);
+          structure.part(WB, G.box, across, 4.45, along + window, 0.22, 0.18, 4.2, rust);
+        }
+        for (const roof of [-14, 0, 14]) if (hash(s.x, along + roof, 621) > 0.36) structure.part(WB, G.box, 0, 4.8, along + roof, 7.5, 0.35, 9, 0x827160);
+        for (const axle of [-12, 12]) for (const across of [-3, 3]) structure.part(WB, G.cyl, across, 0.55, along + axle, 0.65, 0.35, 0.65, 0x34352f, 0, 0, Math.PI / 2);
+        addCollider(c.x + Math.sin(yaw) * along, c.z + Math.cos(yaw) * along, yaw, 3.8, 19, floor - 1, floor + 5);
+      }
     }
     const memory = new V3(s.x, y + 1.7, z);
     addFind('station:' + s.x, memory, [s.name + 'の古い乗車券', '行き先はかすれている。ここからも、誰かが遠くへ出かけた。']);
@@ -1287,6 +1342,8 @@ function stationSign(s) {
     const texture = canvasTex(512, 128, (g, w, h) => {
       g.fillStyle = '#536f68'; g.fillRect(0, 0, w, h); g.strokeStyle = '#c5c5a5'; g.lineWidth = 5; g.strokeRect(8, 8, w - 16, h - 16);
       g.fillStyle = '#ede5c8'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 46px sans-serif'; g.fillText(s.name, w / 2, h / 2, w - 40);
+      const rng = mulberry(seedOf(s.name.length, s.name.charCodeAt(0), 622));
+      for (let i = 0; i < 180; i++) { g.fillStyle = i % 3 ? 'rgba(82,72,54,0.2)' : 'rgba(193,184,153,0.35)'; g.fillRect(rng() * w, rng() * h, 1 + rng() * 14, 1 + rng() * 3); }
     });
     const mat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
     SHARED.add(mat); stationSigns.set(s.name, mat);
@@ -1296,6 +1353,14 @@ function stationSign(s) {
 
 function buildChunkProps(ch, rng) {
   const solid = new Merger(), soft = new Merger(), D = new Proxy(T.dens, { get: (o, k) => o[k] || 0 });
+  const weatherFacade = (B, w, h, d, s) => {
+    // Position-seeded wear does not consume the prop generator's random sequence.
+    for (const face of [-1, 1]) for (let i = 0; i < 9; i++) {
+      const k = hash(Math.round(s.x), i + face * 20, 631), xx = (k - 0.5) * (w - 2), hh = 1.5 + hash(Math.round(s.z), i, 632) * h * 0.6;
+      solid.part(B, G.box, xx, h - hh / 2, face * (d / 2 + 0.08), 0.3 + k, hh, 0.05, 0x898777);
+      if (i % 2 === 0) solid.part(B, G.box, xx, 2 + k * Math.max(1, h - 5), face * (d / 2 + 0.12), 1.7, 1.6, 0.08, 0x343b36);
+    }
+  };
   const panel = (s) => {
     const yaw = rng() * TAU, B = M(s.x, s.y - 1, s.z, yaw);
     const floors = 5 + (rng() * 8 | 0), fh = 3, w = 18 + rng() * 14, d = 10, H = floors * fh + 1;
@@ -1304,6 +1369,7 @@ function buildChunkProps(ch, rng) {
     for (let i = 0; i < floors; i++) solid.part(B, G.box, 0, 1 + i * fh + 1.9, 0, w + 0.12, 0.9, d + 0.12, 0x56606c);
     solid.part(B, G.box, -w / 2 + 2, (H + 2) / 2, 0, 3, H + 2, d + 0.8, shade(col, 0.9));
     if (rng() < 0.6) solid.part(B, G.box, w / 4, H + 0.6, 0, w / 3, 1.2, d * 0.7, shade(col, 0.85));
+    weatherFacade(B, w, H, d, s);
     addCollider(s.x, s.z, yaw, w / 2, d / 2 + 0.4, s.y - 2, s.y - 1 + H);
     ch.motes.push(new V3(s.x, s.y - 1 + H + 2.2, s.z)); ch.cands.push(new V3(s.x, s.y - 1 + H + 1.8, s.z));
   };
@@ -1447,6 +1513,7 @@ function buildChunkProps(ch, rng) {
       }
     }
     solid.part(B, G.box, w / 4, H + 1.2, 0, 3, 2.4, 3, shade(body, 0.9));
+    weatherFacade(B, w, H, d, s);
     for (let i = 0; i < 3; i++) solid.part(B, G.cyl, -w / 3 + i * 5, H + 2.5, (rng() - 0.5) * 6, 0.05, 5, 0.05, 0x4a4f55);
     if (rng() < 0.8) addMosaic(B, w / 2 + 0.06, H * 0.5, 0, Math.PI / 2, d * 0.78, H * 0.62, rng() * 4 | 0);
     addCollider(s.x, s.z, yaw, w / 2, d / 2 + 1.3, s.y - 2, s.y - 1 + H);
@@ -1475,6 +1542,7 @@ function buildChunkProps(ch, rng) {
     const yaw = rng() * TAU, B = M(s.x, s.y - 0.5, s.z, yaw);
     solid.part(B, G.box, 0, 5, 0, 30, 10, 18, 0xa65a46);
     for (let i = 0; i < 5; i++) solid.part(B, G.prism, -12 + i * 6, 11.4, 0, 3.4, 18, 2.6, 0x6f6a66, 0, 0, Math.PI / 6);
+    weatherFacade(B, 30, 10, 18, s);
     solid.part(B, G.cyl, 18, 22, 6, 1.8, 44, 1.8, 0xb7b0a6);
     for (let i = 0; i < 4; i++) solid.part(B, G.cyl, 18, 30 + i * 4, 6, 1.85, 2, 1.85, i % 2 ? 0xf0ede6 : 0xb8473c);
     addCollider(s.x, s.z, yaw, 15, 9, s.y - 2, s.y + 9.5);
@@ -2295,7 +2363,7 @@ function buildFar(cx, cz) {
     for (let b = 0; b < NB; b++) { if (!w[b]) continue; const t = BIOMES[BKEYS[b]].terrain, p = PAL[b]; amp += w[b] * t.amp; off += w[b] * t.off; for (let k = 0; k < 3; k++) { lo[k] += w[b] * p.low[k]; hi[k] += w[b] * p.high[k]; } }
     const th = clamp((h - off + amp * 0.3) / (amp * 1.6), 0, 1);
     if (wet) { const wc = [0, 0, 0]; for (let b = 0; b < NB; b++) if (w[b]) for (let k = 0; k < 3; k++) wc[k] += w[b] * PAL[b].water[k]; for (let k = 0; k < 3; k++) col[v * 3 + k] = wc[k]; }
-    else for (let k = 0; k < 3; k++) col[v * 3 + k] = lerp(lo[k], hi[k], th) * 0.97;
+    else { for (let k = 0; k < 3; k++) col[v * 3 + k] = lerp(lo[k], hi[k], th) * 0.97; ageLand(col, v * 3); }
   }
   const idx = [];
   // cut out every quad that lies wholly on loaded detail chunks, so the coarse ring never pokes through

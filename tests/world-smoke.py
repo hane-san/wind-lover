@@ -131,6 +131,13 @@ def main():
             for x in [18800, 109000, 18800]:
                 result = page.evaluate('''x => {
                   const w = __wl, z = w.railZ(x); w.P.pos.set(x, w.railY(x) + 1, z); w.rebuildAll();
+                  const s = w.STATIONS.find(s => s.x === x), yaw = Math.atan2(1, w.railZd(x)), y = w.railY(x);
+                  for (let panel = 0; panel < 6; panel++) {
+                    const along = -37.5 + panel * 15, px = x + 29 * s.side * Math.cos(yaw) + along * Math.sin(yaw);
+                    const pz = z - 29 * s.side * Math.sin(yaw) + along * Math.cos(yaw);
+                    const covered = w.stationShelter(px, pz, y + 2), roof = w.ground(px, pz, y + 9).h > y + 6;
+                    if (covered !== roof) throw Error('Canopy hole has invisible roof/shelter at ' + x + ':' + panel);
+                  }
                   return {chunks: w.chunks.size, finds: w.finds.filter(f => f.key === 'station:' + x).length};
                 }''', x)
                 assert result == {'chunks': 25, 'finds': 1}, result
@@ -150,6 +157,7 @@ def main():
                       window.__wlCam = c => { c.position.set(x - 90, y + 45, z + 110); c.lookAt(x + 110, y, z); };
                       document.querySelector('#menuSheet').hidden = true;
                     }''', x)
+                    page.wait_for_timeout(250)
                     page.screenshot(path=str(args.screenshots / (label + '.png')))
             assert not errors, errors
             browser.close()
