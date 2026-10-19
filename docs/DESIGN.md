@@ -4,7 +4,7 @@
 
 **「壊れかけのバイクで、何かを探して戻ってくる」** (on a half-broken motorbike, go out looking for something and come back).
 
-Leave the hangar at the back of the land and ride toward the sun, deeper in. The land narrows, too slowly to notice, into a wedge. Something waits at its point. You can reach it in one run in theory, but in practice that is very hard. The long game is a metroidvania or Wizardry-style loop: go out, come back, improve the machine, push the range a little further. The loop is not built yet.
+Leave the hangar at the back of the land and ride toward the sun, deeper in. An abandoned line runs through successive basins and passes. Something waits beyond its last station. You can reach it in one run in theory, but in practice that is very hard. The long game is a metroidvania or Wizardry-style loop: go out, come back, improve the machine, push the range a little further. The loop is not built yet.
 
 Mood: melancholy and beautiful. Wide pale skies whose colours drift, Soviet ruins that thin out into Central Asia (the Tian Shan, the Ferghana road, Issyk-Kul, the Kyzylkum's blue-tiled ruins, the Pamir gorges, the Kazakh steppe, the port of Aktau), and strange geometric monuments that are uncanny but still belong to the world.
 
@@ -50,22 +50,20 @@ Mood: melancholy and beautiful. Wide pale skies whose colours drift, Soviet ruin
 
 ## Map (journey mode)
 
-- +x is 奥 (toward the sun and the goal). Home is the hangar at `BASE_X` (−230 m) on trunk highway row 0. The back wall is at x = −4.5 km.
-- **Funnel:** the half-width is 10.5 km up to x = 16 km, then shrinks smoothly to about 0.95 km at `X_GOAL` (96 km). The lane bands, the massif, the five highway rows and the edge walls all scale with it. The highway rows draw together and meet at the point. A front wall rises past the goal.
-- Lanes are chapters by distance (see `LANES`):
-  - north: Soviet → steppe → Aktau → steppe → dusk …
-  - centre: Soviet → Ferghana → Tian Shan → Pamir …
-  - south: Soviet → village → **Issyk-Kul** → Kyzylkum …
-  - After 64 km the chapters cycle with variation.
-- **Issyk-Kul** (south lane, x ≈ 7.5–23.5 km): a 16 × 2.5 km lake of deep blue water, ringed with summer meadows and beaches.
-  - It lies between the mountain belt (to the north) and the edge range (to the south).
-  - North shore (`issyk`): golden-green meadows, sandy beaches, piers and old sanatoria. The highway runs close along the water.
-  - South shore (`issykS`): lush valleys, spruce, yurts and red-rock canyon slopes under the snow peaks. The highway swings wide inland.
-  - East end (`karakol`): a town of poplar avenues with a wooden cathedral and a Dungan-style mosque.
-  - No cross highways run over the lake.
-- Trunk highways: 28 m wide and graded. The land is cut down to them, or banked up, and deep valleys are spanned by viaducts. Cuts deeper than 22 m become galleries. Cuts deeper than 45 m close into tunnels with portals.
-- The last 5–7 km settle into a quiet open floor between converging walls, so the goal is seen across open ground rather than met in a tunnel.
-- **Goal:** a vast pale ring (r 130 m) standing across the end of the road, with a faint light inside it and a circle of stones around it. Reaching it ends the run with 「旅の果てに着いた」 and sends you home.
+The map now follows a fixed abandoned railway through a chain of basins and passes. The 19 October 2026 reference note supplies the feeling of a world continuing beyond the line; Wind Lover retains its existing vehicles, handling, Central Asian landscapes and optional threats.
+
+- +x is 奥, towards the sun. Home remains the hangar at `BASE_X` (−230 m); the ring stands at x = 120.3 km.
+- `BASINS` defines alternating open country and narrow passes rather than a land that only shrinks. The widest basin is 26.9 km across. Opening out again after a pass reveals a larger landscape.
+- `LANES` defines all 120 km without cycling back into earlier chapters after 64 km. The existing 14 palettes remain available as individual worlds.
+- `LINE` is a fixed railway through the fields, the north shore of Issyk-Kul, mountain valleys, steppe and desert. Its 28 m maintenance bed can be ridden in both directions. It is distinct from the board's grind rails.
+- Ten stations have named signs, platforms, open canopies, waiting rooms, water towers, a few houses with warm windows, and a memory to find. Each has a 3.2 km service-road loop that rejoins the line. The open canopy shelters the rider from aerial attacks.
+- Two broken bridges, x = 28.64–29.12 km and 68.40–68.96 km, leave real gaps in the railway. Each has a service road branching 2.4 km before the break and rejoining 2.4 km after it. The roads remain available in both directions; jumping is not required.
+- The railway crosses roads on raised decks. Its supports have collision, and ground selection distinguishes riding underneath from riding on top. The ordinary road assistance also works on the maintenance bed and service roads, whilst firm steering still wins.
+- Trunk highways retain their 28 m width, graded banks, galleries and tunnels. Cross-country connections now occur at selected junctions rather than in every grid column. Minor roads stop at the lake, outer ranges and final approach.
+- The railway is generated deterministically from global coordinates, with coarse distant spans beyond the loaded detail tiles. Nearby detail remains streamed in 480 m chunks; increasing the journey length does not load the entire map.
+- The last few kilometres still settle into open ground around the pale ring. Reaching it ends the run and returns the rider home.
+
+See [MAP.md](MAP.md) for the route and verification notes.
 
 ## Sky
 
@@ -94,7 +92,7 @@ The other half are the biome's own marks and the uncanny geometric ones, which g
 
 ## Starting anywhere
 
-「どこかの道から走りだす」 sits at the top of the start screen. It switches to the connected journey and drops you onto a random trunk highway at cruising speed. The spot is chosen between 1.5 and 69.5 km in, clear of tunnels, the lake and the edges.
+「どこかの道から走りだす」 sits at the top of the start screen. It switches to the connected journey and drops you onto a random trunk highway at cruising speed. The spot is chosen between 1.5 and 113 km in, alternating between the railway and trunk highways. Railway starts avoid broken bridges and their approaches; highway starts avoid tunnels, the lake and the edges.
 
 ## The land beside the road
 
@@ -150,7 +148,5 @@ Speed, three hull pips, a single warning line, a red vignette, and a retro brass
 
 ## Known limitations
 
-- Galleries treat both sides as walls in physics, even though the open side is drawn as pillars.
-- Minor roads (`roadZ`/`roadX`) ignore the funnel and can climb the edge walls.
 - Highway crossings can distort the terrain locally.
 - Mobile performance has not been verified on hardware.

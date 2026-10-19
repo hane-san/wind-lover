@@ -9,11 +9,11 @@ A portrait-first mobile action game prototype: a broken-down Soviet sidecar outf
 - They give feel-based feedback ("もう少し重く", "ぴょんぴょんしすぎ"). Turn it into concrete parameters, measure the result in the headless harness (turn radius, airtime, speed), and report the numbers.
 - Keep the UI minimal. Don't add buttons, radar or text unless asked. Avoid real political symbols (no stars, hammer and sickle, flags) and use generic Soviet-era forms instead.
 - Work on branch `claude/hoverboard-prototype`. Commit with the session attribution lines. Do not open PRs unless asked.
-- The published artifact is https://claude.ai/artifact/UezdYJswnYuwz9TpmBtuPf. Republish `prototype/index.html` to that URL after each meaningful change.
+- The published game is https://hane-san.github.io/wind-lover/. GitHub Pages serves `main` at `/`; the root entry opens `prototype/`. The older Claude artifact is a legacy publication.
 
 ## The code
 
-The whole game is `prototype/index.html`: one file, about 3,500 lines, using Three.js r128 from cdnjs (UMD global `THREE`). It has no build step. The file has no `<!doctype>`, `<html>` or `<body>` because the artifact host adds the skeleton.
+The whole game is `prototype/index.html`: one standalone HTML file using Three.js r128 from cdnjs (UMD global `THREE`). It has no build step. The root `index.html` redirects to it for GitHub Pages.
 
 The file is split by `// ------ name` section headers. Search for the header to find a section:
 
@@ -25,6 +25,7 @@ The file is split by `// ------ name` section headers. Search for the header to 
 | world state | `colliders`, `rails`, … rebuilt from loaded chunks; `ground(x,z,y)` (terrain, deck, roofs, ramps) |
 | renderer / scene, geometry helpers | sky shader, `G` shared geometries, `M()` matrix helper, `Merger` (merges coloured parts into one mesh) |
 | chunks | streamed terrain tiles (`CH`=480 m, radius 2): `buildChunkRoads`, `buildChunkHighway` (deck, piers, galleries, tunnels, portals), `buildChunkProps` |
+| the abandoned line | `LINE`, `STATIONS`, `BREAKS`, `LOOPS`, `railZ`/`railY`, `railway`, `rideRoute`; `buildChunkRailway` draws the maintenance bed, service loops, stations and piers. See `docs/MAP.md`. |
 | landmarks | giant ruins on a 2 km grid (`RG`), far terrain ring (`buildFar`), edge-range silhouettes (`buildRanges`) |
 | home and the goal | `buildHome()`: hangar base at `BASE_X`, the ring at `GOAL` |
 | player models | the sidecar (Ural/Dnepr style, mirrored rig), the chopper, the board |
@@ -46,6 +47,8 @@ Conventions:
 - Debug hooks: `window.__wl` (P, deckAt, rawHeight, hwZ, highway, halfW, GOAL, spawnF, loadStep, …) and `window.__wlCam(camera, player)` for scripted close-ups.
 
 ## Testing (headless)
+
+The checked-in journey smoke test is `python tests/world-smoke.py --browser /usr/bin/chromium`. Supply `--three /absolute/path/three.min.js` for an offline r128 bundle. It covers route geometry, bridge clearance, station shelter, real driving, streaming, world switching and page errors.
 
 The scratchpad harness uses Playwright with the preinstalled Chromium:
 1. Build `test.html` by putting `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" ...></head><body>` in front of `index.html`, and point the three.js `<script src>` at a local `three.min.js` (r128) copy.

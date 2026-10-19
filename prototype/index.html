@@ -1,3 +1,8 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Wind Lover</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -161,7 +166,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 }
 @media (prefers-reduced-motion: reduce) { #toast, .pbtn, #stickBase, #hint { transition: none; } }
 </style>
-
+</head>
+<body>
 <div id="app"></div>
 
 <div id="hud" aria-live="polite">
@@ -217,9 +223,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 <section class="sheet" id="start">
   <div class="card">
     <button class="go wide" id="btnRandom" type="button">どこかの道から走りだす<small>地続きの旅路のどこか、道の上から</small></button>
-    <div class="eyebrow">PROTOTYPE 0.9 · 止まるな</div>
+    <div class="eyebrow">PROTOTYPE 1.0 · 線路の向こうへ</div>
     <h1 class="title">Wind Lover</h1>
-    <p>壊れかけの鉄のサイドカーで、拠点の格納庫から太陽の方角へ。真ん中は天山の峠道、脇は低地の街道。土地は奥へ行くほど細り、最後はひとつに閉じる。そこに何かがある。止まればエンジンがかかる保証はない。遺された砲台とドローンは、遅い者だけを捕まえる。トンネルの屋根の下だけは、空から撃たれない。</p>
+    <p>壊れかけの鉄のサイドカーで、格納庫の先に残る廃線をたどる。綿畑の駅、青い湖、高架の下の道。峠を抜けるたび、まだ知らない土地が開ける。線路を離れて集落へ寄ってもいい。橋が途切れても、谷へ降りる道は続いている。太陽の方角、そのずっと先に何かがある。遺された砲台とドローンは、遅い者だけを捕まえる。トンネルや駅の屋根の下では、空から撃たれない。</p>
     <div class="row" id="vehCards"></div>
     <div class="worlds" id="worldCards"></div>
     <p>画面をドラッグして操作します。上に倒すと前傾して加速、下に倒すとブレーキ、下に倒しながら曲げるとドリフト。最高速のまま段差に突っ込むと長く滑空し、越えられる障害物は自動で跳び越えます。高すぎるものにぶつかれば激突です。遅いほど砲撃とドローンの弾幕が追いつき、止まればエンストして集中砲撃を受けます。</p>
@@ -471,17 +477,17 @@ function biomeW(x, z, out) {
   return journeyW(x, z, out);
 }
 const lowlandZone = (z) => smooth(1800, 3600, Math.abs(z));
-// the journey east, told in chapters per lane (metres from home); after the first loop it keeps varying
+// The journey has a geography: chapters do not wrap round into earlier lands.
 const LANES = {
-  north: [[0, 'soviet'], [4000, 'steppe'], [15000, 'aktau'], [33000, 'steppe'], [42000, 'dusk'], [52000, 'steppe'], [60000, 'aktau']],
-  centre: [[0, 'soviet'], [3500, 'fergana'], [15000, 'tianshan'], [34000, 'pamir'], [50000, 'tianshan'], [60000, 'fergana']],
-  south: [[0, 'soviet'], [4000, 'village'], [9000, 'issyk'], [22000, 'kyzylkum'], [38000, 'issykS'], [50000, 'kyzylkum'], [60000, 'village']],
+  north: [[0, 'soviet'], [6000, 'steppe'], [18000, 'aktau'], [34000, 'azure'], [47000, 'fergana'], [60000, 'steppe'], [76000, 'dusk'], [92000, 'aktau'], [106000, 'snow'], [116000, 'dusk']],
+  centre: [[0, 'soviet'], [3500, 'fergana'], [15000, 'tianshan'], [34000, 'pamir'], [48000, 'village'], [60000, 'steppe'], [72000, 'kyzylkum'], [88000, 'azure'], [100000, 'tianshan'], [112000, 'snow'], [117000, 'dusk']],
+  south: [[0, 'soviet'], [4000, 'village'], [9000, 'issyk'], [23000, 'karakol'], [34000, 'issykS'], [48000, 'fergana'], [62000, 'village'], [74000, 'kyzylkum'], [90000, 'dusk'], [104000, 'pamir'], [116000, 'steppe']],
 };
 const BIX = {}; BKEYS.forEach((k, i) => { BIX[k] = i; });
 const BI = (k) => BIX[k];
 const BLEND = 1600;
 function laneW(list, x, scale, out) {
-  const xx = x < 64000 ? x : 4000 + ((x - 4000) % 60000);
+  const xx = x;
   let i = 0; while (i < list.length - 1 && list[i + 1][0] <= xx) i++;
   const k = i > 0 ? smooth(list[i][0], list[i][0] + BLEND, xx) : 1;
   out[BIX[list[i][1]]] += scale * k;
@@ -548,13 +554,18 @@ function rawHeight(x, z) {
   // the lake: beaches and summer meadows rising gently from the water, then deep blue
   const le = lakeE(x, z);
   if (le < 2.4) { hh = lerp(hh, WATER + 1.6 + Math.max(0, le - 1) * 16, (1 - smooth(1.0, 2.4, le)) * 0.88); hh = lerp(hh, WATER - 26, 1 - smooth(0.8, 1.0, le)); }
-  return hh + relief(x, z);
+  return hh + relief(x, z) - bridgeValley(x, z);
 }
 // the massif lifts the middle belt as you go east; edge ranges close the world to the north, south and behind
 const EDGE_Z = 10500, EDGE_BACK = -4500;
-// the land narrows, too slowly to notice, into a wedge whose point holds the goal
-const X_GOAL = 96000, BASE_X = -230;
-const funnel = (x) => biomeMode === 'journey' ? lerp(1, 0.09, smooth(16000, X_GOAL, x)) : 1;
+// Broad basins linked by passes. Kept as `funnel` for the existing road/shore coordinates.
+const X_GOAL = 120000, BASE_X = -230;
+const BASINS = [[0, 0.72], [8000, 0.9], [18000, 1.12], [28000, 1.28], [39000, 0.5], [52000, 0.95], [64000, 0.58], [79000, 1.2], [94000, 0.83], [107000, 0.64], [114000, 0.4], [120000, 0.1]];
+function profileAt(points, x) {
+  let i = 0; while (i < points.length - 2 && x > points[i + 1][0]) i++;
+  return lerp(points[i][1], points[i + 1][1], smooth(points[i][0], points[i + 1][0], x));
+}
+const funnel = (x) => biomeMode === 'journey' ? profileAt(BASINS, x) : 1;
 const halfW = (x) => EDGE_Z * funnel(x);
 function relief(x, z) {
   if (biomeMode !== 'journey') return 0;
@@ -567,12 +578,13 @@ function relief(x, z) {
 // trunk highways: wide, graded roads with their own long profile. The land is cut down to them on the hills;
 // in shallow dips it is banked up, and deep valleys are spanned by viaducts.
 const HS = 3200, HW_HALF = 14;
-// rows follow the wedge: they draw together as the land narrows and meet at its point
+// Roads spread through basins, then draw together at passes and the last approach.
 const hwZ = (j, x) => (j * HS + 260 * Math.sin(x / 1900 + j * 1.3) + 90 * Math.sin(x / 700 + j * 2.1) - (j === -2 ? lakeBend(x) : 0)) * funnel(x);
 const hwZd = (j, x) => (hwZ(j, x + 2) - hwZ(j, x - 2)) / 4;
 // where a highway runs at all: rows stop just past the goal; columns keep off the edge walls and the last approach
 const rowOn = (x) => biomeMode !== 'journey' || x < X_GOAL + 400;
-const colOn = (x, z) => biomeMode !== 'journey' || (Math.abs(z) < halfW(x) - 600 && x < X_GOAL - 2500 && lakeE(x, z) > 1.6);
+const CROSSINGS = new Set([0, 2, 5, 8, 12, 16, 20, 24, 28, 32, 36]);
+const colOn = (x, z) => biomeMode !== 'journey' || (CROSSINGS.has(Math.round((x - HS / 2) / HS)) && Math.abs(z) < halfW(x) - 600 && x < X_GOAL - 2500 && lakeE(x, z) > 1.6);
 const hwX = (i, z) => i * HS + HS / 2 + 260 * Math.sin(z / 2100 + i * 0.7) + 90 * Math.sin(z / 760 + i * 1.9);
 const hwXd = (i, z) => 260 / 2100 * Math.cos(z / 2100 + i * 0.7) + 90 / 760 * Math.cos(z / 760 + i * 1.9);
 const _hw = { d: Infinity, cx: 0, cz: 0, nx: 0, nz: 1 }, _wb = [];
@@ -600,6 +612,12 @@ function heightAt(x, z) {
     if (h > prof) { const c = h - prof, bank = c < 22 ? 14 + c * 2.6 : clamp(c * 0.7, 6, 80); h = prof + c * smooth(edge, edge + bank, hw.d); }
     else if (prof - h < 14) { const bank = (prof - h) * 1.8 + 4; h = prof - (prof - h) * smooth(edge, edge + bank, hw.d); }
   }
+  const rw = railway(x, z);
+  if (rw.d < 150 && hw.d > HW_HALF + 5) {
+    const prof = routeY(rw, x), edge = rw.half + 2;
+    if (h > prof) h = prof + (h - prof) * smooth(edge, 150, rw.d);
+    else if (rw.loop || prof - h < 18) h = lerp(prof, h, smooth(edge, edge + 65, rw.d));
+  }
   return h;
 }
 const surfaceAt = (x, z) => Math.max(heightAt(x, z), WATER);
@@ -607,7 +625,91 @@ const surfaceAt = (x, z) => Math.max(heightAt(x, z), WATER);
 const RS = 1440;
 const roadZ = (j, x) => j * RS + 70 * Math.sin(x / 650 + j * 1.7) + 26 * Math.sin(x / 233 + j);
 const roadX = (i, z) => i * RS + 70 * Math.sin(z / 610 + i * 2.3) + 26 * Math.sin(z / 251 + i);
-function roadDist(x, z) { return Math.min(Math.abs(z - roadZ(Math.round(z / RS), x)), Math.abs(x - roadX(Math.round(x / RS), z))); }
+const minorOn = (x, z) => biomeMode !== 'journey' || (x > EDGE_BACK + 400 && x < X_GOAL - 1800 && Math.abs(z) < halfW(x) - 900 && lakeE(x, z) > 1.18);
+function roadDist(x, z) { return minorOn(x, z) ? Math.min(Math.abs(z - roadZ(Math.round(z / RS), x)), Math.abs(x - roadX(Math.round(x / RS), z))) : Infinity; }
+
+// ---------------------------------------------------------------- the abandoned line
+// A fixed route across the regions, with loops that rejoin on either side of each station or broken bridge.
+// This is separate from the grind rails: the sidecar can ride the broad old maintenance bed normally.
+const LINE = [[-1200, 100], [1200, 180], [7800, -2400], [18800, -3100], [32200, -1800], [47500, 1500], [61000, 4200], [77200, -3300], [93600, -3500], [109000, 1200], [118000, 300], [120400, 0]];
+const STATIONS = [
+  { x: 1200, name: '機関区の跡', side: 1 }, { x: 7800, name: '綿畑の停車場', side: -1 },
+  { x: 18800, name: '湖を望む駅', side: 1 }, { x: 32200, name: '峠の分岐駅', side: -1 },
+  { x: 47500, name: '赤い谷の駅', side: 1 }, { x: 61000, name: '草原の貨物駅', side: 1 },
+  { x: 77200, name: '砂に埋もれた駅', side: -1 }, { x: 93600, name: '塩湖の停車場', side: 1 },
+  { x: 109000, name: '最後の集落', side: -1 }, { x: 118000, name: '風の待合所', side: 1 },
+];
+const BREAKS = [{ a: 28640, b: 29120, side: 1 }, { a: 68400, b: 68960, side: -1 }];
+const LOOPS = [
+  ...STATIONS.map((s) => ({ a: s.x - 1600, b: s.x + 1600, offset: -s.side * 300, station: s })),
+  ...BREAKS.map((g) => ({ a: g.a - 2400, b: g.b + 2400, offset: g.side * 580, gap: g })),
+];
+const railZ = (x) => profileAt(LINE, x) * funnel(x);
+const railZd = (x) => (railZ(x + 2) - railZ(x - 2)) / 4;
+const railOn = (x) => biomeMode === 'journey' && x >= LINE[0][0] && x <= LINE[LINE.length - 1][0];
+const railBroken = (x) => BREAKS.some((g) => x > g.a && x < g.b);
+function bridgeValley(x, z) {
+  if (biomeMode !== 'journey') return 0;
+  for (const g of BREAKS) {
+    if (x < g.a - 1000 || x > g.b + 1000) continue;
+    const along = smooth(g.a - 1000, g.a - 100, x) * (1 - smooth(g.b + 100, g.b + 1000, x));
+    return 120 * along * (1 - smooth(220, 520, Math.abs(z - railZ(x))));
+  }
+  return 0;
+}
+const loopWeight = (loop, x) => smooth(loop.a, loop.a + 1400, x) * (1 - smooth(loop.b - 1400, loop.b, x));
+const loopZ = (loop, x) => railZ(x) + loop.offset * loopWeight(loop, x);
+const railLevels = new Map();
+function railLevel(i) {
+  const key = biomeMode + ':' + i;
+  if (!railLevels.has(key)) {
+    const x = i * 1600, z = railZ(x);
+    // Long grades, not every little terrain bump. Raised spans announce the valleys from below.
+    const lift = BREAKS.reduce((n, g) => n + 62 * smooth(g.a - 2100, g.a - 500, x) * (1 - smooth(g.b + 500, g.b + 2100, x)), 0);
+    railLevels.set(key, deckAt(x, z) + 12 + lift);
+  }
+  return railLevels.get(key);
+}
+function railY(x) {
+  const i = Math.floor(x / 1600), grade = lerp(railLevel(i), railLevel(i + 1), smooth(i * 1600, (i + 1) * 1600, x));
+  // Crossing roads stay underneath even where their long profile rises between railway samples.
+  return Math.max(grade, deckAt(x, railZ(x)) + 12);
+}
+function loopY(loop, x) {
+  const w = loopWeight(loop, x), z = loopZ(loop, x);
+  return lerp(railY(x), deckAt(x, z) + 2, w);
+}
+const _rw = { d: Infinity, cx: 0, cz: 0, nx: 0, nz: 1, half: 14, loop: null };
+function railway(x, z) {
+  _rw.d = Infinity; _rw.loop = null; _rw.half = 14;
+  if (!railOn(x)) return _rw;
+  let zz = railZ(x), slope = railZd(x), q = Math.hypot(1, slope);
+  if (!railBroken(x)) { _rw.d = Math.abs(z - zz) / q; _rw.cz = zz; _rw.nx = -slope / q; _rw.nz = 1 / q; }
+  for (const loop of LOOPS) {
+    if (x <= loop.a || x >= loop.b) continue;
+    zz = loopZ(loop, x); slope = (loopZ(loop, x + 2) - loopZ(loop, x - 2)) / 4; q = Math.hypot(1, slope);
+    const d = Math.abs(z - zz) / q;
+    if (d < _rw.d) { _rw.d = d; _rw.cz = zz; _rw.nx = -slope / q; _rw.nz = 1 / q; _rw.half = 12; _rw.loop = loop; }
+  }
+  _rw.cx = x; return _rw;
+}
+const routeY = (rw, x) => rw.loop ? loopY(rw.loop, x) : railY(x);
+const lineReserved = (x, z, pad = 0) => railOn(x) && (railway(x, z).d < 32 + pad || Math.abs(z - railZ(x)) < 32 + pad);
+function rideRoute(x, z, y) {
+  const hw = { ...highway(x, z), half: HW_HALF }, rw = railway(x, z);
+  // A road underneath a viaduct must never steer towards the elevated railway.
+  return rw.d < hw.d && Math.abs(y - routeY(rw, x) - HOVER) < 4 ? { ...rw } : hw;
+}
+function stationShelter(x, z, y) {
+  if (biomeMode !== 'journey') return false;
+  for (const s of STATIONS) {
+    if (Math.abs(x - s.x) > 85) continue;
+    const yaw = Math.atan2(1, railZd(s.x)), dx = x - s.x, dz = z - railZ(s.x);
+    const lx = (dx * Math.cos(yaw) - dz * Math.sin(yaw)) * s.side, lz = dx * Math.sin(yaw) + dz * Math.cos(yaw), floor = railY(s.x);
+    if (lx > 15 && lx < 43 && Math.abs(lz) < 45 && y > floor - 2 && y < floor + 7) return true;
+  }
+  return false;
+}
 
 // ---------------------------------------------------------------- world state (global views rebuilt from loaded chunks)
 let colliders = [], rails = [], streams = [], updrafts = [], motes = [], finds = [];
@@ -636,6 +738,15 @@ function ground(x, z, y) {
         const a = highway(x + 1.5, z), dkx = deckAt(a.cx, a.cz), b = highway(x, z + 1.5), dkz = deckAt(b.cx, b.cz);
         const nx = -(dkx + 0.25 - dk) / 1.5, nz = -(dkz + 0.25 - dk) / 1.5;
         GI.n.set(nx, 1, nz).normalize();
+      }
+    }
+    const rw = railway(x, z);
+    if (rw.d < rw.half) {
+      const dk = routeY(rw, x) + 0.16;
+      if (dk >= h - 0.05 && y >= dk - 2.5) {
+        h = dk; GI.water = false; GI.roof = true;
+        const rise = (routeY(rw, x + 1) - routeY(rw, x - 1)) / 2;
+        GI.n.set(-rise, 1, 0).normalize();
       }
     }
     for (let i = 0; i < colliders.length; i++) {
@@ -878,7 +989,7 @@ function pickSpot(rng, ch, flat = 0.9, avoid = 14) {
   for (let t = 0; t < 40; t++) {
     const x = ch.x0 + 25 + rng() * (CH - 50), z = ch.z0 + 25 + rng() * (CH - 50);
     const h = heightAt(x, z); if (h < WATER + 1.5) continue;
-    if (x * x + z * z < 45 * 45 || roadDist(x, z) < 13 || highway(x, z).d < HW_HALF + 34) continue;
+    if (x * x + z * z < 45 * 45 || roadDist(x, z) < 13 || highway(x, z).d < HW_HALF + 34 || lineReserved(x, z, avoid + 40)) continue;
     const g = ground(x, z); if (g.n.y < flat) continue;
     let ok = true; for (const c of ch.colliders) if (Math.hypot(c.x - x, c.z - z) < Math.max(c.hw, c.hd) + avoid) { ok = false; break; }
     if (ok) return { x, z, y: h };
@@ -943,6 +1054,7 @@ function buildChunkRoads(ch, rng) {
   const strip = (pts, half, k) => {
     for (let i = 0; i < pts.length - 1; i++) {
       const [ax, az] = pts[i], [bx, bz] = pts[i + 1], dx = bx - ax, dz = bz - az, l = Math.hypot(dx, dz) || 1, nx = -dz / l * half, nz = dx / l * half;
+      if (!minorOn(ax, az) || !minorOn(bx, bz) || lineReserved(ax, az, 4)) continue;
       const a1 = [ax + nx, yAt(ax + nx, az + nz), az + nz], a2 = [ax - nx, yAt(ax - nx, az - nz), az - nz];
       const b1 = [bx + nx, yAt(bx + nx, bz + nz), bz + nz], b2 = [bx - nx, yAt(bx - nx, bz - nz), bz - nz];
       push(a1, b1, a2, k); push(a2, b1, b2, k);
@@ -1070,6 +1182,118 @@ function buildChunkHighway(ch) {
   if (st.p.length) { const m = new THREE.Mesh(st.build(), new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 6, side: THREE.DoubleSide })); ch.group.add(m); }
 }
 
+function buildChunkRailway(ch) {
+  if (biomeMode !== 'journey') return;
+  const bed = new Merger(), structure = new Merger(), glow = new Merger();
+  const GRAVEL = new THREE.Color(0x8a8373), RUST = new THREE.Color(0x785343), PATH = new THREE.Color(0xb0a183);
+  const sample = (x, loop) => {
+    const z = loop ? loopZ(loop, x) : railZ(x), dz = loop ? (loopZ(loop, x + 2) - loopZ(loop, x - 2)) / 4 : railZd(x), q = Math.hypot(1, dz);
+    return { x, z, y: loop ? loopY(loop, x) : railY(x), nx: -dz / q, nz: 1 / q, yaw: Math.atan2(1, dz) };
+  };
+  const point = (p, offset, up = 0) => new V3(p.x + p.nx * offset, p.y + up, p.z + p.nz * offset);
+  const strip = (a, b, offset, half, up, colour) => {
+    const aa = point(a, offset + half, up), ab = point(a, offset - half, up), ba = point(b, offset + half, up), bb = point(b, offset - half, up);
+    bed.tri(aa, ba, ab, colour); bed.tri(ab, ba, bb, colour);
+  };
+  const visible = (a, b, pad) => Math.max(a.z, b.z) >= ch.z0 - pad && Math.min(a.z, b.z) <= ch.z0 + CH + pad;
+  for (let x = ch.x0; x < ch.x0 + CH; x += 16) {
+    const a = sample(x), b = sample(x + 16);
+    if (!railOn(x + 8) || railBroken(x + 8) || !visible(a, b, 30)) continue;
+    strip(a, b, 0, 14, 0.12, GRAVEL);
+    for (const track of [-4, 4]) {
+      for (const side of [-0.76, 0.76]) strip(a, b, track + side, 0.085, 0.27, RUST);
+      for (const along of [4, 12]) {
+        const p = sample(x + along), c = point(p, track);
+        structure.add(G.box, M(c.x, c.y + 0.16, c.z, p.yaw, 3.1, 0.14, 0.35), 0x655c4d);
+      }
+    }
+    const terrain = heightAt(a.x, a.z), high = a.y - terrain;
+    if (high > 4) {
+      const mid = sample(x + 8), length = Math.hypot(b.x - a.x, b.z - a.z);
+      structure.add(G.box, M(mid.x, mid.y - 1.2, mid.z, mid.yaw, 28, 2.4, length + 0.2), 0xb6b0a1);
+      if (x % 48 === 0) for (const side of [-10.5, 10.5]) {
+        const p = point(a, side), foot = Math.max(heightAt(p.x, p.z), WATER - 4), h = a.y - foot - 2.4;
+        if (h <= 1 || highway(p.x, p.z).d < HW_HALF + 5) continue;
+        structure.add(G.box, M(p.x, foot + h / 2, p.z, a.yaw, 2.6, h, 3.5), 0xa29c8f);
+        addCollider(p.x, p.z, a.yaw, 1.3, 1.75, foot, foot + h);
+      }
+    }
+    // Old catenary masts establish a vanishing point without fences across the rideable bed.
+    if (x % 96 === 0) {
+      const p = point(a, 16);
+      structure.add(G.box, M(p.x, p.y + 7, p.z, a.yaw, 0.45, 14, 0.45), 0x787b70);
+      structure.add(G.box, M(a.x + a.nx * 6, a.y + 13.5, a.z + a.nz * 6, a.yaw, 21, 0.25, 0.35), 0x787b70);
+      addCollider(p.x, p.z, a.yaw, 0.35, 0.35, p.y - 2, p.y + 14);
+    }
+  }
+  for (const loop of LOOPS) {
+    if (loop.b < ch.x0 || loop.a > ch.x0 + CH) continue;
+    for (let x = ch.x0; x < ch.x0 + CH; x += 16) {
+      if (x + 8 < loop.a || x + 8 > loop.b) continue;
+      const a = sample(x, loop), b = sample(x + 16, loop);
+      if (visible(a, b, 25)) strip(a, b, 0, 12, 0.13, PATH);
+    }
+    if (loop.gap) for (const x of [loop.a + 500, loop.b - 500]) {
+      const a = sample(x), side = Math.sign(loop.offset), p = point(a, side * 20);
+      if (Math.floor(x / CH) !== ch.cx || Math.floor(p.z / CH) !== ch.cz) continue;
+      structure.add(G.box, M(p.x, p.y + 2.2, p.z, a.yaw, 0.25, 4.4, 0.25), 0x7d796b);
+      const sign = new THREE.Mesh(planeGeo, stationSign({ name: side > 0 ? '← 迂回路' : '迂回路 →' }));
+      sign.applyMatrix4(M(p.x, p.y + 4.2, p.z, a.yaw, 7, 1.75, 1)); ch.group.add(sign);
+      addCollider(p.x, p.z, a.yaw, 0.2, 0.2, p.y - 1, p.y + 4.5);
+    }
+  }
+  for (const s of STATIONS) {
+    const z = railZ(s.x);
+    if (Math.floor(s.x / CH) !== ch.cx || Math.floor(z / CH) !== ch.cz) continue;
+    const y = railY(s.x), yaw = Math.atan2(1, railZd(s.x)), B = M(s.x, y, z, yaw), side = s.side;
+    const pos = (lx, lz) => new V3(s.x + lx * Math.cos(yaw) + lz * Math.sin(yaw), y, z - lx * Math.sin(yaw) + lz * Math.cos(yaw));
+    const box = (lx, ly, lz, w, h, d, colour) => structure.part(B, G.box, lx * side, ly, lz, w, h, d, colour);
+    const collider = (lx, lz, hw, hd, bottom, top) => { const p = pos(lx * side, lz); addCollider(p.x, p.z, yaw, hw, hd, y + bottom, y + top); };
+    // A platform, an open canopy, a closed waiting room and a water tower. Nothing seals the track.
+    box(29, 0.25, 0, 28, 0.5, 94, 0xc7c0ac); collider(29, 0, 14, 47, -0.4, 0.5);
+    box(29, 7.2, 0, 30, 0.55, 90, T.roof); collider(29, 0, 15, 45, 6.9, 7.5);
+    for (const along of [-39, -13, 13, 39]) for (const across of [16, 42]) {
+      box(across, 3.8, along, 0.5, 6.7, 0.5, 0x828b7d); collider(across, along, 0.35, 0.35, 0.5, 7);
+    }
+    box(55, 4, 0, 17, 8, 32, T.wall); box(55, 8.3, 0, 20, 0.8, 36, T.roof); collider(55, 0, 8.5, 16, -3, 8.7);
+    for (const along of [-10, 0, 10]) glow.part(B, G.box, 46.4 * side, 4.3, along, 0.08, 2.7, 3.5, 0xeac58b);
+    box(28, 1.2, -25, 8, 0.4, 1.5, 0x77684d); // a bench away from the through route
+    for (const along of [-33, 33]) glow.part(B, G.box, 28 * side, 6.8, along, 4, 0.12, 0.8, 0xffe5a8);
+    const tower = pos(88 * side, -75), base = heightAt(tower.x, tower.z), h = Math.max(18, y - base + 18);
+    structure.add(G.cyl, M(tower.x, base + h / 2, tower.z, 0, 3.5, h, 3.5), 0x9c9381);
+    structure.add(G.cyl, M(tower.x, base + h + 3, tower.z, 0, 7, 6, 7), 0x7b8077);
+    addCollider(tower.x, tower.z, 0, 4, 4, base, base + h + 6);
+    const sign = new THREE.Mesh(planeGeo, stationSign(s));
+    sign.applyMatrix4(B.clone().multiply(M(29 * side, 5.2, -41, 0, 12, 3, 1))); ch.group.add(sign);
+    // A few homes beside the loop: warm windows and washing, rather than a quest marker.
+    const loop = LOOPS.find((l) => l.station === s), vz = loopZ(loop, s.x), vy = loopY(loop, s.x);
+    for (const [i, along] of [-80, 0, 80].entries()) {
+      const xx = s.x + along, zz = vz + side * 30, yy = Math.max(vy, heightAt(xx, zz)), roof = i % 2 ? 0x637e7d : 0x8e7161;
+      structure.add(G.box, M(xx, yy + 3, zz, 0, 22, 6, 16), T.wall);
+      structure.add(G.box, M(xx, yy + 6.3, zz, 0, 25, 0.8, 19), roof);
+      glow.add(G.box, M(xx, yy + 3.5, zz - side * 8.05, 0, 5, 2.2, 0.1), 0xe6bb83);
+      addCollider(xx, zz, 0, 11, 8, yy - 10, yy + 6.7);
+    }
+    const memory = new V3(s.x, y + 1.7, z);
+    addFind('station:' + s.x, memory, [s.name + 'の古い乗車券', '行き先はかすれている。ここからも、誰かが遠くへ出かけた。']);
+  }
+  if (bed.p.length) ch.group.add(new THREE.Mesh(bed.build(), roadMat));
+  if (structure.p.length) ch.group.add(new THREE.Mesh(structure.build(), propMat));
+  if (glow.p.length) ch.group.add(new THREE.Mesh(glow.build(), softMat));
+}
+const stationSigns = new Map();
+function stationSign(s) {
+  if (!stationSigns.has(s.name)) {
+    const texture = canvasTex(512, 128, (g, w, h) => {
+      g.fillStyle = '#536f68'; g.fillRect(0, 0, w, h); g.strokeStyle = '#c5c5a5'; g.lineWidth = 5; g.strokeRect(8, 8, w - 16, h - 16);
+      g.fillStyle = '#ede5c8'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 46px sans-serif'; g.fillText(s.name, w / 2, h / 2, w - 40);
+    });
+    const mat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+    SHARED.add(mat); stationSigns.set(s.name, mat);
+  }
+  return stationSigns.get(s.name);
+}
+
 function buildChunkProps(ch, rng) {
   const solid = new Merger(), soft = new Merger(), D = new Proxy(T.dens, { get: (o, k) => o[k] || 0 });
   const panel = (s) => {
@@ -1141,13 +1365,13 @@ function buildChunkProps(ch, rng) {
     solid.part(B, G.box, 0, 0.9, 4, 1.2, 1.8, 0.3, 0xb13a2e);
     addCollider(s.x, s.z, yaw, 3.4, 3.4, s.y - 2, s.y + 2.4);
   };
-  const birch = (x, z) => { if (highway(x, z).d < HW_HALF + 8) return;
+  const birch = (x, z) => { if (highway(x, z).d < HW_HALF + 8 || lineReserved(x, z, 10)) return;
     const y = heightAt(x, z); if (y < WATER + 0.8) return;
     const h = 7 + rng() * 6, B = M(x, y - 0.3, z, rng() * TAU);
     solid.part(B, G.cyl, 0, h / 2, 0, 0.22, h, 0.22, 0xeeeae0);
     for (let i = 0; i < 3; i++) solid.part(B, G.ico, (rng() - 0.5) * 1.6, h * (0.6 + i * 0.14), (rng() - 0.5) * 1.6, 1.6 - i * 0.3, 1.9 - i * 0.3, 1.6 - i * 0.3, shade(T.leaf, 0.85 + rng() * 0.25));
   };
-  const fir = (x, z) => { if (highway(x, z).d < HW_HALF + 8) return;
+  const fir = (x, z) => { if (highway(x, z).d < HW_HALF + 8 || lineReserved(x, z, 10)) return;
     const y = heightAt(x, z); if (y < WATER + 0.8) return;
     const h = 8 + rng() * 8, B = M(x, y - 0.3, z, rng() * TAU);
     solid.part(B, G.cyl, 0, 1, 0, 0.35, 2, 0.35, 0x4a3628);
@@ -1296,7 +1520,7 @@ function buildChunkProps(ch, rng) {
       solid.part(B, G.ico, 0, h * 0.58, 0, 1.3, h * 0.45, 1.3, shade(0x5b7a3e, 0.85 + rng() * 0.3));
     }
   };
-  const apricot = (x, z) => { if (highway(x, z).d < HW_HALF + 8) return;
+  const apricot = (x, z) => { if (highway(x, z).d < HW_HALF + 8 || lineReserved(x, z, 10)) return;
     const y = heightAt(x, z); if (y < WATER + 0.8 || roadDist(x, z) < 8) return;
     const B = M(x, y - 0.2, z, rng() * TAU);
     solid.part(B, G.cyl, 0, 1.2, 0, 0.25, 2.4, 0.25, 0x5e4a36);
@@ -1457,7 +1681,7 @@ function buildChunkProps(ch, rng) {
   };
   place(D.fortress, fortress, 0.9, 40); place(D.madrasa, madrasa, 0.9, 20); place(D.kaltaminor, kaltaminor, 0.9, 12);
   place(D.pumpjack, pumpjack, 0.85, 8); place(D.lighthouse, lighthouse, 0.9, 14);
-  grove(D.saxaul, (x, z) => { if (highway(x, z).d < HW_HALF + 8) return; const y = heightAt(x, z); if (y < WATER + 0.5) return; solid.add(G.ico, M(x, y + 0.6, z, rng() * TAU, 1.4 + rng(), 0.8 + rng() * 0.5, 1.4 + rng()), shade(0x8a9670, 0.85 + rng() * 0.25)); });
+  grove(D.saxaul, (x, z) => { if (highway(x, z).d < HW_HALF + 8 || lineReserved(x, z, 10)) return; const y = heightAt(x, z); if (y < WATER + 0.5) return; solid.add(G.ico, M(x, y + 0.6, z, rng() * TAU, 1.4 + rng(), 0.8 + rng() * 0.5, 1.4 + rng()), shade(0x8a9670, 0.85 + rng() * 0.25)); });
   for (let i = countOf(rng, D.crane); i > 0; i--) { const sp = shoreSpot(); if (sp) crane(sp); }
   for (let i = countOf(rng, D.ship); i > 0; i--) { const sp = shoreSpot(); if (sp) ship(sp); }
   for (let i = countOf(rng, D.pier); i > 0; i--) { const sp = shoreSpot(); if (sp) pier(sp); }
@@ -1546,7 +1770,7 @@ function buildChunkProps(ch, rng) {
   // ground clutter: small rocks and tufts give the ground parallax at speed
   for (let i = LOWQ ? 70 : 120; i > 0; i--) {
     const x = ch.x0 + rng() * CH, z = ch.z0 + rng() * CH, y = heightAt(x, z);
-    if (y < WATER + 0.3 || highway(x, z).d < HW_HALF + 3) continue;
+    if (y < WATER + 0.3 || highway(x, z).d < HW_HALF + 3 || lineReserved(x, z)) continue;
     if (rng() < 0.35) solid.add(G.ico, M(x, y, z, rng() * TAU, 0.5 + rng() * 1.2, 0.3 + rng() * 0.5, 0.5 + rng() * 1.2), shade(PAL_ROCK(), 0.9 + rng() * 0.2));
     else solid.add(G.cone, M(x, y + 0.35, z, rng() * TAU, 0.35, 0.8 + rng() * 0.6, 0.35), shade(T.tuft, 0.85 + rng() * 0.3));
   }
@@ -1589,6 +1813,7 @@ function buildChunk(cx, cz) {
   buildChunkTerrain(ch);
   buildChunkRoads(ch, rng);
   buildChunkHighway(ch);
+  buildChunkRailway(ch);
   buildChunkProps(ch, rng);
   buildChunkWinds(ch, rng);
   // one find in roughly every third chunk
@@ -1833,6 +2058,7 @@ function buildLandmark(rx, rz) {
   let x = (rx + 0.2 + rng() * 0.6) * RG, z = (rz + 0.2 + rng() * 0.6) * RG;
   if (biomeMode === 'journey' && (Math.abs(z) > halfW(x) - 1200 || x > X_GOAL - 2500 || lakeE(x, z) < 1.4)) return;
   { const hw = highway(x, z); if (hw.d < 140) { const dz = (z - hw.cz) || 1; z = hw.cz + Math.sign(dz) * 160; } }
+  if (lineReserved(x, z, 250) || STATIONS.some((s) => Math.hypot(x - s.x, z - railZ(s.x)) < 600)) return;
   const d0 = Math.hypot(x, z); if (d0 < 700) { const k = 700 / Math.max(d0, 1); x = d0 < 1 ? 700 : x * k; z *= k; }
   L.x = x; L.z = z; CUR = L;
   const dom = BKEYS[dominant(biomeW(x, z, newW()))]; T = BIOMES[dom];
@@ -2056,7 +2282,7 @@ function updateChunks(force) {
 }
 const FAR = 7600, FAR_SEG = LOWQ ? 76 : 104;
 const farMat = new THREE.MeshLambertMaterial({ vertexColors: true });
-let farMesh = null, farKey = null;
+let farMesh = null, farLine = null, farKey = null;
 const WATER_RGB = toRGB(0x6f9fbf);
 const FIELD_COLS = [0x7f9a4e, 0xa9a35a, 0xe9e5d8, 0x9c7d58, 0x6f8f3e, 0xc8b46a, 0x8aa25a].map(toRGB);
 function buildFar(cx, cz) {
@@ -2083,6 +2309,22 @@ function buildFar(cx, cz) {
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setIndex(idx); g.computeVertexNormals();
   if (farMesh) { farMesh.geometry.dispose(); scene.remove(farMesh); }
   farMesh = new THREE.Mesh(g, farMat); farMesh.renderOrder = -1; scene.add(farMesh);
+  // The line continues beyond the detailed tiles, so a distant span can be approached rather than popping in.
+  if (farLine) { farLine.geometry.dispose(); scene.remove(farLine); farLine = null; }
+  if (biomeMode === 'journey') {
+    const m = new Merger(), colour = new THREE.Color(0x9c9586);
+    for (let x = Math.floor(x0 / 64) * 64; x < x0 + FAR; x += 64) {
+      if (!railOn(x + 32) || railBroken(x + 32)) continue;
+      const z = railZ(x), z1 = railZ(x + 64), zm = railZ(x + 32);
+      if (loaded(x + 32, zm) || Math.abs(zm - cz) > FAR / 2) continue;
+      const y = railY(x), y1 = railY(x + 64), slope = (z1 - z) / 64, q = Math.hypot(1, slope), nx = -slope / q * 14, nz = 14 / q;
+      const a = new V3(x + nx, y + 0.1, z + nz), b = new V3(x - nx, y + 0.1, z - nz), c = new V3(x + 64 + nx, y1 + 0.1, z1 + nz), d = new V3(x + 64 - nx, y1 + 0.1, z1 - nz);
+      m.tri(a, c, b, colour); m.tri(b, c, d, colour);
+      const foot = Math.max(rawHeight(x, z), WATER - 4), h = y - foot - 2;
+      if (h > 6 && x % 128 === 0) m.add(G.box, M(x, foot + h / 2, z, Math.atan2(1, slope), 5, h, 7), 0xa29c8f);
+    }
+    if (m.p.length) { farLine = new THREE.Mesh(m.build(), propMat); scene.add(farLine); }
+  }
 }
 function updateFar(force) {
   const pcx = Math.floor(P.pos.x / CH), pcz = Math.floor(P.pos.z / CH), key = pcx + ',' + pcz;
@@ -2100,7 +2342,7 @@ function buildRanges(cx) {
       const [ax, az, au] = line[i], [bx, bz, bu] = line[i + 1];
       const pk = (u) => 1200 + 1300 * Math.pow(vnoise(u / 1400 + key * 9, 3.3, 77), 1.6) + 500 * vnoise(u / 420, key * 5, 78);
       const h0 = pk(au), h1 = pk(bu), hm = (h0 + h1) / 2 + 120 * (vnoise((au + bu) / 400, key, 79) - 0.3);
-      tri([ax - ox * 400, 0, az - oz * 400], [bx - ox * 400, 0, bz - oz * 400], [ax, h0, az]); tri([bx - ox * 400, 0, bz - oz * 400], [bx, h1, bz], [ax, h0, az]);
+      tri([ax - ox * 400, -1800, az - oz * 400], [bx - ox * 400, -1800, bz - oz * 400], [ax, h0, az]); tri([bx - ox * 400, -1800, bz - oz * 400], [bx, h1, bz], [ax, h0, az]);
       tri([ax, h0, az], [bx, h1, bz], [(ax + bx) / 2 + ox * 2600, hm + 200, (az + bz) / 2 + oz * 2600]);
     }
   };
@@ -2532,7 +2774,7 @@ function startPose() { return Math.atan2(1, hwZd(0, homeX())); }
 function placeHome(speed) { const x = homeX(); P.pos.set(x, 0, hwZ(0, x)); updateChunks(true); placeAt(x, hwZ(0, x), startPose(), speed); P.stalled = false; P.reached = false; }
 function placeAt(x, z, yaw, speed) {
   const g = ground(x, z, Infinity);
-  P.pos.set(x, ground(x, z).h + HOVER + 0.5, z); P.yaw = yaw; P.grind = null; P.grounded = false; P.air = 0.01; P.n.copy(g.n);
+  P.pos.set(x, g.h + HOVER + 0.5, z); P.yaw = yaw; P.grind = null; P.grounded = false; P.air = 0.01; P.n.copy(g.n);
   fwd.set(Math.sin(yaw), 0, Math.cos(yaw)); P.vel.copy(fwd).multiplyScalar(speed);
   camDir.copy(fwd); camPos.copy(P.pos).addScaledVector(fwd, -S.camDist).add(new V3(0, 3, 0)); lookSm.copy(P.pos);
   trailCount = 0; for (const p of scarfPts) p.copy(P.pos).add(new V3(0, 1.6, 0));
@@ -2606,7 +2848,8 @@ function stepPhysics(dt) {
       if (vf < target) vf += acc * dt * (1 - clamp(vf / Math.max(target, 1), 0, 1) * 0.5);
       if (braking) vf = Math.max(0, vf - 24 * brakeAmt * dt);
       vf += S.tailwind * Math.max(0, fPl.x * windDir.x + fPl.z * windDir.z) * dt;
-      P.onRoad = roadDist(P.pos.x, P.pos.z) < 5 || highway(P.pos.x, P.pos.z).d < HW_HALF;
+      const route = rideRoute(P.pos.x, P.pos.z, P.pos.y);
+      P.onRoad = roadDist(P.pos.x, P.pos.z) < 5 || route.d < route.half;
       if (P.onRoad) vf += 5 * dt;
       if (vf > cruiseNow) vf -= (vf - cruiseNow) * (P.onWater ? 0.02 : P.onRoad ? 0.003 : 0.007) * dt;
       // the long pull: held straight, the old engine keeps winding up toward the top end, slowly;
@@ -2691,21 +2934,21 @@ function roadAffinity(steer, dt) {
   roadPull = Math.max(0, roadPull - dt * 2);
   P.assistLean *= Math.exp(-6 * dt);
   if (!P.grounded || P.drifting || P.grind || window.__noAssist) return;
-  const hw = highway(P.pos.x, P.pos.z), reach = HW_HALF + 36;
+  const hw = rideRoute(P.pos.x, P.pos.z, P.pos.y), half = hw.half, reach = half + 36;
   if (hw.d > reach) return;
   let ty = Math.atan2(hw.nz, -hw.nx); if (Math.cos(ty - P.yaw) < 0) ty += Math.PI;
   const dy = Math.atan2(Math.sin(ty - P.yaw), Math.cos(ty - P.yaw)), ady = Math.abs(dy), as = Math.abs(steer);
   const turningToward = as > 0.12 && Math.sign(P.yawRate) === Math.sign(dy) && Math.sign(P.yawRate) !== 0;
-  const onRoad = hw.d < HW_HALF + 2;
+  const onRoad = hw.d < half + 2;
   let k = 0;
   if (onRoad && as < 0.3 && ady < 0.7) k = 2.6 * (1 - as / 0.3) * (1 - ady / 0.7);                 // (1) settle
   else if (turningToward && ady < 1.1) {                                                             // (2) finish the turn
-    const near = onRoad ? 1 : 1 - (hw.d - HW_HALF - 2) / (reach - HW_HALF - 2);
+    const near = onRoad ? 1 : 1 - (hw.d - half - 2) / (reach - half - 2);
     k = 1.3 * near * smooth(0.02, 0.25, ady) * (1 - smooth(0.7, 1.1, ady));
     if (ady < 0.14) P.lean *= Math.exp(-4 * (1 - ady / 0.14) * near * dt);                          // ease off the lean: no overshoot
   }
   else if (as < 0.12 && ady < 0.35) {                                                              // (2b) let go after the turn
-    const near = onRoad ? 1 : 1 - (hw.d - HW_HALF - 2) / (reach - HW_HALF - 2);
+    const near = onRoad ? 1 : 1 - (hw.d - half - 2) / (reach - half - 2);
     if (Math.sign(P.yawRate) === -Math.sign(dy)) P.lean *= Math.exp(-6 * near * dt);                // the leftover lean must not carry you past the line
     if (onRoad) k = 1.2 * (1 - ady / 0.35);                                                         // off the road, the approach (5) takes it from here
   }
@@ -2718,7 +2961,7 @@ function roadAffinity(steer, dt) {
     const closing = -(P.vel.x * hw.nx + P.vel.z * hw.nz) * sg, hs = Math.hypot(P.vel.x, P.vel.z);
     const crossing = as > 0.35 && Math.sign(P.yawRate) === -Math.sign(dy); // turning harder into the road: they mean to cross it
     if (closing > 2 && ady < 1.15 && !crossing && hs > 8) {
-      const alpha = Math.min(ady, clamp((hw.d - HW_HALF + 8) * 0.009, 0, 0.6)), want = ty - Math.sign(dy) * alpha;
+      const alpha = Math.min(ady, clamp((hw.d - half + 8) * 0.009, 0, 0.6)), want = ty - Math.sign(dy) * alpha;
       const dw = Math.atan2(Math.sin(want - P.yaw), Math.cos(want - P.yaw));
       const intent = (1 - smooth(0.8, 1.15, ady)) * (as < 0.35 ? 1 : 0.5) * (1 - smooth(70, 95, hw.d));
       P.yaw += dw * (1 - Math.exp(-2.4 * intent * dt)); roadPull = Math.max(roadPull, intent * 0.5);
@@ -2728,7 +2971,7 @@ function roadAffinity(steer, dt) {
   if (dt > 0) { const vT = Math.pow(Math.max(Math.hypot(P.vel.x, P.vel.z), 10), 0.88), rate = (P.yaw - yaw0) / dt; P.assistLean = lerp(P.assistLean, clamp(Math.atan(-rate * vT / 43), -0.55, 0.55), 1 - Math.exp(-8 * dt)); }
   if (onRoad) {
     // the edge: off is the signed offset from the centre line, out = how fast you are heading outward
-    const off = (P.pos.x - hw.cx) * hw.nx + (P.pos.z - hw.cz) * hw.nz, sg = Math.sign(off) || 1, edge = smooth(HW_HALF - 6, HW_HALF - 1, Math.abs(off));
+    const off = (P.pos.x - hw.cx) * hw.nx + (P.pos.z - hw.cz) * hw.nz, sg = Math.sign(off) || 1, edge = smooth(half - 6, half - 1, Math.abs(off));
     const out = (Math.sin(P.yaw) * hw.nx + Math.cos(P.yaw) * hw.nz) * sg; // >0 heading outward
     if (edge > 0 && out > 0 && ady < 0.6) { // a steep line across the road is a crossing: leave it alone
       const fight = as > 0.45 && Math.sign(P.yawRate) === -Math.sign(dy) && ady > 0.05; // steering firmly off the road: let them go
@@ -2894,7 +3137,7 @@ function cutAt(hw, x, z) {
   return { dk, cut: Math.min(rawHeight(A[0], A[1]), rawHeight(B[0], B[1])) - dk, span: dk - rawHeight(A[0], A[1]) > 3 || dk - rawHeight(B[0], B[1]) > 3, even: ((a0 / 8) % 2 + 2) % 2 === 0, u };
 }
 function tunnelWalls() {
-  P.inTunnel = false;
+  P.inTunnel = stationShelter(P.pos.x, P.pos.z, P.pos.y);
   if (P.grind) return;
   const hw = highway(P.pos.x, P.pos.z);
   if (hw.d > HW_HALF + 6) return;
@@ -4188,7 +4431,7 @@ function updateRadar(dt) {
 function worldCards(container, onPick) {
   container.innerHTML = '';
   const hex = (n) => '#' + n.toString(16).padStart(6, '0');
-  const entries = [['journey', { name: '旅する', sub: '14の土地が地続きで移り変わる' }], ...BKEYS.map((k) => [k, BIOMES[k]])];
+  const entries = [['journey', { name: '旅する', sub: '廃線をたどる120km、駅と峠と寄り道' }], ...BKEYS.map((k) => [k, BIOMES[k]])];
   for (const [key, th] of entries) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'world'; b.setAttribute('aria-pressed', String(key === biomeMode));
     const bg = key === 'journey'
@@ -4267,7 +4510,12 @@ $('#tuneClose').addEventListener('click', () => closeSheet('#tuneSheet'));
 // somewhere on the road: any trunk highway of the journey, clear of tunnels, lake and the last approach
 function randomRoadSpot() {
   for (let tries = 0; tries < 60; tries++) {
-    const x = 1500 + Math.random() * 68000, j = (Math.random() * 5 | 0) - 2, z = hwZ(j, x);
+    const x = 1500 + Math.random() * (X_GOAL - 8500), followLine = tries % 2 === 0;
+    const j = (Math.random() * 5 | 0) - 2, z = followLine ? railZ(x) : hwZ(j, x);
+    if (followLine) {
+      if (!railOn(x) || railBroken(x) || BREAKS.some((g) => Math.abs(x - (g.a + g.b) / 2) < 3200)) continue;
+      return { x, z, yaw: Math.atan2(1, railZd(x)) };
+    }
     if (!rowOn(x) || lakeE(x, z) < 2 || Math.abs(z) > halfW(x) - 1500) continue;
     if (rawHeight(x, z) - deckAt(x, z) > 12) continue;
     return { x, z, yaw: Math.atan2(1, hwZd(j, x)) };
@@ -4365,6 +4613,8 @@ function frame(now) {
 setVehicle(vehKey); applyLens();
 placeHome(0); buildHome(); updatePalette(0, true); refreshCards();
 requestAnimationFrame(frame);
-window.__wl = { rebuildAll, TURRET, setTurret, deckAt, rawHeight, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
+window.__wl = { rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
 })();
 </script>
+</body>
+</html>
