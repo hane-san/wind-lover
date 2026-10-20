@@ -137,6 +137,10 @@ The mood palette (ten moods, including green-grey haze, faded peach over slate, 
 
 Speed, three hull pips, a single warning line, a red vignette, and a retro brass compass in the bottom right. The compass has no letters. Its needle points 奥 (toward the goal) and is a damped spring that swings and shivers. Nothing else.
 
+## Journey music
+
+Four original looping compositions combine melancholy and nostalgia with momentum and open sky. The menu has independent BGM on/off, song selection and volume; the first visit starts with music off. Choices persist locally. Music and sound effects share one audio context with separate gain paths. A playing song continues while the next asset loads, then the two crossfade over 0.9 seconds. Opening the menu never restarts the song. See `MUSIC.md` for the track list, implementation and audit notes.
+
 ## Roadmap (not built yet)
 
 1. Home loop: return to the hangar to bank what you found, then upgrade (hull, engine reliability, crank odds, grip, a shield against side entries).

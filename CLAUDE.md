@@ -13,7 +13,7 @@ A portrait-first mobile action game prototype: a broken-down Soviet sidecar outf
 
 ## The code
 
-The whole game is `prototype/index.html`: one standalone HTML file using Three.js r128 from cdnjs (UMD global `THREE`). It has no build step. The root `index.html` redirects to it for GitHub Pages.
+The core game is `prototype/index.html`, using Three.js r128 from cdnjs (UMD global `THREE`). Music is loaded as ES modules from `music/`, with loops in `assets/music/`; serve the repository root over HTTP. There is no build step. The root `index.html` redirects to the game for GitHub Pages.
 
 The file is split by `// ------ name` section headers. Search for the header to find a section:
 
@@ -36,7 +36,7 @@ The file is split by `// ------ name` section headers. Search for the header to 
 | engine | stall, crank race, backfire, smoke, sparks |
 | drones | formations (V, ring, wave, helix), modes (pass, chase, flyby), volleys, bullets |
 | camera & visuals | `MOODS` sky cycle, `updatePalette` (biome blend, moving sun, altitude sky), `updateVisuals` (camera, suspension, lean, effects) |
-| audio | `sfx`: procedural WebAudio (engine, wind, carve hiss, scrape, booms) |
+| audio | `sfx`: procedural WebAudio (engine, wind, carve hiss, scrape, booms); `music/game-music.mjs` connects the menu to `createJourneyMusic`, sharing the SFX context through `__wlAudio` but keeping gains independent. See `docs/MUSIC.md`. |
 | UI | toast, HUD, compass (`updateCompass`), menu, start, over and tune sheets |
 | loop | `frame()`: physics substeps → world streaming → threats → visuals → render |
 
@@ -49,6 +49,8 @@ Conventions:
 ## Testing (headless)
 
 The checked-in journey smoke test is `python tests/world-smoke.py --browser /usr/bin/chromium`. Supply `--three /absolute/path/three.min.js` for an offline r128 bundle. It covers route geometry, bridge clearance, station shelter, real driving, streaming, world switching and page errors.
+
+Music checks: `node --test tests/music-scores.test.mjs` and `python tests/music-browser.py --browser /usr/bin/chromium` (also needs NumPy and FFmpeg; accepts the same `--three` option). The browser test uses the actual game, records output across a blocked main thread and crossfades, and checks shared context, WAV fallback, settings, cancellation and driving. Physical iPhone/Safari testing remains outstanding.
 
 The scratchpad harness uses Playwright with the preinstalled Chromium:
 1. Build `test.html` by putting `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" ...></head><body>` in front of `index.html`, and point the three.js `<script src>` at a local `three.min.js` (r128) copy.

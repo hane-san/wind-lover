@@ -34,7 +34,7 @@ body {
 #app { position: fixed; inset: 0; }
 #app canvas { display: block; width: 100%; height: 100%; }
 button { font-family: inherit; color: inherit; cursor: pointer; }
-button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* on-screen: speed, hairline gauge, signal, menu */
 #hud {
@@ -156,6 +156,16 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .tune-item input[type="range"] { width: 100%; accent-color: var(--accent); }
 .tune-check { display: flex; gap: 10px; align-items: center; font-size: 13px; }
 .tune-check input { width: 20px; height: 20px; accent-color: var(--accent); }
+.music-settings { margin: 0; min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 12px; display: grid; gap: 10px; }
+.music-settings legend { padding: 0 6px; color: var(--muted); font-size: 12px; letter-spacing: 0.1em; }
+.music-controls { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: center; }
+.music-controls button { min-height: 44px; padding: 8px 12px; }
+.music-controls select { min-width: 0; width: 100%; min-height: 44px; padding: 8px; font: inherit; color: var(--text); background: #202e35; border: 1px solid var(--line); border-radius: 8px; }
+.music-volume { display: flex; gap: 10px; align-items: center; color: var(--muted); font-size: 12px; }
+.music-volume input { flex: 1; min-width: 0; accent-color: var(--accent); }
+.music-volume output { min-width: 3em; text-align: right; font-variant-numeric: tabular-nums; }
+.music-settings .music-status { font-size: 12px; line-height: 1.5; }
+.music-status:empty { display: none; }
 @media (max-width: 420px) { .tune-item { grid-template-columns: 1fr 4.6em; } .tune-item input { grid-column: 1 / -1; grid-row: 2; } }
 @media (max-height: 520px) {
   .card { padding: 14px 16px; gap: 10px; }
@@ -240,11 +250,20 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
       <div><b id="recFind">0</b><span>見つけたもの</span></div>
       <div><b id="recMote">0</b><span>風の欠片</span></div>
     </div>
+    <fieldset class="music-settings" id="musicSettings" disabled>
+      <legend>旅の音楽</legend>
+      <div class="music-controls">
+        <button class="ghost" id="musicToggle" type="button" aria-pressed="false">BGM：オフ</button>
+        <select id="musicTrack" aria-label="BGMの曲を選ぶ"></select>
+      </div>
+      <label class="music-volume">BGM音量 <input id="musicVolume" type="range" min="0" max="100" value="60"><output id="musicVolumeValue" for="musicVolume">60%</output></label>
+      <p class="music-status" id="musicStatus" role="status" aria-live="polite">音楽の設定を読み込み中…</p>
+    </fieldset>
     <div class="row" id="vehCards2"></div>
     <div class="worlds" id="worldCards2"></div>
     <div class="row">
       <button class="ghost" id="menuTune" type="button">手ざわり調整</button>
-      <button class="ghost" id="menuSound" type="button">音：オン</button>
+      <button class="ghost" id="menuSound" type="button">効果音：オン</button>
       <button class="ghost" id="menuShells" type="button">襲撃：オン</button>
       <button class="ghost" id="menuRespawn" type="button">出発地点に戻る</button>
       <button class="go" id="menuClose" type="button">走りに戻る</button>
@@ -4299,6 +4318,8 @@ const sfx = (() => {
   const scale = [0, 2, 4, 7, 9, 12, 14, 16];
   return {
     init,
+    get context() { return ctx; },
+    get on() { return on; },
     toggle() { on = !on; if (master) master.gain.value = on ? 0.8 : 0; return on; },
     resume() { if (ctx && ctx.state === 'suspended') ctx.resume(); },
     carve(k, water) {
@@ -4567,7 +4588,7 @@ $('#btnMenu').addEventListener('click', () => {
 });
 $('#menuClose').addEventListener('click', () => closeSheet('#menuSheet'));
 $('#menuTune').addEventListener('click', () => { $('#menuSheet').hidden = true; buildTune(); openSheet('#tuneSheet'); });
-$('#menuSound').addEventListener('click', (e) => { const on = sfx.toggle(); e.currentTarget.textContent = on ? '音：オン' : '音：オフ'; });
+$('#menuSound').addEventListener('click', (e) => { const on = sfx.toggle(); e.currentTarget.textContent = on ? '効果音：オン' : '効果音：オフ'; });
 $('#menuRespawn').addEventListener('click', () => { clearShells(); respawn(); P.hull = 3; P.dead = false; closeSheet('#menuSheet'); });
 const shellsBtn = $('#menuShells'); const setShellsLabel = () => { shellsBtn.textContent = shellsOn ? '襲撃：オン' : '襲撃：オフ'; }; setShellsLabel();
 shellsBtn.addEventListener('click', () => { shellsOn = !shellsOn; store.set('windlover.shells', shellsOn); if (!shellsOn) { clearShells(); clearDrones(); } setShellsLabel(); });
@@ -4649,7 +4670,7 @@ const keyAxis = () => {
   inp.ky = ((k.KeyW || k.ArrowUp) ? 1 : 0) - ((k.KeyS || k.ArrowDown) ? 1 : 0);
 };
 window.addEventListener('keydown', (e) => {
-  if (e.target && e.target.tagName === 'INPUT') return;
+  if (e.target && e.target.closest('input, select, textarea, button')) return;
   if (e.repeat) { if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); return; }
   inp.keys[e.code] = true; keyAxis();
   if (e.code === 'Space') e.preventDefault();
@@ -4682,7 +4703,10 @@ setVehicle(vehKey); applyLens();
 placeHome(0); buildHome(); updatePalette(0, true); refreshCards();
 requestAnimationFrame(frame);
 window.__wl = { rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
+// A lazy connection lets the menu's independent BGM bus reuse the game's audio clock.
+window.__wlAudio = { getContext() { sfx.init(); return sfx.context; }, get soundOn() { return sfx.on; } };
 })();
 </script>
+<script type="module" src="../music/game-music.mjs" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
 </body>
 </html>
