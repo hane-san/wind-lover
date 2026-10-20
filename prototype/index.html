@@ -794,6 +794,19 @@ const renderer = new THREE.WebGLRenderer({ antialias: !LOWQ, powerPreference: 'h
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LOWQ ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 app.appendChild(renderer.domElement);
+const quality = { ratio: renderer.getPixelRatio(), averageMs: 16.7, slow: 0, fast: 0, cooldown: 0 };
+function adaptResolution(dt, frameMs) {
+  if (document.hidden || !started || paused || frameMs > 1000) { quality.slow = quality.fast = 0; return; }
+  const elapsed = Math.min(frameMs / 1000, 0.1);
+  quality.averageMs += (Math.min(frameMs, 100) - quality.averageMs) * 0.04; quality.cooldown -= elapsed;
+  quality.slow = quality.averageMs > 23 ? quality.slow + elapsed : 0;
+  quality.fast = quality.averageMs < 17.5 ? quality.fast + elapsed : 0;
+  const ceiling = Math.min(devicePixelRatio || 1, LOWQ ? 1.5 : 2);
+  let next = quality.ratio;
+  if (quality.cooldown <= 0 && quality.slow > (quality.averageMs > 40 ? 0.6 : 1.2)) next = Math.max(0.75, next - (quality.averageMs > 40 ? 0.25 : 0.15));
+  else if (quality.cooldown <= 0 && quality.fast > 6) next = Math.min(ceiling, next + 0.1);
+  if (Math.abs(next - quality.ratio) > 0.01) { quality.ratio = next; renderer.setPixelRatio(next); quality.cooldown = 3; quality.slow = quality.fast = 0; }
+}
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.3, 12000);
 scene.add(camera);
@@ -846,21 +859,32 @@ const G = {
   prism: new THREE.CylinderGeometry(1, 1, 1, 3).rotateX(-Math.PI / 2),
   onion: new THREE.LatheGeometry([[0, 0], [2.2, 0], [2.8, 1.2], [2.9, 2.2], [2.4, 3.4], [1.4, 4.4], [0.5, 5.3], [0.12, 6.4], [0, 6.8]].map(([x, y]) => new THREE.Vector2(x, y)), 10),
 };
-const _e = new THREE.Euler(), _q = new THREE.Quaternion();
-function M(x, y, z, ry = 0, sx = 1, sy = 1, sz = 1, rx = 0, rz = 0) {
+const _e = new THREE.Euler(), _q = new THREE.Quaternion(), _mp = new V3(), _ms = new V3();
+const _part = new THREE.Matrix4(), _local = new THREE.Matrix4(), mergeColour = new THREE.Color(), geometryVertices = new WeakMap();
+function M(x, y, z, ry = 0, sx = 1, sy = 1, sz = 1, rx = 0, rz = 0, out = new THREE.Matrix4()) {
   _e.set(rx, ry, rz); _q.setFromEuler(_e);
-  return new THREE.Matrix4().compose(new V3(x, y, z), _q.clone(), new V3(sx, sy, sz));
+  return out.compose(_mp.set(x, y, z), _q, _ms.set(sx, sy, sz));
 }
 class Merger {
   constructor() { this.p = []; this.c = []; }
   add(geo, m, color) {
-    const g = geo.index ? geo.toNonIndexed() : geo.clone(); g.applyMatrix4(m);
-    const p = g.attributes.position.array, col = new THREE.Color(color);
-    for (let i = 0; i < p.length; i += 3) { this.p.push(p[i], p[i + 1], p[i + 2]); this.c.push(col.r, col.g, col.b); }
-    g.dispose();
+    // Immutable source vertices are expanded once. Avoid cloning geometry for every brick and leaf.
+    let p = geometryVertices.get(geo);
+    if (!p) {
+      const src = geo.attributes.position.array;
+      if (geo.index) { const ids = geo.index.array; p = new Float32Array(ids.length * 3); for (let i = 0; i < ids.length; i++) { const a = ids[i] * 3, b = i * 3; p[b] = src[a]; p[b + 1] = src[a + 1]; p[b + 2] = src[a + 2]; } }
+      else p = src;
+      geometryVertices.set(geo, p);
+    }
+    const e = m.elements, col = mergeColour.set(color === undefined ? 0xffffff : color);
+    for (let i = 0; i < p.length; i += 3) {
+      const x = p[i], y = p[i + 1], z = p[i + 2];
+      this.p.push(e[0] * x + e[4] * y + e[8] * z + e[12], e[1] * x + e[5] * y + e[9] * z + e[13], e[2] * x + e[6] * y + e[10] * z + e[14]);
+      this.c.push(col.r, col.g, col.b);
+    }
   }
-  part(B, geo, x, y, z, sx, sy, sz, color, ry = 0, rx = 0, rz = 0) { this.add(geo, B.clone().multiply(M(x, y, z, ry, sx, sy, sz, rx, rz)), color); }
-  tri(a, b, c, color) { const col = new THREE.Color(color); for (const v of [a, b, c]) { this.p.push(v.x, v.y, v.z); this.c.push(col.r, col.g, col.b); } }
+  part(B, geo, x, y, z, sx, sy, sz, color, ry = 0, rx = 0, rz = 0) { this.add(geo, _part.copy(B).multiply(M(x, y, z, ry, sx, sy, sz, rx, rz, _local)), color); }
+  tri(a, b, c, color) { const col = mergeColour.set(color === undefined ? 0xffffff : color); for (const v of [a, b, c]) { this.p.push(v.x, v.y, v.z); this.c.push(col.r, col.g, col.b); } }
   build() {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
@@ -1023,45 +1047,49 @@ function pickSpot(rng, ch, flat = 0.9, avoid = 14) {
 }
 const countOf = (rng, d) => Math.floor(d) + (rng() < d % 1 ? 1 : 0);
 
-function buildChunkTerrain(ch) {
+function buildChunkTerrain(ch) { drain(terrainSteps(ch)); }
+function* terrainSteps(ch) {
   const n = SEGS, step = CH / n, x0 = ch.x0, z0 = ch.z0, W = n + 3;
   const hs = new Float32Array(W * W);
-  for (let j = 0; j < W; j++) for (let i = 0; i < W; i++) hs[j * W + i] = heightAt(x0 + (i - 1) * step, z0 + (j - 1) * step);
+  for (let j = 0; j < W; j++) { for (let i = 0; i < W; i++) hs[j * W + i] = heightAt(x0 + (i - 1) * step, z0 + (j - 1) * step); yield; }
   const nv = (n + 1) * (n + 1), pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), uv = new Float32Array(nv * 2);
-  const w = newW(); let minH = Infinity;
-  for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
-    const v = j * (n + 1) + i, x = x0 + i * step, z = z0 + j * step, y = hs[(j + 1) * W + i + 1];
-    if (y < minH) minH = y;
-    pos[v * 3] = x; pos[v * 3 + 1] = y; pos[v * 3 + 2] = z;
-    const hx = hs[(j + 1) * W + i + 2] - hs[(j + 1) * W + i], hz = hs[(j + 2) * W + i + 1] - hs[j * W + i + 1];
-    const nx = -hx, ny = 2 * step, nz = -hz, nl = Math.hypot(nx, ny, nz);
-    nor[v * 3] = nx / nl; nor[v * 3 + 1] = ny / nl; nor[v * 3 + 2] = nz / nl;
-    uv[v * 2] = i / n; uv[v * 2 + 1] = j / n;
-    biomeW(x, z, w);
-    let amp = 0, off = 0; const c = [0, 0, 0], hi = [0, 0, 0], rk = [0, 0, 0], sh = [0, 0, 0];
-    for (let b = 0; b < NB; b++) {
-      if (!w[b]) continue; const t = BIOMES[BKEYS[b]].terrain, p = PAL[b];
-      amp += w[b] * t.amp; off += w[b] * t.off;
-      for (let k = 0; k < 3; k++) { c[k] += w[b] * p.low[k]; hi[k] += w[b] * p.high[k]; rk[k] += w[b] * p.rock[k]; sh[k] += w[b] * p.shore[k]; }
+  const w = newW(), c = [0, 0, 0], hi = [0, 0, 0], rk = [0, 0, 0], sh = [0, 0, 0]; let minH = Infinity;
+  for (let j = 0; j <= n; j++) {
+    for (let i = 0; i <= n; i++) {
+      const v = j * (n + 1) + i, x = x0 + i * step, z = z0 + j * step, y = hs[(j + 1) * W + i + 1];
+      if (y < minH) minH = y;
+      pos[v * 3] = x; pos[v * 3 + 1] = y; pos[v * 3 + 2] = z;
+      const hx = hs[(j + 1) * W + i + 2] - hs[(j + 1) * W + i], hz = hs[(j + 2) * W + i + 1] - hs[j * W + i + 1];
+      const nx = -hx, ny = 2 * step, nz = -hz, nl = Math.hypot(nx, ny, nz);
+      nor[v * 3] = nx / nl; nor[v * 3 + 1] = ny / nl; nor[v * 3 + 2] = nz / nl;
+      uv[v * 2] = i / n; uv[v * 2 + 1] = j / n;
+      biomeW(x, z, w);
+      let amp = 0, off = 0; c.fill(0); hi.fill(0); rk.fill(0); sh.fill(0);
+      for (let b = 0; b < NB; b++) {
+        if (!w[b]) continue; const t = BIOMES[BKEYS[b]].terrain, p = PAL[b];
+        amp += w[b] * t.amp; off += w[b] * t.off;
+        for (let k = 0; k < 3; k++) { c[k] += w[b] * p.low[k]; hi[k] += w[b] * p.high[k]; rk[k] += w[b] * p.rock[k]; sh[k] += w[b] * p.shore[k]; }
+      }
+      const slope = 1 - ny / nl, nn = vnoise(x * 0.02, z * 0.02, 99);
+      const th = clamp((y - off + amp * 0.3) / (amp * 1.6) + (nn - 0.5) * 0.35, 0, 1);
+      const tr = clamp((slope - 0.12) * 3.2, 0, 1), ts = y < WATER + 2.5 ? clamp((WATER + 2.5 - y) / 2.5, 0, 1) : 0;
+      let shadeK = 0.92 + nn * 0.16;
+      let fw = 0; for (let b = 0; b < NB; b++) if (w[b] && PAL[b].fields) fw += w[b] * PAL[b].fields;
+      if (fw > 0.02 && y > WATER + 1.5) {
+        // rotated strip fields: cotton, wheat, green rows, ploughed earth
+        const ca = 0.5, fx = x * Math.cos(ca) + z * Math.sin(ca), fz = -x * Math.sin(ca) + z * Math.cos(ca);
+        const id = hash(Math.floor(fx / 80), Math.floor(fz / 34), 31), F = FIELD_COLS[id * FIELD_COLS.length | 0];
+        const kf = fw * 0.82 * (1 - tr);
+        for (let k = 0; k < 3; k++) { c[k] = lerp(c[k], F[k], kf); hi[k] = lerp(hi[k], F[k], kf); }
+        if ((Math.floor(fz / 2.2) & 1) && id > 0.5) shadeK *= 1 - 0.08 * kf; // furrows
+      }
+      for (let k = 0; k < 3; k++) {
+        let v2 = lerp(c[k], hi[k], th); v2 = lerp(v2, rk[k], tr); v2 = lerp(v2, sh[k], ts);
+        col[v * 3 + k] = v2 * shadeK;
+      }
+      ageLand(col, v * 3);
     }
-    const slope = 1 - ny / nl, nn = vnoise(x * 0.02, z * 0.02, 99);
-    const th = clamp((y - off + amp * 0.3) / (amp * 1.6) + (nn - 0.5) * 0.35, 0, 1);
-    const tr = clamp((slope - 0.12) * 3.2, 0, 1), ts = y < WATER + 2.5 ? clamp((WATER + 2.5 - y) / 2.5, 0, 1) : 0;
-    let shadeK = 0.92 + nn * 0.16;
-    let fw = 0; for (let b = 0; b < NB; b++) if (w[b] && PAL[b].fields) fw += w[b] * PAL[b].fields;
-    if (fw > 0.02 && y > WATER + 1.5) {
-      // rotated strip fields: cotton, wheat, green rows, ploughed earth
-      const ca = 0.5, fx = x * Math.cos(ca) + z * Math.sin(ca), fz = -x * Math.sin(ca) + z * Math.cos(ca);
-      const id = hash(Math.floor(fx / 80), Math.floor(fz / 34), 31), F = FIELD_COLS[id * FIELD_COLS.length | 0];
-      const kf = fw * 0.82 * (1 - tr);
-      for (let k = 0; k < 3; k++) { c[k] = lerp(c[k], F[k], kf); hi[k] = lerp(hi[k], F[k], kf); }
-      if ((Math.floor(fz / 2.2) & 1) && id > 0.5) shadeK *= 1 - 0.08 * kf; // furrows
-    }
-    for (let k = 0; k < 3; k++) {
-      let v2 = lerp(c[k], hi[k], th); v2 = lerp(v2, rk[k], tr); v2 = lerp(v2, sh[k], ts);
-      col[v * 3 + k] = v2 * shadeK;
-    }
-    ageLand(col, v * 3);
+    yield;
   }
   const idx = [];
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const a = j * (n + 1) + i, b = a + 1, c = a + n + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
@@ -1370,7 +1398,8 @@ function stationSign(s) {
   return stationSigns.get(s.name);
 }
 
-function buildChunkProps(ch, rng) {
+function buildChunkProps(ch, rng) { drain(propSteps(ch, rng)); }
+function* propSteps(ch, rng) {
   const solid = new Merger(), soft = new Merger(), D = new Proxy(T.dens, { get: (o, k) => o[k] || 0 });
   const weatherFacade = (B, w, h, d, s) => {
     // Position-seeded wear does not consume the prop generator's random sequence.
@@ -1622,19 +1651,19 @@ function buildChunkProps(ch, rng) {
     addCollider(s.x, s.z, yaw, 4.6, 5.2, s.y - 2, s.y + 6.5);
     ch.motes.push(new V3(s.x, s.y + 16, s.z));
   };
-  const place = (d, fn, flat = 0.9, avoid = 14) => { for (let i = countOf(rng, d); i > 0; i--) { const s = pickSpot(rng, ch, flat, avoid); if (s) fn(s); } };
-  place(D.panel, panel); place(D.church, church); place(D.stupa, stupa); place(D.pagoda, pagoda);
-  place(D.mausoleum, mausoleum); place(D.minaret, minaret, 0.85, 6); place(D.yurt, yurt, 0.9, 6);
+  const place = function* (d, fn, flat = 0.9, avoid = 14) { for (let i = countOf(rng, d); i > 0; i--) { const s = pickSpot(rng, ch, flat, avoid); if (s) fn(s); yield; } };
+  yield* place(D.panel, panel); yield* place(D.church, church); yield* place(D.stupa, stupa); yield* place(D.pagoda, pagoda);
+  yield* place(D.mausoleum, mausoleum); yield* place(D.minaret, minaret, 0.85, 6); yield* place(D.yurt, yurt, 0.9, 6);
   for (let i = countOf(rng, D.aqueduct); i > 0; i--) aqueduct();
   for (let i = countOf(rng, D.pylons); i > 0; i--) cableLine({ count: 9, spacing: 46, H: 13, arm: 4, sag: 3.2, pylon: true });
   for (let i = countOf(rng, D.flags); i > 0; i--) cableLine({ count: 10, spacing: 24, H: 6.5, arm: 0, sag: 1.1, pylon: false, flags: true });
-  const grove = (d, fn) => {
+  const grove = function* (d, fn) {
     for (let g = countOf(rng, d); g > 0; g--) {
       const s = pickSpot(rng, ch, 0.8, 4); if (!s) continue;
-      for (let i = 6 + (rng() * 10 | 0); i > 0; i--) fn(s.x + (rng() - 0.5) * 40, s.z + (rng() - 0.5) * 40);
+      for (let i = 6 + (rng() * 10 | 0); i > 0; i--) { fn(s.x + (rng() - 0.5) * 40, s.z + (rng() - 0.5) * 40); yield; }
     }
   };
-  grove(D.birch, birch); grove(D.fir, fir); grove(D.apricot, apricot);
+  yield* grove(D.birch, birch); yield* grove(D.fir, fir); yield* grove(D.apricot, apricot);
   const MONU = {
     bust: (sp) => {
       const B = M(sp.x, sp.y - 0.4, sp.z, rng() * TAU), c = rng() < 0.5 ? 0x6f8a7e : 0xcac4b8;
@@ -1766,13 +1795,13 @@ function buildChunkProps(ch, rng) {
     addCollider(sp.x, sp.z, yaw, w / 2, d / 2, sp.y - 2, sp.y - 1 + H);
     ch.motes.push(new V3(sp.x, sp.y + H + 22, sp.z));
   };
-  place(D.fortress, fortress, 0.9, 40); place(D.madrasa, madrasa, 0.9, 20); place(D.kaltaminor, kaltaminor, 0.9, 12);
-  place(D.pumpjack, pumpjack, 0.85, 8); place(D.lighthouse, lighthouse, 0.9, 14);
-  grove(D.saxaul, (x, z) => { if (highway(x, z).d < HW_HALF + 8 || lineReserved(x, z, 10)) return; const y = heightAt(x, z); if (y < WATER + 0.5) return; solid.add(G.ico, M(x, y + 0.6, z, rng() * TAU, 1.4 + rng(), 0.8 + rng() * 0.5, 1.4 + rng()), shade(0x8a9670, 0.85 + rng() * 0.25)); });
+  yield* place(D.fortress, fortress, 0.9, 40); yield* place(D.madrasa, madrasa, 0.9, 20); yield* place(D.kaltaminor, kaltaminor, 0.9, 12);
+  yield* place(D.pumpjack, pumpjack, 0.85, 8); yield* place(D.lighthouse, lighthouse, 0.9, 14);
+  yield* grove(D.saxaul, (x, z) => { if (highway(x, z).d < HW_HALF + 8 || lineReserved(x, z, 10)) return; const y = heightAt(x, z); if (y < WATER + 0.5) return; solid.add(G.ico, M(x, y + 0.6, z, rng() * TAU, 1.4 + rng(), 0.8 + rng() * 0.5, 1.4 + rng()), shade(0x8a9670, 0.85 + rng() * 0.25)); });
   for (let i = countOf(rng, D.crane); i > 0; i--) { const sp = shoreSpot(); if (sp) crane(sp); }
   for (let i = countOf(rng, D.ship); i > 0; i--) { const sp = shoreSpot(); if (sp) ship(sp); }
   for (let i = countOf(rng, D.pier); i > 0; i--) { const sp = shoreSpot(); if (sp) pier(sp); }
-  place(D.sovblock, sovblock, 0.92, 10); place(D.stela, stela); place(D.factory, factory, 0.9, 16); place(D.village, village, 0.85, 30); place(D.mosque, mosque);
+  yield* place(D.sovblock, sovblock, 0.92, 10); yield* place(D.stela, stela); yield* place(D.factory, factory, 0.9, 16); yield* place(D.village, village, 0.85, 30); yield* place(D.mosque, mosque);
   for (let i = countOf(rng, D.poplar); i > 0; i--) poplarRow();
   const inChunk = (x, z) => x >= ch.x0 && x < ch.x0 + CH && z >= ch.z0 && z < ch.z0 + CH;
   const bus = (x, z, yaw) => {
@@ -1836,7 +1865,7 @@ function buildChunkProps(ch, rng) {
     }
     if (mats.length) ch.group.add(new THREE.Mesh(texMerge(mats), fenceMat));
   }
-  place(D.watertower, (s) => {
+  yield* place(D.watertower, (s) => {
     const B = M(s.x, s.y - 0.5, s.z, rng() * TAU);
     solid.part(B, G.cyl, 0, 8, 0, 2.6, 16, 2.6, 0xb98a74);
     for (let i = 0; i < 3; i++) solid.part(B, G.box, 0, 4 + i * 4.5, 2.62, 0.6, 1.4, 0.1, 0x4a4440);
@@ -1856,11 +1885,13 @@ function buildChunkProps(ch, rng) {
   }
   // ground clutter: small rocks and tufts give the ground parallax at speed
   for (let i = LOWQ ? 70 : 120; i > 0; i--) {
+    if (i % 8 === 0) yield;
     const x = ch.x0 + rng() * CH, z = ch.z0 + rng() * CH, y = heightAt(x, z);
     if (y < WATER + 0.3 || highway(x, z).d < HW_HALF + 3 || lineReserved(x, z)) continue;
     if (rng() < 0.35) solid.add(G.ico, M(x, y, z, rng() * TAU, 0.5 + rng() * 1.2, 0.3 + rng() * 0.5, 0.5 + rng() * 1.2), shade(PAL_ROCK(), 0.9 + rng() * 0.2));
     else solid.add(G.cone, M(x, y + 0.35, z, rng() * TAU, 0.35, 0.8 + rng() * 0.6, 0.35), shade(T.tuft, 0.85 + rng() * 0.3));
   }
+  yield;
   if (solid.p.length) ch.group.add(new THREE.Mesh(solid.build(), propMat));
   if (soft.p.length) ch.group.add(new THREE.Mesh(soft.build(), softMat));
 }
@@ -1891,28 +1922,32 @@ function buildChunkWinds(ch, rng) {
   for (let i = 0; i < 2; i++) { const s = pickSpot(rng, ch, 0.7, 0); if (s) ch.motes.push(new V3(s.x, s.y + 3, s.z)); }
 }
 
-function buildChunk(cx, cz) {
+function drain(steps) { while (!steps.next().done) {} }
+function chunkJob(cx, cz) {
   const ch = { cx, cz, key: cx + ',' + cz, x0: cx * CH, z0: cz * CH, group: new THREE.Group(), colliders: [], rails: [], streams: [], updrafts: [], motes: [], finds: [], cands: [] };
-  CUR = ch;
-  const w = biomeW(ch.x0 + CH / 2, ch.z0 + CH / 2, newW());
-  T = BIOMES[BKEYS[dominant(w)]];
-  const rng = mulberry(seedOf(cx, cz, 1));
-  buildChunkTerrain(ch);
-  buildChunkRoads(ch, rng);
-  buildChunkHighway(ch);
-  buildChunkRailway(ch);
-  buildChunkProps(ch, rng);
-  buildChunkWinds(ch, rng);
-  // one find in roughly every third chunk
-  if (rng() < 0.34 && (cx || cz)) {
+  const w = biomeW(ch.x0 + CH / 2, ch.z0 + CH / 2, newW()), palette = BIOMES[BKEYS[dominant(w)]];
+  return { ch, palette, steps: chunkSteps(ch, mulberry(seedOf(cx, cz, 1))) };
+}
+function advanceChunk(job) {
+  const oldT = T, oldCUR = CUR; T = job.palette; CUR = job.ch;
+  try { return job.steps.next().done; } finally { T = oldT; CUR = oldCUR; }
+}
+function buildChunk(cx, cz) { const job = chunkJob(cx, cz); while (!advanceChunk(job)) {} }
+function* chunkSteps(ch, rng) {
+  yield* terrainSteps(ch);
+  buildChunkRoads(ch, rng); yield;
+  buildChunkHighway(ch); yield;
+  buildChunkRailway(ch); yield;
+  yield* propSteps(ch, rng);
+  buildChunkWinds(ch, rng); yield;
+  if (rng() < 0.34 && (ch.cx || ch.cz)) {
     let p = null;
     if (ch.cands.length && rng() < 0.75) p = ch.cands[rng() * ch.cands.length | 0];
     else { const s = pickSpot(rng, ch, 0.6, 0); if (s) p = new V3(s.x, s.y + 1.6, s.z); }
-    if (p) addFind('c' + ch.key, p, FIND_POOL[seedOf(cx, cz, 5) % FIND_POOL.length]);
+    if (p) addFind('c' + ch.key, p, FIND_POOL[seedOf(ch.cx, ch.cz, 5) % FIND_POOL.length]);
   }
   ch.motes = ch.motes.map((p, i) => ({ p, key: ch.key + ':' + i, got: gotMotes.has(ch.key + ':' + i), ph: rng() * TAU }));
   world.add(ch.group); chunks.set(ch.key, ch);
-  CUR = null;
 }
 function disposeGroup(g) {
   g.traverse((o) => {
@@ -2345,48 +2380,78 @@ function buildLandmark(rx, rz) {
   L.motes = [new V3(ux, gy + top * 0.5, uz), new V3(ux, gy + top * 0.75, uz)].map((p, i) => ({ p, key: 'L' + L.key + ':' + i, got: gotMotes.has('L' + L.key + ':' + i), ph: i }));
   world.add(L.group); CUR = null;
 }
-function updateLandmarks(force) {
+let landmarkQueue = [], streamingChunk = null, streamingFar = null;
+const streamStats = { lastMs: 0, maxMs: 0, chunks: 0, farUpdates: 0 };
+function updateLandmarks(force, deadline = Infinity) {
   const rx = Math.floor(P.pos.x / RG), rz = Math.floor(P.pos.z / RG);
-  if (!force && rx === lastRX && rz === lastRZ) return false;
-  lastRX = rx; lastRZ = rz;
-  for (const [k, L] of landmarks) { const [a, b] = k.split(',').map(Number); if (Math.abs(a - rx) > 2 || Math.abs(b - rz) > 2) { disposeGroup(L.group); landmarks.delete(k); } }
-  for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) if (!landmarks.has((rx + dx) + ',' + (rz + dz))) buildLandmark(rx + dx, rz + dz);
-  return true;
-}
-
-function updateChunks(force) {
-  const pcx = Math.floor(P.pos.x / CH), pcz = Math.floor(P.pos.z / CH);
   let dirty = false;
+  if (force || rx !== lastRX || rz !== lastRZ) {
+    lastRX = rx; lastRZ = rz; landmarkQueue = [];
+    for (const [k, L] of landmarks) { const [a, b] = k.split(',').map(Number); if (Math.abs(a - rx) > 2 || Math.abs(b - rz) > 2) { disposeGroup(L.group); landmarks.delete(k); dirty = true; } }
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) if (!landmarks.has((rx + dx) + ',' + (rz + dz))) landmarkQueue.push([rx + dx, rz + dz, dx * dx + dz * dz]);
+    landmarkQueue.sort((a, b) => a[2] - b[2]);
+  }
+  while (landmarkQueue.length && (force || performance.now() < deadline)) {
+    const [x, z] = landmarkQueue.shift(); buildLandmark(x, z); dirty = true;
+    if (!force) break;
+  }
+  return dirty;
+}
+function cancelStreaming() {
+  if (streamingChunk) { streamingChunk.steps.return(); disposeGroup(streamingChunk.ch.group); streamingChunk = null; }
+  if (streamingFar) { streamingFar.return(); streamingFar = null; }
+}
+function updateChunks(force) {
+  const at = performance.now(), deadline = at + 3, pcx = Math.floor(P.pos.x / CH), pcz = Math.floor(P.pos.z / CH);
+  let dirty = false;
+  if (force) cancelStreaming();
   for (const [k, c] of chunks) if (Math.abs(c.cx - pcx) > RAD + 1 || Math.abs(c.cz - pcz) > RAD + 1) { disposeGroup(c.group); chunks.delete(k); dirty = true; }
+  if (streamingChunk && (Math.abs(streamingChunk.ch.cx - pcx) > RAD + 1 || Math.abs(streamingChunk.ch.cz - pcz) > RAD + 1)) { streamingChunk.steps.return(); disposeGroup(streamingChunk.ch.group); streamingChunk = null; }
   const need = [];
   for (let dx = -RAD; dx <= RAD; dx++) for (let dz = -RAD; dz <= RAD; dz++) if (!chunks.has((pcx + dx) + ',' + (pcz + dz))) need.push([pcx + dx, pcz + dz, dx * dx + dz * dz]);
   need.sort((a, b) => a[2] - b[2]);
-  for (const [cx, cz] of need) { buildChunk(cx, cz); dirty = true; if (!force) break; }
-  if (force || !need.length) updateFar(force);
-  if (force || rangeX === null || Math.abs(P.pos.x - rangeX) > 5000) buildRanges(Math.round(P.pos.x / 1000) * 1000);
-  if (updateLandmarks(force)) dirty = true;
+  if (force) for (const [cx, cz] of need) { buildChunk(cx, cz); dirty = true; }
+  else {
+    if (!streamingChunk && need.length) streamingChunk = chunkJob(need[0][0], need[0][1]);
+    while (streamingChunk && performance.now() < deadline) {
+      if (advanceChunk(streamingChunk)) { streamingChunk = null; dirty = true; streamStats.chunks++; break; }
+    }
+  }
+  if (force) updateFar(true);
+  else {
+    if (!streamingFar && !need.length) updateFar(false);
+    while (streamingFar && performance.now() < deadline) if (streamingFar.next().done) { streamingFar = null; streamStats.farUpdates++; }
+  }
+  if ((force || performance.now() < deadline) && (force || rangeX === null || Math.abs(P.pos.x - rangeX) > 5000)) buildRanges(Math.round(P.pos.x / 1000) * 1000);
+  if (updateLandmarks(force, deadline)) dirty = true;
   if (dirty) rebuildGlobals();
+  if (!force) { streamStats.lastMs = performance.now() - at; streamStats.maxMs = Math.max(streamStats.maxMs, streamStats.lastMs); }
 }
 const FAR = 7600, FAR_SEG = LOWQ ? 76 : 104;
 const farMat = new THREE.MeshLambertMaterial({ vertexColors: true });
 let farMesh = null, farLine = null, farKey = null;
 const WATER_RGB = toRGB(0x6f9fbf);
 const FIELD_COLS = [0x7f9a4e, 0xa9a35a, 0xe9e5d8, 0x9c7d58, 0x6f8f3e, 0xc8b46a, 0x8aa25a].map(toRGB);
-function buildFar(cx, cz) {
+function buildFar(cx, cz) { drain(farSteps(cx, cz)); }
+function* farSteps(cx, cz) {
+  const loadedKeys = new Set(chunks.keys());
   const n = FAR_SEG, step = FAR / n, x0 = cx - FAR / 2, z0 = cz - FAR / 2, nv = (n + 1) * (n + 1);
-  const pos = new Float32Array(nv * 3), col = new Float32Array(nv * 3), w = newW();
-  for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
-    const v = j * (n + 1) + i, x = x0 + i * step, z = z0 + j * step, h = heightAt(x, z), wet = h < WATER;
-    pos[v * 3] = x; pos[v * 3 + 1] = (wet ? WATER - 0.6 : h) - 3; pos[v * 3 + 2] = z;
-    biomeW(x, z, w); let amp = 0, off = 0; const lo = [0, 0, 0], hi = [0, 0, 0];
-    for (let b = 0; b < NB; b++) { if (!w[b]) continue; const t = BIOMES[BKEYS[b]].terrain, p = PAL[b]; amp += w[b] * t.amp; off += w[b] * t.off; for (let k = 0; k < 3; k++) { lo[k] += w[b] * p.low[k]; hi[k] += w[b] * p.high[k]; } }
-    const th = clamp((h - off + amp * 0.3) / (amp * 1.6), 0, 1);
-    if (wet) { const wc = [0, 0, 0]; for (let b = 0; b < NB; b++) if (w[b]) for (let k = 0; k < 3; k++) wc[k] += w[b] * PAL[b].water[k]; for (let k = 0; k < 3; k++) col[v * 3 + k] = wc[k]; }
-    else { for (let k = 0; k < 3; k++) col[v * 3 + k] = lerp(lo[k], hi[k], th) * 0.97; ageLand(col, v * 3); }
+  const pos = new Float32Array(nv * 3), col = new Float32Array(nv * 3), w = newW(), lo = [0, 0, 0], hi = [0, 0, 0], wc = [0, 0, 0];
+  for (let j = 0; j <= n; j++) {
+    for (let i = 0; i <= n; i++) {
+      const v = j * (n + 1) + i, x = x0 + i * step, z = z0 + j * step, h = heightAt(x, z), wet = h < WATER;
+      pos[v * 3] = x; pos[v * 3 + 1] = (wet ? WATER - 0.6 : h) - 3; pos[v * 3 + 2] = z;
+      biomeW(x, z, w); let amp = 0, off = 0; lo.fill(0); hi.fill(0);
+      for (let b = 0; b < NB; b++) { if (!w[b]) continue; const t = BIOMES[BKEYS[b]].terrain, p = PAL[b]; amp += w[b] * t.amp; off += w[b] * t.off; for (let k = 0; k < 3; k++) { lo[k] += w[b] * p.low[k]; hi[k] += w[b] * p.high[k]; } }
+      const th = clamp((h - off + amp * 0.3) / (amp * 1.6), 0, 1);
+      if (wet) { wc.fill(0); for (let b = 0; b < NB; b++) if (w[b]) for (let k = 0; k < 3; k++) wc[k] += w[b] * PAL[b].water[k]; for (let k = 0; k < 3; k++) col[v * 3 + k] = wc[k]; }
+      else { for (let k = 0; k < 3; k++) col[v * 3 + k] = lerp(lo[k], hi[k], th) * 0.97; ageLand(col, v * 3); }
+    }
+    yield;
   }
   const idx = [];
   // cut out every quad that lies wholly on loaded detail chunks, so the coarse ring never pokes through
-  const loaded = (x, z) => chunks.has(Math.floor(x / CH) + ',' + Math.floor(z / CH));
+  const loaded = (x, z) => loadedKeys.has(Math.floor(x / CH) + ',' + Math.floor(z / CH));
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const xa = x0 + i * step, za = z0 + j * step;
     if (loaded(xa, za) && loaded(xa + step, za) && loaded(xa, za + step) && loaded(xa + step, za + step)) continue;
@@ -2416,7 +2481,10 @@ function buildFar(cx, cz) {
 function updateFar(force) {
   const pcx = Math.floor(P.pos.x / CH), pcz = Math.floor(P.pos.z / CH), key = pcx + ',' + pcz;
   if (!force && key === farKey) return false;
-  farKey = key; buildFar((pcx + 0.5) * CH, (pcz + 0.5) * CH); return true;
+  farKey = key;
+  if (force) buildFar((pcx + 0.5) * CH, (pcz + 0.5) * CH);
+  else streamingFar = farSteps((pcx + 0.5) * CH, (pcz + 0.5) * CH);
+  return true;
 }
 const rangeMat = new THREE.MeshLambertMaterial({ vertexColors: true, fog: false, emissive: 0x000000 });
 let rangeMesh = null, rangeX = null;
@@ -2507,7 +2575,7 @@ function rebuildGlobals() {
   rebuildFx();
 }
 function rebuildAll() {
-  farKey = null;
+  cancelStreaming(); farKey = null;
   for (const c of chunks.values()) disposeGroup(c.group); chunks.clear();
   for (const L of landmarks.values()) disposeGroup(L.group); landmarks.clear();
   lastRX = lastRZ = null; updateChunks(true); buildHome();
@@ -3175,7 +3243,7 @@ function collide() {
     const ox = Math.max(Math.abs(lx) - c.hw, 0), oz = Math.max(Math.abs(lz) - c.hd, 0), od = Math.hypot(ox, oz), hsp = Math.hypot(P.vel.x, P.vel.z);
     if (hsp > 28 && !P.dead && (c.nm || 0) < t && P.pos.y < topHere + 2.5 && P.pos.y > c.bottom && (od > 0 ? od < 3.2 : P.pos.y > topHere - 0.4)) { c.nm = t + 2.5; nearMiss(); }
     if (P.pos.y >= topHere - 1.2 || P.pos.y < c.bottom + 1.0) continue;
-    const pad = 0.6;
+    const pad = 0.35;
     const px = c.hw + pad - Math.abs(lx), pz = c.hd + pad - Math.abs(lz);
     if (px <= 0 || pz <= 0) continue;
     let nx, nz;
@@ -3545,22 +3613,26 @@ const droneGeo = (() => {
 const MAXD = 240;
 const droneMesh = new THREE.InstancedMesh(droneGeo, new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 18 }), MAXD);
 const eyeMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), MAXD);
-const EYE_HOSTILE = new THREE.Color(0xffb050), EYE_PEACE = new THREE.Color(0xa8f0e8);
+const EYE_HOSTILE = new THREE.Color(0xffb050), EYE_PEACE = new THREE.Color(0xa8f0e8), EYE_ASSAULT = new THREE.Color(0xff4444), EYE_CLOSE = new THREE.Color(0xff8844);
 for (let i = 0; i < MAXD; i++) eyeMesh.setColorAt(i, EYE_HOSTILE);
 for (const im of [droneMesh, eyeMesh]) { im.count = 0; im.frustumCulled = false; scene.add(im); }
-const BUL = 2400, bPos = new Float32Array(BUL * 3), bVel = new Float32Array(BUL * 3), bLife = new Float32Array(BUL), bCol = new Float32Array(BUL * 3);
+const HIT_RADIUS = 0.65, HIT_HEIGHT = 0.45, GRAZE_RADIUS = 4.5;
+const BUL = 3600, bPos = new Float32Array(BUL * 3), bVel = new Float32Array(BUL * 3), bLife = new Float32Array(BUL), bCol = new Float32Array(BUL * 3);
 const bulGeo = new THREE.BufferGeometry(); bulGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3)); bulGeo.setAttribute('color', new THREE.BufferAttribute(bCol, 3));
 const bulPts = new THREE.Points(bulGeo, new THREE.PointsMaterial({ size: 3.4, map: dotTex, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false, fog: false }));
 bulPts.frustumCulled = false; scene.add(bulPts);
 for (let i = 0; i < BUL; i++) bPos[i * 3 + 1] = -9999;
-let bulI = 0, droneSpawnT = 5;
+let bulI = -1, bulDrawCount = 0, bulletColoursDirty = false, droneSpawnT = 3, assaultRest = 5;
+const bGroundT = new Float32Array(BUL), playerPrevious = new V3();
+bulGeo.setDrawRange(0, 0);
 const bGraze = new Uint8Array(BUL);
 // a graze: a round slips past within a couple of metres. A bright tick, a spark, a little flow, and a chime that climbs with a run of them
-let grazeRun = 0, grazeT = -9;
+let grazeRun = 0, grazeT = -9, grazeFxT = -9;
 function graze(x, y, z) {
   grazeRun = t - grazeT < 0.8 ? Math.min(grazeRun + 1, 10) : 0; grazeT = t; P.grazes++;
   P.flow = Math.min(1, P.flow + 0.012); P.gauge += 2;
-  sparks(tmp.set(x, y, z), 0, 0, 4); sfx.graze(grazeRun);
+  // Dense curtains reward every close pass, whilst the feedback has a bounded cost.
+  if (t - grazeFxT > 0.055) { grazeFxT = t; sparks(tmp.set(x, y, z), 0, 0, 4); sfx.graze(grazeRun); }
 }
 const forms = [], _dm = new THREE.Object3D(), _f = new V3(), _r = new V3(), _u = new V3();
 const VOLLEY_COLS = [[1, 0.5, 0.16], [0.95, 0.36, 0.58], [0.3, 0.68, 1], [1, 0.78, 0.22]];
@@ -3611,14 +3683,14 @@ function spawnFormation(forceMode) {
   const type = FORM_TYPES[Math.random() * FORM_TYPES.length | 0], n = FORM_N[type];
   // scenic approach: rise over the horizon far ahead, slightly off your line, and come on slowly
   const side = mode === 'flyby' ? (Math.random() < 0.5 ? -1 : 1) * (700 + Math.random() * 300) : (Math.random() - 0.5) * 320;
-  const dist = mode === 'assault' ? 1150 : mode === 'pass' ? 1400 : mode === 'flyby' ? 450 + Math.random() * 700 : -420;
+  const dist = mode === 'assault' ? 760 : mode === 'pass' ? 1400 : mode === 'flyby' ? 450 + Math.random() * 700 : -420;
   const pos = new V3(P.pos.x + fx * dist - fz * side, 0, P.pos.z + fz * dist + fx * side);
   pos.y = surfaceAt(pos.x, pos.z) + (mode === 'assault' ? 34 : mode === 'pass' ? 70 + Math.random() * 30 : mode === 'flyby' ? 60 + Math.random() * 90 : 34 + Math.random() * 20);
   // flybys cross your path far off, slowly, like birds; they never fire
   const vel = mode === 'pass' ? new V3(-fx, 0, -fz).multiplyScalar(34) : mode === 'flyby' ? new V3(fz, 0, -fx).multiplyScalar(Math.sign(side) * (28 + Math.random() * 12)) : new V3(fx, 0, fz).multiplyScalar(45);
   const morph = MORPHABLE.includes(type) && Math.random() < 0.55 ? MORPHABLE[Math.random() * MORPHABLE.length | 0] : null;
   if (mode === 'assault') vel.set(-fx * 40, 0, -fz * 40);
-  const f = { mode, type, n, pos, vel, t: Math.random() * 4, age: 0, phase: 'approach', gap: 1.15, pat: 0, fireT: 1.5, volley: 0, turned: false, peace: mode === 'flyby', drones: [], seq: 0, seqT: 0, morph: morph === type ? null : morph, eye: EYE_PEACES[Math.random() * EYE_PEACES.length | 0] };
+  const f = { mode, type, n, pos, vel, t: Math.random() * 4, age: 0, phase: 'approach', gap: 0.95, pat: 0, fireT: 1.5, volley: 0, turned: false, peace: mode === 'flyby', drones: [], seq: 0, seqT: 0, morph: morph === type ? null : morph, eye: EYE_PEACES[Math.random() * EYE_PEACES.length | 0] };
   for (let i = 0; i < n; i++) f.drones.push(slotOf(f, i, new V3()).add(pos));
   forms.push(f);
 }
@@ -3642,34 +3714,39 @@ function assaultMove(f, dt, fx, fz, hs) {
 function assaultVolley(f) {
   const col = AS_COLS[f.pat % AS_COLS.length], hs = Math.hypot(P.vel.x, P.vel.z) || 1, fx = P.vel.x / hs, fz = P.vel.z / hs;
   const rx = -fz, rz = fx, base = new V3(P.vel.x, 0, P.vel.z), v = new V3(), at = new V3();
-  // each round: start at the formation, keep the rider's pace, close along the road at AS_REL with a lateral drift
+  const tArr = Math.max(0.8, ((f.pos.x - P.pos.x) * fx + (f.pos.z - P.pos.z) * fz) / AS_REL);
+  const targetY = P.grounded ? ground(P.pos.x + P.vel.x * tArr, P.pos.z + P.vel.z * tArr, P.pos.y + 16).h + HOVER + HIT_HEIGHT : P.pos.y + HIT_HEIGHT;
+  // Snapshot the aim once. Delayed rows travel with the formation until release; they never home in.
   const fire = (lat, delay, latSpd, upOff = 0) => {
-    at.copy(f.pos).addScaledVector(tmp2.set(rx, 0, rz), lat);
-    const tArr = Math.max(0.5, ((f.pos.x - P.pos.x) * fx + (f.pos.z - P.pos.z) * fz) / AS_REL);
+    at.copy(f.pos).addScaledVector(tmp2.set(rx, 0, rz), lat).addScaledVector(base, delay);
     v.copy(base).addScaledVector(tmp2.set(fx, 0, fz), -AS_REL).addScaledVector(tmp2.set(rx, 0, rz), latSpd);
-    v.y = (P.pos.y + 0.6 + upOff - at.y) / tArr; // arrive at rider height
+    v.y = (targetY + upOff - at.y) / tArr;
     if (delay) { f.pending = f.pending || []; f.pending.push({ p: at.clone(), v: v.clone(), c: col, at: t + delay }); } else shoot(at, v, col);
   };
-  const p = f.pat++ % 6, off = (P.pos.x - f.pos.x) * rx + (P.pos.z - f.pos.z) * rz; // the rider's lateral offset from the formation
-  if (p === 0) { // a curtain with one gap, placed away from where you are
-    const gapAt = off + (Math.random() < 0.5 ? -1 : 1) * (10 + Math.random() * 12);
-    for (let k = -14; k <= 14; k++) { const lat = off + k * 3.6; if (Math.abs(lat - gapAt) < 5.5) continue; fire(lat, 0, 0); }
-  } else if (p === 1) { // an opening fan: rays that spread as they come
-    for (let k = -7; k <= 7; k++) fire(0, 0, k * 4.2 + off / (AS_HOLD / AS_REL));
-  } else if (p === 2) { // a ring that widens on its way: stay in the eye, or ride out past it
-    for (let k = 0; k < 22; k++) { const a = k / 22 * TAU; fire(off + Math.cos(a) * 2, 0, Math.cos(a) * 9, Math.sin(a) * 9); }
-  } else if (p === 3) { // aimed streams: three lines laid down where you are, a beat apart
-    for (let k = 0; k < 6; k++) for (const s of [-7, 0, 7]) fire(off + s, k * 0.09, 0);
-  } else if (p === 4) { // a sweeping spiral: the arms turn as they are fired
-    for (let k = 0; k < 18; k++) { const a = k * 0.55; fire(Math.cos(a) * 30 + off, k * 0.05, -Math.sin(a) * 6); }
-  } else { // double curtain, staggered: the gaps of one sit behind the bars of the other
-    for (let row = 0; row < 2; row++) for (let k = -10; k <= 10; k++) { if ((k + row) % 3 === 0) continue; fire(off + k * 4.4 + row * 2.2, row * 0.35, 0); }
+  const p = f.pat++ % 6, off = (P.pos.x - f.pos.x) * rx + (P.pos.z - f.pos.z) * rz;
+  const route = rideRoute(P.pos.x, P.pos.z, P.pos.y), centre = (route.cx - P.pos.x) * rx + (route.cz - P.pos.z) * rz;
+  const gapShift = route.d < route.half ? clamp(centre + (Math.random() < 0.5 ? -8 : 8), centre - route.half + 5, centre + route.half - 5) : (Math.random() < 0.5 ? -8 : 8);
+  const gapAt = off + gapShift;
+  if (p === 0) { // dense curtain, with a clearly open corridor that stays on the road
+    for (let k = -24; k <= 24; k++) { const lat = off + k * 2.8; if (Math.abs(lat - gapAt) < 5) continue; fire(lat, 0, 0); }
+  } else if (p === 1) { // opening fan; adjacent rays leave room for the small rider core
+    for (let k = -20; k <= 20; k++) fire(0, 0, k * 1.55 + off / tArr);
+  } else if (p === 2) { // a moment of open sky inside a widening ring
+    for (let k = 0; k < 40; k++) { const a = k / 40 * TAU; fire(off + Math.cos(a) * 4, 0, Math.cos(a) * 5.5, Math.sin(a) * 12); }
+  } else if (p === 3) { // five fixed streams: move once, then ride the space between them
+    for (let k = 0; k < 8; k++) for (const side of [-10, -5, 0, 5, 10]) fire(off + side, k * 0.065, 0);
+  } else if (p === 4) { // a visible sweep, spread over time rather than an instant wall
+    for (let k = 0; k < 36; k++) { const a = k * 0.36; fire(Math.cos(a) * 32 + off, k * 0.025, -Math.sin(a) * 5); }
+  } else { // both staggered rows share a corridor; their gaps never close each other
+    for (let row = 0; row < 2; row++) for (let k = -22; k <= 22; k++) { const lat = off + k * 2.8 + row * 1.4; if (Math.abs(lat - gapAt) < 5.8) continue; fire(lat, row * 0.32, 0); }
   }
   sfx.volley();
 }
-function clearDrones() { forms.length = 0; for (let i = 0; i < BUL; i++) { bLife[i] = 0; bPos[i * 3 + 1] = -9999; } droneMesh.count = eyeMesh.count = 0; }
+function clearDrones() { forms.length = 0; for (let i = 0; i < BUL; i++) { bLife[i] = 0; bPos[i * 3 + 1] = -9999; } droneMesh.count = eyeMesh.count = 0; bulI = -1; bulDrawCount = 0; bulGeo.setDrawRange(0, 0); assaultRest = 5; }
 function shoot(p, v, c) {
   const i = bulI = (bulI + 1) % BUL; bGraze[i] = 0;
+  bGroundT[i] = (i % 8) * 0.018; bulletColoursDirty = true;
+  bulDrawCount = Math.max(bulDrawCount, i + 1); bulGeo.setDrawRange(0, bulDrawCount);
   bPos[i * 3] = p.x; bPos[i * 3 + 1] = p.y; bPos[i * 3 + 2] = p.z; bVel[i * 3] = v.x; bVel[i * 3 + 1] = v.y; bVel[i * 3 + 2] = v.z; bLife[i] = 5;
   bCol[i * 3] = c[0]; bCol[i * 3 + 1] = c[1]; bCol[i * 3 + 2] = c[2];
 }
@@ -3710,13 +3787,13 @@ function volley(f) {
   }
   if (f.seq === 0 || f.seq === 6) sfx.volley();
 }
-function updateDrones(dt) {
+function updateDrones(dt, previous = P.pos) {
   const hs = Math.hypot(P.vel.x, P.vel.z);
-  droneSpawnT -= dt;
+  droneSpawnT -= dt; assaultRest -= dt;
   if (!P.dead && droneSpawnT <= 0 && forms.length < 7) {
     const r = Math.random(), heat = routeHeat(), assaulting = forms.some((f) => f.mode === 'assault');
     let mode = !shellsOn ? 'flyby' : hs < 30 && r < 0.4 ? 'chase' : r < lerp(0.7, 0.4, heat) ? 'flyby' : 'pass';
-    if (shellsOn && mode === 'pass' && !assaulting && hs > 25 && Math.random() < 0.6) mode = 'assault';
+    if (shellsOn && !P.inTunnel && !assaulting && hs > 28 && assaultRest <= 0) { mode = 'assault'; assaultRest = 10; }
     spawnFormation(mode); droneSpawnT = (hs > 50 ? 2.2 + Math.random() * 2.6 : 2 + Math.random() * 2.4) * lerp(1.2, 0.75, heat);
   }
   let nearest = Infinity, k = 0;
@@ -3743,21 +3820,21 @@ function updateDrones(dt) {
     const gh = surfaceAt(f.pos.x, f.pos.z) + 16; if (f.pos.y < gh) f.pos.y = gh;
     const d = f.pos.distanceTo(P.pos); nearest = Math.min(nearest, d);
     f.fireT -= dt;
-    if (f.seq > 0 && (f.seqT -= dt) <= 0 && !P.dead && !P.inTunnel) volley(f);
-    if (f.pending && f.pending.length) for (let q = f.pending.length - 1; q >= 0; q--) { const pr = f.pending[q]; if (t >= pr.at) { pr.p.addScaledVector(pr.v, t - pr.at); shoot(pr.p, pr.v, pr.c); f.pending.splice(q, 1); } }
+    if (f.seq > 0 && (f.seqT -= dt) <= 0 && !P.dead && shellsOn && !P.inTunnel) volley(f);
+    if (f.pending && f.pending.length) for (let q = f.pending.length - 1; q >= 0; q--) { const pr = f.pending[q]; if (t >= pr.at) { pr.p.addScaledVector(pr.v, t - pr.at); if (shellsOn && !P.dead && !P.inTunnel) shoot(pr.p, pr.v, pr.c); f.pending.splice(q, 1); } }
     if (f.mode === 'assault') { 
       if (f.phase === 'hold' && f.fireT <= 0 && !P.dead && shellsOn && !P.inTunnel) { 
         assaultVolley(f); 
         f.fireT = f.gap * (0.8 + Math.random() * 0.4); // More varied firing rate
       }
     }
-    else if (!f.peace && d < 180 && f.fireT <= 0 && !P.dead && shellsOn && !P.inTunnel) { 
+    else if (!f.peace && d < 260 && f.fireT <= 0 && !P.dead && shellsOn && !P.inTunnel) {
       volley(f); 
-      f.fireT = 1.0 + Math.random() * 0.8;
+      f.fireT = 0.8 + Math.random() * 0.6;
       // Add sound feedback for firing
       if (d < 100) sfx.volley();
     }
-    if ((d > 1700 && f.t > 20 && f.mode !== 'assault') || (f.mode === 'assault' && f.phase === 'leave' && d > 1400) || f.t > 90 || (!shellsOn && !f.peace)) { forms.splice(i, 1); continue; }
+    if ((d > 1700 && f.t > 20 && f.mode !== 'assault') || (f.mode === 'assault' && f.phase === 'leave' && d > 650) || f.t > 90 || (!shellsOn && !f.peace)) { forms.splice(i, 1); continue; }
     // drones ease into their slots; the formation faces where it flies
     _f.copy(f.vel).normalize(); _r.crossVectors(_f, UP).normalize(); _u.crossVectors(_r, _f);
     for (let j = 0; j < f.n && k < MAXD; j++, k++) {
@@ -3775,27 +3852,35 @@ function updateDrones(dt) {
       eyeMesh.setMatrixAt(k, _dm.matrix); 
       // Eye color changes based on formation mode and state
       if (f.peace) eyeMesh.setColorAt(k, f.eye);
-      else if (f.mode === 'assault') eyeMesh.setColorAt(k, new THREE.Color(0xff4444)); // Red for assault
-      else if (d < 200) eyeMesh.setColorAt(k, new THREE.Color(0xff8844)); // Orange when close
+      else if (f.mode === 'assault') eyeMesh.setColorAt(k, EYE_ASSAULT); // Red for assault
+      else if (d < 200) eyeMesh.setColorAt(k, EYE_CLOSE); // Orange when close
       else eyeMesh.setColorAt(k, EYE_HOSTILE);
     }
   }
   droneMesh.count = eyeMesh.count = k; droneMesh.instanceMatrix.needsUpdate = eyeMesh.instanceMatrix.needsUpdate = true; if (eyeMesh.instanceColor) eyeMesh.instanceColor.needsUpdate = true;
   sfx.hum(nearest < 400 ? 1 - nearest / 400 : 0);
-  // bullets
-  for (let i = 0; i < BUL; i++) {
+  updateBullets(dt, previous);
+}
+function updateBullets(dt, previous = P.pos) {
+  const cx = P.pos.x, cy = P.pos.y + HIT_HEIGHT, cz = P.pos.z, py = previous.y + HIT_HEIGHT;
+  const vulnerable = P.invuln <= 0 && !P.dead && !P.inTunnel;
+  for (let i = 0; i < bulDrawCount; i++) {
     if (bLife[i] <= 0) continue;
+    const o = i * 3, ax = bPos[o] - previous.x, ay = bPos[o + 1] - py, az = bPos[o + 2] - previous.z;
     bLife[i] -= dt;
-    const o = i * 3; bPos[o] += bVel[o] * dt; bPos[o + 1] += bVel[o + 1] * dt; bPos[o + 2] += bVel[o + 2] * dt;
-    const dx = bPos[o] - P.pos.x, dy = bPos[o + 1] - P.pos.y, dz = bPos[o + 2] - P.pos.z;
-    const d2 = dx * dx + dy * dy + dz * dz;
-    if (d2 < 5.8 && P.invuln <= 0 && !P.dead && !P.inTunnel) { bLife[i] = 0; hitByShell(); }
-    else if (d2 < 30 && !bGraze[i] && !P.dead && !P.inTunnel) { bGraze[i] = 1; graze(bPos[o], bPos[o + 1], bPos[o + 2]); }
-    else if (d2 < 12 && P.invuln <= 0 && !P.dead && !P.inTunnel) { P.vel.multiplyScalar(0.95); nearMiss(); }
-    else if (bPos[o + 1] < surfaceAt(bPos[o], bPos[o + 2])) bLife[i] = 0;
+    bPos[o] += bVel[o] * dt; bPos[o + 1] += bVel[o + 1] * dt; bPos[o + 2] += bVel[o + 2] * dt;
+    const dx = bPos[o] - cx - ax, dy = bPos[o + 1] - cy - ay, dz = bPos[o + 2] - cz - az;
+    const length2 = dx * dx + dy * dy + dz * dz, u = length2 > 1e-9 ? clamp(-(ax * dx + ay * dy + az * dz) / length2, 0, 1) : 0;
+    const nx = ax + dx * u, ny = ay + dy * u, nz = az + dz * u, d2 = nx * nx + ny * ny + nz * nz;
+    // Sweep both the round and rider, so a fast crossing cannot jump over the smaller hit area.
+    if (bLife[i] > 0 && d2 < HIT_RADIUS * HIT_RADIUS && vulnerable && P.invuln <= 0) { bLife[i] = 0; hitByShell(); }
+    else if (bLife[i] > 0 && d2 >= HIT_RADIUS * HIT_RADIUS && d2 < GRAZE_RADIUS * GRAZE_RADIUS && !bGraze[i] && !P.dead && !P.inTunnel) { bGraze[i] = 1; graze(bPos[o], bPos[o + 1], bPos[o + 2]); }
+    // Ground is visual culling, independent of hit testing. Spread expensive terrain queries across frames.
+    if (bLife[i] > 0 && (bGroundT[i] -= dt) <= 0) { bGroundT[i] = 0.14; if (bPos[o + 1] < surfaceAt(bPos[o], bPos[o + 2])) bLife[i] = 0; }
     if (bLife[i] <= 0) { bPos[o + 1] = -9999; bGraze[i] = 0; }
   }
-  bulGeo.attributes.position.needsUpdate = true; bulGeo.attributes.color.needsUpdate = true;
+  bulGeo.attributes.position.needsUpdate = true;
+  if (bulletColoursDirty) { bulGeo.attributes.color.needsUpdate = true; bulletColoursDirty = false; }
 }
 
 // ---------------------------------------------------------------- the turret: an old steam-age gun that unfolds out of the chair
@@ -4685,13 +4770,15 @@ window.addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeig
 // ---------------------------------------------------------------- loop
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
+  const frameMs = Math.max(0, now - last), dt = clamp(frameMs / 1000, 0, 0.05); last = now;
+  adaptResolution(dt, frameMs);
   if (started && !paused) {
+    playerPrevious.copy(P.pos);
     const sub = clamp(Math.ceil(P.vel.length() * dt / 1.4), dt > 0.022 ? 2 : 1, 5);
     for (let i = 0; i < sub; i++) stepPhysics(dt / sub);
     updateWind(); updateChunks(false); updatePalette(dt, false);
     sfx.update(P.vel.length(), !!P.grind, P.inStream, P.stalled ? 'board' : vehKey); sfx.carve(P.grounded ? P.carve : 0, P.onWater);
-    updateHud(); updateEngine(dt); updateThreat(dt); updateDrones(dt); updateTurret(dt);
+    updateHud(); updateEngine(dt); updateThreat(dt); updateDrones(dt, playerPrevious); updateTurret(dt);
   }
   if (window.__turretHold) window.__turretHold(paused ? 0 : dt);
   updateSparks(paused ? 0 : dt); updateVisuals(paused ? 0 : dt); updateCompass(paused ? 0 : dt);
@@ -4702,7 +4789,7 @@ function frame(now) {
 setVehicle(vehKey); applyLens();
 placeHome(0); buildHome(); updatePalette(0, true); refreshCards();
 requestAnimationFrame(frame);
-window.__wl = { rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
+window.__wl = { performance: { streaming: streamStats, quality }, combat: { hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
 // A lazy connection lets the menu's independent BGM bus reuse the game's audio clock.
 window.__wlAudio = { getContext() { sfx.init(); return sfx.context; }, get soundOn() { return sfx.on; } };
 })();

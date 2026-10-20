@@ -47,6 +47,7 @@ Mood: melancholy and beautiful. Wide pale skies whose colours drift, Soviet ruin
 - The machine hugs the ground: it snaps to terrain when the gap is under 1.1 + 0.03·v m. Normal launches are capped at a vertical speed of 10 m/s. Long glides happen only at top speed off real edges. "空は飛びすぎない".
 - Ground contact is visible. A spring suspension on the chassis takes vertical jolts. On asphalt you feel a fine buzz (about 1 cm). Off-road you get coarse bumps and pitch chatter (about 2–3 cm, growing with speed). A camera share and a compass needle that shivers carry the feel through. In the air the chassis hangs slightly.
 - Camera: wide and pulled back. The rider is small, with lots of sky. FOV opens with speed.
+- Enemy-round collision uses a 0.65 m core, 0.45 m above `P.pos`, rather than the old roughly 2.4 m sphere. Collision sweeps the relative movement of rider and round between frames. Grazes within 4.5 m reward flow and gauge once per round, without slowing the machine. Solid-prop collision padding is 0.35 m; walls and roofs remain physical.
 
 ## Map (journey mode)
 
@@ -62,6 +63,7 @@ The map now follows a fixed abandoned railway through a chain of basins and pass
 - Trunk highways retain their 28 m width, graded banks, galleries and tunnels. Cross-country connections now occur at selected junctions rather than in every grid column. Minor roads stop at the lake, outer ranges and final approach.
 - The railway is generated deterministically from global coordinates, with coarse distant spans beyond the loaded detail tiles. Nearby detail remains streamed in 480 m chunks; increasing the journey length does not load the entire map.
 - The last few kilometres still settle into open ground around the pale ring. Reaching it ends the run and returns the rider home.
+- Whilst riding, terrain rows, prop sites and distant terrain rows are generated across frames within a soft 3 ms work budget. Chunks publish their scenery and colliders together, whilst the old far ring remains until the new one is ready. A world change cancels pending generation. Deliberate starts and world changes still build the immediate surroundings synchronously.
 
 See [MAP.md](MAP.md) for the route and verification notes.
 
@@ -103,6 +105,7 @@ Cuts shallower than 22 m are now graded into wide, rolling banks (14 m + 2.6 × 
 Some hostile formations come straight up the road at you (`mode: 'assault'`). Only one runs at a time, and it becomes more likely when you are moving fast.
 - They turn about 230 m ahead and hold there, weaving, for 15 s, then climb away.
 - Their rounds keep your pace and close at 72 m/s, so each pattern takes about three seconds to arrive. That is long enough to read it and slide into the gap.
+- Assaults approach from 760 m ahead and are prioritised after a short rest when moving above 28 m/s, with only one active at a time. They fire roughly every 0.95 s. Each volley contains 36–82 rounds, depending on the pattern; the two curtain rows share an open corridor on the road. Aim is fixed when firing, including a forecast of road height, and delayed rows do not home in.
 - There are six patterns in rotation:
   1. A curtain with one gap, placed away from where you are.
   2. An opening fan.
@@ -111,6 +114,7 @@ Some hostile formations come straight up the road at you (`mode: 'assault'`). On
   5. A sweeping spiral.
   6. A staggered double curtain.
 - Grazing a round (passing within about 5 m without being hit) gives a bright chime that climbs with a run of grazes, a spark, and a little flow.
+- Bullets use a fixed 3,600-slot buffer and one points draw. Ground-culling queries are staggered over 0.14 s; precise hit testing still runs every frame. Graze feedback is rate-limited separately from rewards. Sustained frame pressure gradually lowers render resolution to a minimum pixel ratio of 0.75; after sustained headroom it recovers. Physics and bullet density stay the same across quality levels.
 - With the turret up, these formations are the natural prey. Its 560 m forward reach usually starts the chain before they settle.
 
 ## The turret
@@ -126,6 +130,8 @@ Raised, it idles with a slow watchful sweep. It guards the road ahead: it tracks
 - Measured: a 27-drone formation was gone in about 2 s once it came in range.
 
 Peaceful formations are never targeted, and it does not fire under a roof.
+
+See [DODGE.md](DODGE.md) for the dodge/streaming changes and verification evidence.
 
 This is deliberately overpowered for now. Variations, stamina and balance come later, along with boss targets.
 
