@@ -302,6 +302,7 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="../world/featured-routes.js"></script>
+<script src="../world/horse-gait.js?v=20261022-stride"></script>
 <script>
 'use strict';
 (() => {
@@ -3123,12 +3124,12 @@ function limb(parent, a, b, r, mat) {
   limb(tail,[0,0,0],[0,-.48,-.27],.11,dark);limb(tail,[0,-.48,-.27],[0,-.94,-.32],.075,dark);
   const legs=[];
   for(const side of [-1,1]) for(const front of [false,true]) {
-    const leg=new THREE.Group();leg.position.set(side*.3,1.1,front?.69:-.67);g.add(leg);
+    const leg=new THREE.Group();leg.position.set(side*.3,1.1,front?.69:-.67);body.add(leg);
     limb(leg,[0,0,0],[0,-.52,front?-.07:.14],.115,coat);
     const knee=new THREE.Group();knee.position.set(0,-.52,front?-.07:.14);leg.add(knee);
     limb(knee,[0,0,0],[0,-.51,front?.06:-.13],.063,coat);
     add(new THREE.BoxGeometry(.17,.17,.24),dark,0,-.59,front?.09:-.1,knee);
-    legs.push({leg,knee,phase:(front?0:1.9)+(side>0?.65:0)});
+    legs.push({leg,knee,front,index:front?(side<0?2:3):(side<0?0:1)});
   }
   // The original shyrdak texture is shared with the world's Kyrgyz felt monuments.
   const felt=new THREE.MeshLambertMaterial({map:shyrdakTex[0],side:THREE.DoubleSide});
@@ -3158,7 +3159,7 @@ function limb(parent, a, b, r, mat) {
   for(const a of [0,Math.PI/2,Math.PI,Math.PI*1.5])limb(rider,[Math.sin(a)*.2,3.07,.01+Math.cos(a)*.2],[Math.sin(a)*.1,3.38,.01+Math.cos(a)*.1],.012,dark);
   const scarfA=new THREE.Object3D();scarfA.position.set(0,2.67,-.16);rider.add(scarfA);
   const trailA=new THREE.Object3D();trailA.position.set(0,.05,-1.15);g.add(trailA);
-  models.horse={group:g,rider,scarf:scarfA,trail:trailA,arms:null,body,neck,tail,legs};boardPivot.add(g);
+  models.horse={group:g,rider,scarf:scarfA,trail:trailA,arms:null,body,neck,tail,legs,motion:WindHorseGait.create()};boardPivot.add(g);
 })();
 const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
 scene.add(shadow);
@@ -3893,8 +3894,7 @@ function updateEngine(dt) {
   const v = Math.hypot(P.vel.x, P.vel.z);
   if (vehKey !== 'horse' && !P.stalled && !P.dead && v < 3.5 && P.grounded) { P.stalled = true; P.crankT = 1.3; sfx.stall(); puff(8, true); }
   if (vehKey === 'horse') {
-    P.stalled=false;P.sputT-=dt;
-    if(P.grounded&&!P.dead&&v>4&&P.sputT<=0){sfx.hoof(clamp(v/80,0,1));P.sputT=.14+(.5-clamp(v/120,0,.5))*.15;}
+    P.stalled=false;
   }
   else if (P.stalled && !P.dead) {
     P.crankT -= dt;
@@ -4577,10 +4577,16 @@ function updateVisuals(dt) {
 
   const MD = models[vehKey], V = VEHICLES[vehKey];
   if(MD.legs) {
-    const stride=P.dist*.66,run=clamp(speed/18,0,1)*(P.grounded?1:0);
-    for(const q of MD.legs){q.leg.rotation.x=Math.sin(stride+q.phase)*.62*run;q.knee.rotation.x=Math.max(0,Math.cos(stride+q.phase))*.95*run;}
-    MD.body.position.y=Math.sin(stride*2)*.065*run;MD.rider.position.y=Math.sin(stride*2+.35)*.035*run;
-    MD.neck.rotation.x=Math.sin(stride+.4)*.065*run;MD.tail.rotation.x=-.12-sf*.25;MD.tail.rotation.z=Math.sin(t*5)*.16*sf;
+    const gait=WindHorseGait.advance(MD.motion,dt,speed,P.grounded,started&&!P.dead),pose=WindHorseGait.pose(gait.phase,gait.blend);
+    for(const q of MD.legs){
+      const foot=WindHorseGait.foot(gait.phase,q.index,gait.blend,gait.air);
+      const angles=WindHorseGait.solve(q.front,foot.y,foot.z,pose.heave);
+      q.leg.rotation.x=angles.leg;q.knee.rotation.x=angles.knee;
+    }
+    MD.body.position.y=pose.heave;MD.body.rotation.x=pose.pitch;
+    MD.rider.position.y=pose.riderY;MD.rider.rotation.x=pose.riderPitch;
+    MD.neck.rotation.x=pose.neck;MD.tail.rotation.set(pose.tailX,0,pose.tailZ);
+    if(!paused)for(const weight of gait.beats)sfx.hoof(weight*.6);
   }
   visN.lerp(P.grounded ? P.n : UP, 1 - Math.exp(-10 * dt)).normalize();
   bz.set(Math.sin(P.yaw), 0, Math.cos(P.yaw)); bz.addScaledVector(visN, -bz.dot(visN)).normalize();
@@ -4591,18 +4597,19 @@ function updateVisuals(dt) {
   // comes up through it as a fine buzz on asphalt and a coarse pitch-and-bump off it, both growing with speed
   let bump = 0, chatter = 0;
   if (P.grounded && started && dt > 0) {
-    suspV += clamp(-(P.vel.y - lastVy) / dt * 0.004, -0.5, 0.5);
+    suspV += clamp(-(P.vel.y - lastVy) / dt * (MD.legs?.0014:.004), -0.5, 0.5);
     const rough = P.onRoad ? 0.014 : P.onWater ? 0.006 : 0.1, k = 0.25 + sf;
     bump = ((vnoise(P.dist / 2.6, 0.5, 91) - 0.5) + (vnoise(P.dist / 0.7, 2.5, 92) - 0.5) * 0.45) * rough * k * 2;
     chatter = ((vnoise(P.dist / 1.9, 7.5, 93) - 0.5) * rough * 2.2 + (Math.random() - 0.5) * rough * 0.12) * k;
   }
+  if(MD.legs){bump*=.15;chatter*=.12;}
   lastVy = P.vel.y;
   if (dt > 0) { suspV += (-150 * (suspY - (P.grounded ? bump : 0.1)) - 13 * suspV) * dt; suspY = clamp(suspY + suspV * dt, -0.42, 0.3); }
-  player.position.copy(P.pos).addScaledVector(UP, -HOVER + 0.28 + suspY);
+  player.position.copy(P.pos).addScaledVector(UP, -HOVER + (MD.legs?0:.28) + suspY);
   const gliding = !P.grounded && !P.grind && inp.jumpHeld && P.vel.y < 1;
   const turnK = clamp((P.lean + P.assistLean) / 0.8, -1, 1);
   // the machine shows the lean it is actually carrying; a sidecar outfit stays flat and lifts its chair instead
-  let lean = P.grind ? Math.sin(t * 9) * 0.06 : vehKey === 'sidecar' ? turnK * 0.08 : (P.lean + P.assistLean) * (P.grounded ? 0.85 : 0.5);
+  let lean = P.grind ? Math.sin(t * 9) * 0.06 : vehKey === 'sidecar' ? turnK * 0.08 : vehKey==='horse'?clamp(P.lean+P.assistLean,-.28,.28) : (P.lean + P.assistLean) * (P.grounded ? 0.85 : 0.5);
   if (vehKey === 'sidecar') { lift = lerp(lift, P.grounded && turnK > 0.3 && sf > 0.25 ? (turnK - 0.3) * Math.min(1, sf * 1.4) * 0.38 : 0, 1 - Math.exp(-3 * dt)); lean -= lift; }
   boardPivot.rotation.z = lerp(boardPivot.rotation.z, lean, 1 - Math.exp(-6 * dt));
   if (MD.ears) MD.ears.forEach((e, i) => { e.rotation.x = -0.3 - sf * 1.1 + Math.sin(t * 22 + i) * 0.12 * sf; });
