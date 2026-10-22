@@ -42,3 +42,9 @@ python tests/music-browser.py --browser /usr/bin/chromium
 iPhone/Safari実機でのバックグラウンド復帰、Bluetoothや通話後の音声復帰、端末負荷による音切れは、実機での確認が残っています。
 
 最新のデフォルト再生、風の継ぎ目、共通出力の仕様は [FEATURED-JOURNEYS.md](FEATURED-JOURNEYS.md) を参照してください。
+
+
+
+## 2026-10-22：全12曲と地域別の抽選
+
+追加8曲、4曲ずつの地域別候補、手動モードと保存、追加音源の生成・検証は [HORSE-AND-HORIZONS.md](HORSE-AND-HORIZONS.md) を参照してください。既存4曲の音源は保持しています。

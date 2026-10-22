@@ -3,14 +3,14 @@ import argparse,functools,http.server,json,threading
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 parser=argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--views-only',action='store_true');parser.add_argument('--full-only',action='store_true');parser.add_argument('--three',type=Path);parser.add_argument('--out',type=Path,default=Path('/tmp/wind-featured-qa'))
+parser.add_argument('--browser',default='/usr/bin/chromium');parser.add_argument('--views-only',action='store_true');parser.add_argument('--full-only',action='store_true');parser.add_argument('--three',type=Path);parser.add_argument('--out',type=Path,default=Path('/tmp/wind-featured-qa'))
 args=parser.parse_args();args.out.mkdir(parents=True,exist_ok=True);root=Path(__file__).resolve().parents[1]
 class Handler(http.server.SimpleHTTPRequestHandler):
  def log_message(self,*unused):pass
 server=http.server.ThreadingHTTPServer(('127.0.0.1',0),functools.partial(Handler,directory=str(root)));threading.Thread(target=server.serve_forever,daemon=True).start()
 try:
  with sync_playwright() as p:
-  browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-webgl','--ignore-gpu-blocklist'])
+  browser=p.chromium.launch(executable_path=args.browser,headless=True,args=['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-webgl','--ignore-gpu-blocklist'])
   page=browser.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True)
   errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
   if args.three:page.route('**/three.min.js',lambda r:r.fulfill(path=str(args.three.resolve()),content_type='application/javascript'))
@@ -93,3 +93,4 @@ try:
   result={'geometry':geometry,'drives':drives,'fullDrives':full_drives,'meshAudits':audits,'views':views,'pageErrors':errors}
   (args.out/('views-result.json' if args.views_only else 'full-result.json' if args.full_only else 'result.json')).write_text(json.dumps(result,ensure_ascii=False,indent=2));browser.close();print('PASS: scenic views and physical road surfaces.' if args.views_only else 'PASS: full mountain and lake drives.' if args.full_only else 'PASS: three menu journeys, complete lake loop, curves, tunnel surfaces, visible roads and mesh audit.',flush=True)
 finally:server.shutdown();server.server_close()
+

@@ -325,6 +325,8 @@ const VEHICLES = {
   bike: { name: 'チョッパー', hover: 1.0, grip: 5.4, accel: 18, lean: 0.55, resp: 7, roll: 5.0, defaults: { maxSpeed: 95, cruise: 38, minSpeed: 0, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 1.0, jump: 14, camDist: 14, fovKick: 1.1, auto: true } },
   board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 10, roll: 5, defaults: { maxSpeed: 80, cruise: 30, minSpeed: 0, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 12, fovKick: 1.1, auto: true } },
 };
+// The horse shares the sidecar's complete handling envelope, including cruise and top speed.
+VEHICLES.horse = { ...VEHICLES.sidecar, name: 'キルギスの馬', defaults: { ...VEHICLES.sidecar.defaults } };
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
@@ -747,6 +749,18 @@ function stationShelter(x, z, y) {
   return false;
 }
 const canopyPanel = (s, panel) => panel === 2 || panel === 3 || hash(s.x, panel, 611) > 0.46;
+function tintLand(colour, offset, x, z, weights) {
+  const patch=vnoise(x/620,z/620,987),wash=vnoise(x/1650,z/1650,988),fine=vnoise(x/130,z/130,989);
+  let ice=0,meadow=0;
+  for(let b=0;b<NB;b++) {const k=BKEYS[b];ice+=weights[b]*(k==='snow'?1:['tianshan','pamir'].includes(k)?.28:0);meadow+=weights[b]*(['steppe','issyk','karakol','fergana','issykS'].includes(k)?1:0);}
+  // Sage, olive, dried gold and soft brown. Snow drifts between blue shade and warm ivory.
+  const warm=(wash-.5)*2,green=(patch-.5)*2;
+  const shift=[warm*.045-green*.018,green*.035+warm*.012,-warm*.042+green*.012];
+  for(let k=0;k<3;k++) {
+    const snow=[-.045,-.018,.025][k]*(1-patch)+[.025,.012,-.018][k]*wash;
+    colour[offset+k]=clamp(colour[offset+k]*(.96+.065*fine)+shift[k]*meadow+snow*ice,0,1);
+  }
+}
 function ageLand(colour, offset) {
   if (biomeMode !== 'journey') return;
   const grey = colour[offset] * 0.3 + colour[offset + 1] * 0.57 + colour[offset + 2] * 0.13;
@@ -1137,6 +1151,7 @@ function* terrainSteps(ch) {
         let v2 = lerp(c[k], hi[k], th); v2 = lerp(v2, rk[k], tr); v2 = lerp(v2, sh[k], ts);
         col[v * 3 + k] = v2 * shadeK;
       }
+      tintLand(col,v*3,x,z,w);
       ageLand(col, v * 3);
     }
     yield;
@@ -1944,7 +1959,10 @@ function* propSteps(ch, rng) {
     const x = ch.x0 + rng() * CH, z = ch.z0 + rng() * CH, y = heightAt(x, z);
     if (y < WATER + 0.3 || highway(x, z).d < HW_HALF + 3 || lineReserved(x, z) || tourReserved(x, z, 12)) continue;
     if (rng() < 0.35) solid.add(G.ico, M(x, y, z, rng() * TAU, 0.5 + rng() * 1.2, 0.3 + rng() * 0.5, 0.5 + rng() * 1.2), shade(PAL_ROCK(), 0.9 + rng() * 0.2));
-    else solid.add(G.cone, M(x, y + 0.35, z, rng() * TAU, 0.35, 0.8 + rng() * 0.6, 0.35), shade(T.tuft, 0.85 + rng() * 0.3));
+    else {
+      const tuft=toRGB(T.tuft);tintLand(tuft,0,x,z,biomeW(x,z,newW()));
+      solid.add(G.cone, M(x, y + 0.35, z, rng() * TAU, 0.35, 0.8 + rng() * 0.6, 0.35), new THREE.Color().setRGB(...tuft).multiplyScalar(.85+rng()*.3));
+    }
   }
   yield;
   if (solid.p.length) ch.group.add(new THREE.Mesh(solid.build(), propMat));
@@ -2045,8 +2063,9 @@ function buildFeaturedVista() {
   featuredVista=new THREE.Group();scene.add(featuredVista);
   if(biomeMode!=='journey')return;
   const addSite=(x,z,style,scale=1)=>{
-    if(tourReserved(x,z,100)||lineReserved(x,z,130)||highway(x,z).d<120||lakeE(x,z)<1.12)return;
-    const y=heightAt(x,z),m=new Merger(),B=M(x,y,z,0,scale,scale,scale),wall=0xb5a28b;
+    const clearance=(style==='aqueduct'?125:95)*scale+20;
+    if(tourReserved(x,z,clearance)||lineReserved(x,z,clearance)||highway(x,z).d<clearance||lakeE(x,z)<1.12)return;
+    const y=heightAt(x,z);if(y<WATER+.5)return;const m=new Merger(),B=M(x,y,z,0,scale,scale,scale),wall=0xb5a28b;
     if(style==='dome') {
       m.part(B,G.box,0,24,0,64,48,38,wall);
       m.part(B,G.box,0,50,-20,72,8,10,0x7eaaa9);
@@ -2056,16 +2075,46 @@ function buildFeaturedVista() {
     } else if(style==='station') {
       for(let i=0;i<5;i++) {m.part(B,G.box,(i-2)*24,11,0,21,22,18,wall);m.part(B,G.box,(i-2)*24,23,0,23,1.4,21,0x7d8076);for(let k=-1;k<=1;k++)m.part(B,G.box,(i-2)*24+k*6,13,-9.1,3,7,.1,0x3e4744);}
       m.part(B,G.cyl,74,34,0,4,68,4,0x948976);m.part(B,G.cyl,74,72,0,9,9,9,0x75837e);
+    } else if(style==='jailoo') {
+      for(let i=0;i<5;i++) {
+        const xx=(i-2)*29,zz=Math.sin(i*2.1)*24;
+        m.part(B,G.cyl,xx,4.5,zz,10,9,10,0xded6c0);m.part(B,G.cone,xx,12,zz,11,7,11,0xf0e8d5);
+        m.part(B,G.cyl,xx,7.8,zz,10.2,.8,10.2,0x9b4940);m.part(B,G.cyl,xx,15.7,zz,2,.6,2,0x4d5149);
+        m.part(B,G.box,xx,3.6,zz-10.1,3.8,7.2,.3,0x664437);
+      }
+    } else if(style==='balbal') {
+      m.part(B,G.cyl,0,22,0,7,44,7,0xa88d6e);m.part(B,G.cyl,0,45,0,8,2,8,0x7f796a);
+      for(let i=0;i<11;i++){const xx=(i-5)*17,zz=33+Math.sin(i)*9;m.part(B,G.box,xx,4,zz,3,8,3,0x8b8d7c);m.part(B,G.half,xx,8,zz,2,3,2,0xb4aa91);}
+    } else if(style==='caravan') {
+      for(const side of [-1,1]) {m.part(B,G.box,side*37,12,0,14,24,80,0xa89a83);m.part(B,G.box,side*28,17,-40,10,34,10,0xc1af90);}
+      m.part(B,G.box,0,27,-40,64,8,12,0xb8a98c);m.part(B,G.box,0,10,40,84,20,12,0x958e7e);
+      for(let i=0;i<7;i++)m.part(B,G.box,(i-3)*11,24,40,5,6,13,0xb7aa93);
+    } else if(style==='aqueduct') {
+      for(let i=0;i<10;i++){m.part(B,G.box,(i-4.5)*24,17,0,5,34,7,0xada48e);if(i!==4&&i!==7)m.part(B,G.box,(i-4.5)*24+12,35,0,24,4,8,0xbfb59d);}
     } else {
       for(let i=0;i<7;i++){const h=35+hash(i,Math.round(x),933)*80;m.part(B,G.box,(i-3)*23,h/2,Math.sin(i)*20,15,h,22,0x9a9c91);for(let f=6;f<h;f+=7)m.part(B,G.box,(i-3)*23,f,-11+Math.sin(i)*20,15.1,1.4,.15,0x4e605f);}
     }
-    const mat=new THREE.MeshLambertMaterial({vertexColors:true}),mesh=new THREE.Mesh(m.build(),mat);featuredVista.add(mesh);
-    HOME.colliders.push({x,z,c:1,s:0,hw:90*scale,hd:30*scale,bottom:y-3,top:y+140*scale});
+    const mat=new THREE.MeshLambertMaterial({vertexColors:true}),mesh=new THREE.Mesh(m.build(),mat);mesh.userData.vista={x,z,style,scale};featuredVista.add(mesh);
+    const block=(lx,lz,hw,hd,lo,hi)=>HOME.colliders.push({x:x+lx*scale,z:z+lz*scale,c:1,s:0,hw:hw*scale,hd:hd*scale,bottom:y+lo*scale,top:y+hi*scale});
+    if(style==='jailoo')for(let i=0;i<5;i++)block((i-2)*29,Math.sin(i*2.1)*24,10,10,0,15.8);
+    else if(style==='balbal'){block(0,0,8,8,0,46);for(let i=0;i<11;i++)block((i-5)*17,33+Math.sin(i)*9,2,2,0,11);}
+    else if(style==='caravan'){for(const side of [-1,1]){block(side*37,0,7,40,0,24);block(side*28,-40,5,5,0,34);}block(0,-40,32,6,23,31);block(0,40,42,6,0,27);}
+    else if(style==='aqueduct')for(let i=0;i<10;i++){block((i-4.5)*24,0,2.5,3.5,0,34);if(i!==4&&i!==7)block((i-4.5)*24+12,0,12,4,33,37);}
+    else block(0,0,90,30,-3,140);
   };
   for(const [x,side,style,scale] of [[76700,520,'station',1],[78600,-720,'dome',1.6],[81200,850,'city',1.1],[85000,-600,'dome',1.1]])addSite(x,railZ(x)+side,style,scale);
   for(const [id,fraction,side,style,scale] of [['mountain',.18,380,'station',.8],['mountain',.5,-680,'city',1.1],['mountain',.8,520,'station',1.1],['lake',.08,-460,'city',1.3],['lake',.3,-420,'station',1],['lake',.68,-500,'dome',1],['lake',.87,-460,'city',1.2]]) {
     const p=TOURS.at(id,TOURS.paths.find(p=>p.id===id).length*fraction);addSite(p.x-p.tz*side,p.z+p.tx*side,style,scale);
   }
+  const reveals={mountain:['jailoo','balbal','caravan','aqueduct','jailoo','caravan','balbal','jailoo'],lake:['balbal','jailoo','aqueduct','caravan','jailoo','balbal','caravan','aqueduct','jailoo','balbal','jailoo','caravan']};
+  for(const path of TOURS.paths) {
+    const styles=reveals[path.id];if(!styles)continue;
+    for(let i=0;i<styles.length;i++) {
+      const p=TOURS.at(path,path.length*(i+.45)/styles.length),side=(i%2?-1:1)*(300+hash(i,path.length|0,990)*330);
+      addSite(p.x-p.tz*side,p.z+p.tx*side,styles[i],styles[i]==='jailoo'?1.1:1.25);
+    }
+  }
+  for(let i=0;i<10;i++) {const x=74400+i*1250;addSite(x,railZ(x)+(i%2?1:-1)*(400+hash(i,1,991)*480),['caravan','aqueduct','station','dome'][i%4],1.2);}
   // Multiple folded ridges bring the Tian Shan into the view from the lake and the pass.
   const peaks=new Merger(),rock=new THREE.Color(0x9ba8b1),snow=new THREE.Color(0xe2e6df),colour=new THREE.Color();
   for(const region of [{x:15800,z:-1450,side:1,span:23000},{x:39200,z:3600,side:1,span:24000},{x:15500,z:-9650,side:-1,span:24000}]) {
@@ -2094,6 +2143,14 @@ function featuredCards() {
     }
   }
 }
+function musicRegion() {
+  const key=biomeMode==='journey'?BKEYS[dominant(biomeW(P.pos.x,P.pos.z,newW()))]:biomeMode;
+  if(biomeMode==='journey') {const r=tourAt(P.pos.x,P.pos.z);if(r&&r.d<300)return r.path.id;if(P.pos.x>71000&&P.pos.x<88000)return 'desert';}
+  if(['snow','tianshan','pamir'].includes(key))return 'mountain';
+  if(['issyk','issykS','karakol','dusk','aktau'].includes(key))return 'lake';
+  if(key==='kyzylkum')return 'desert';
+  return ['soviet','azure','village'].includes(key)?'city':'steppe';
+}
 function travelFeatured(id) {
   const definition=TOURS.definitions.find(r=>r.id===id);if(!definition)return;
   featured=id;biomeMode='journey';store.set('windlover.world4','journey');clearShells();clearDrones();
@@ -2103,6 +2160,7 @@ function travelFeatured(id) {
   P.pos.set(x,0,z);rebuildAll();placeAt(x,z,yaw,Math.max(52,S.cruise*1.2));
   Object.assign(P,{dead:false,hull:3,stalled:false,reached:false,flow:.25,routeTrack:null,routeOffset:0,invuln:4,lean:0,leanV:0,sway:0,hold:0,stopT:0,barrage:false});
   inp.jx=inp.jy=inp.kx=inp.ky=0;inp.keys={};steerSm=0;camBaseY=P.pos.y;suspY=suspV=0;updatePalette(0,true);refreshCards();toast(definition.name,'道の先へ',2200);
+  window.dispatchEvent(new CustomEvent('wl:music-region',{detail:{region:id,visit:true}}));
 }
 
 function drain(steps) { while (!steps.next().done) {} }
@@ -2629,7 +2687,7 @@ function* farSteps(cx, cz) {
       for (let b = 0; b < NB; b++) { if (!w[b]) continue; const t = BIOMES[BKEYS[b]].terrain, p = PAL[b]; amp += w[b] * t.amp; off += w[b] * t.off; for (let k = 0; k < 3; k++) { lo[k] += w[b] * p.low[k]; hi[k] += w[b] * p.high[k]; } }
       const th = clamp((h - off + amp * 0.3) / (amp * 1.6), 0, 1);
       if (wet) { wc.fill(0); for (let b = 0; b < NB; b++) if (w[b]) for (let k = 0; k < 3; k++) wc[k] += w[b] * PAL[b].water[k]; for (let k = 0; k < 3; k++) col[v * 3 + k] = wc[k]; }
-      else { for (let k = 0; k < 3; k++) col[v * 3 + k] = lerp(lo[k], hi[k], th) * 0.97; ageLand(col, v * 3); }
+      else { for (let k = 0; k < 3; k++) col[v * 3 + k] = lerp(lo[k], hi[k], th) * 0.97; tintLand(col,v*3,x,z,w); ageLand(col, v * 3); }
     }
     yield;
   }
@@ -3038,6 +3096,70 @@ function limb(parent, a, b, r, mat) {
   models.sidecar = { group: g, rider, scarf: scarfA, trail: trailA, arms: null, ears, dogHead };
   boardPivot.add(g);
 })();
+// Kyrgyz-inspired traveller: ak-kalpak, chapan, shyrdak saddle felt; no weapon mount.
+(() => {
+  const g = new THREE.Group(), body = new THREE.Group(), rider = new THREE.Group();
+  g.add(body); body.add(rider);
+  const coat = lam(0xb58b60), dark = lam(0x3b2e29), pale = lam(0xeee2c7), cloth = lam(0x2e6267), red = lam(0xa33332), gold = lam(0xd4b16b);
+  const add = (geo, mat, x,y,z, parent=body, rx=0,ry=0,rz=0) => { const o=new THREE.Mesh(geo,mat);o.position.set(x,y,z);o.rotation.set(rx,ry,rz);parent.add(o);return o; };
+  const oval = (x,y,z,a,b,c,mat,parent=body) => {const o=add(new THREE.SphereGeometry(1,12,8),mat,x,y,z,parent);o.scale.set(a,b,c);return o;};
+  oval(0,1.12,0,.45,.52,1.04,coat);
+  oval(0,1.28,.71,.38,.52,.45,coat);
+  const neck=new THREE.Group();neck.position.set(0,1.4,.72);body.add(neck);
+  oval(0,.34,.18,.27,.66,.32,coat,neck).rotation.x=.45;
+  oval(0,.89,.43,.24,.34,.46,coat,neck).rotation.x=-.25;
+  oval(0,.77,.76,.24,.22,.27,dark,neck);
+  add(new THREE.BoxGeometry(.075,.58,.23),dark,0,.5,-.13,neck,-.4);
+  for(const side of [-1,1]) {
+    add(new THREE.ConeGeometry(.075,.28,5),coat,side*.15,1.21,.32,neck,0,0,side*-.2);
+    oval(side*.229,.98,.59,.025,.045,.04,dark,neck);
+    // Leather cheek pieces, browband and breast strap, with small brass fittings.
+    limb(neck,[side*.25,1.04,.4],[side*.25,.72,.78],.018,dark);
+    oval(side*.26,.78,.76,.045,.045,.045,gold,neck);
+    limb(body,[side*.35,1.43,.8],[side*.42,.9,.55],.026,red);
+  }
+  add(new THREE.BoxGeometry(.5,.035,.06),red,0,1.07,.47,neck);
+  const tail=new THREE.Group();tail.position.set(0,1.23,-.96);body.add(tail);
+  limb(tail,[0,0,0],[0,-.48,-.27],.11,dark);limb(tail,[0,-.48,-.27],[0,-.94,-.32],.075,dark);
+  const legs=[];
+  for(const side of [-1,1]) for(const front of [false,true]) {
+    const leg=new THREE.Group();leg.position.set(side*.3,1.1,front?.69:-.67);g.add(leg);
+    limb(leg,[0,0,0],[0,-.52,front?-.07:.14],.115,coat);
+    const knee=new THREE.Group();knee.position.set(0,-.52,front?-.07:.14);leg.add(knee);
+    limb(knee,[0,0,0],[0,-.51,front?.06:-.13],.063,coat);
+    add(new THREE.BoxGeometry(.17,.17,.24),dark,0,-.59,front?.09:-.1,knee);
+    legs.push({leg,knee,phase:(front?0:1.9)+(side>0?.65:0)});
+  }
+  // The original shyrdak texture is shared with the world's Kyrgyz felt monuments.
+  const felt=new THREE.MeshLambertMaterial({map:shyrdakTex[0],side:THREE.DoubleSide});
+  for(const side of [-1,1])add(new THREE.PlaneGeometry(.8,.9),felt,side*.455,1.11,-.1,body,0,side*Math.PI/2,side*.08);
+  add(new THREE.BoxGeometry(.63,.1,.9),red,0,1.62,-.12);
+  add(new THREE.BoxGeometry(.42,.17,.57),dark,0,1.75,-.08);
+  for(const z of [-.4,.24])add(new THREE.BoxGeometry(.53,.18,.12),dark,0,1.86,z);
+  for(const side of [-1,1]) {
+    limb(rider,[side*.16,1.98,-.06],[side*.44,1.54,.23],.12,cloth);
+    limb(rider,[side*.44,1.54,.23],[side*.45,1.05,.18],.085,dark);
+    add(new THREE.BoxGeometry(.16,.15,.3),dark,side*.45,1,.26,rider);
+    limb(body,[side*.4,1.64,-.02],[side*.52,.98,.18],.018,dark);
+    add(new THREE.TorusGeometry(.105,.018,4,10),gold,side*.5,.98,.18,body,0,Math.PI/2);
+    limb(rider,[side*.21,2.53,-.05],[side*.31,2.21,.35],.09,cloth);
+    limb(rider,[side*.31,2.21,.35],[side*.19,2.15,.64],.075,cloth);
+    oval(side*.18,2.15,.65,.07,.065,.08,pale,rider);
+    limb(body,[side*.2,2.14,.64],[side*.25,2.13,1.46],.012,dark);
+  }
+  add(new THREE.CylinderGeometry(.25,.34,.73,10),cloth,0,2.28,-.07,rider);
+  add(new THREE.BoxGeometry(.5,.09,.4),red,0,2.03,-.07,rider);
+  add(new THREE.BoxGeometry(.035,.56,.04),gold,0,2.31,.18,rider);
+  oval(0,2.86,.03,.175,.21,.17,pale,rider);
+  // Four felt panels and turned dark-edged brim give the ak-kalpak its recognisable outline.
+  add(new THREE.CylinderGeometry(.14,.225,.38,4),pale,0,3.2,.01,rider,0,Math.PI/4);
+  add(new THREE.CylinderGeometry(.24,.23,.055,8),dark,0,3.02,.01,rider);
+  add(new THREE.CylinderGeometry(.235,.21,.055,8),pale,0,3.065,.01,rider);
+  for(const a of [0,Math.PI/2,Math.PI,Math.PI*1.5])limb(rider,[Math.sin(a)*.2,3.07,.01+Math.cos(a)*.2],[Math.sin(a)*.1,3.38,.01+Math.cos(a)*.1],.012,dark);
+  const scarfA=new THREE.Object3D();scarfA.position.set(0,2.67,-.16);rider.add(scarfA);
+  const trailA=new THREE.Object3D();trailA.position.set(0,.05,-1.15);g.add(trailA);
+  models.horse={group:g,rider,scarf:scarfA,trail:trailA,arms:null,body,neck,tail,legs};boardPivot.add(g);
+})();
 const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
 scene.add(shadow);
 
@@ -3421,11 +3543,11 @@ function crash() {
   tmp.copy(P.pos); emitDust(tmp, tmp2.set(0, 8, 0), 60, 18); sfx.boom(1); sfx.boom(0.7); vignette(0.9);
   const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xffb070, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   fl.position.copy(P.pos); fl.scale.setScalar(22); scene.add(fl); flashes.push({ o: fl, life: 0.6 });
-  puff(20, true);
+  if(vehKey!=='horse')puff(20, true);
   if (navigator.vibrate) try { navigator.vibrate([80, 40, 160]); } catch (e) {}
   P.hull--; if (P.hull <= 0) { die('激突'); return; }
   // the engine dies on impact; the hunters close in while it cranks
-  P.stalled = true; P.crankT = 0.9; sfx.stall(); toast('激突', `装甲 残り${P.hull}`, 1400);
+  P.stalled = vehKey!=='horse'; P.crankT = P.stalled?.9:0; if(P.stalled)sfx.stall(); toast('激突', `装甲 残り${P.hull}`, 1400);
   if (shellsOn) { spawnFormation('chase'); const f = forms[forms.length - 1]; f.pos.set(P.pos.x - fwd.x * 260, P.pos.y + 40, P.pos.z - fwd.z * 260); for (const d of f.drones) d.copy(f.pos); }
 }
 function collide() {
@@ -3769,8 +3891,12 @@ function backfire() {
 }
 function updateEngine(dt) {
   const v = Math.hypot(P.vel.x, P.vel.z);
-  if (!P.stalled && !P.dead && v < 3.5 && P.grounded) { P.stalled = true; P.crankT = 1.3; sfx.stall(); puff(8, true); }
-  if (P.stalled && !P.dead) {
+  if (vehKey !== 'horse' && !P.stalled && !P.dead && v < 3.5 && P.grounded) { P.stalled = true; P.crankT = 1.3; sfx.stall(); puff(8, true); }
+  if (vehKey === 'horse') {
+    P.stalled=false;P.sputT-=dt;
+    if(P.grounded&&!P.dead&&v>4&&P.sputT<=0){sfx.hoof(clamp(v/80,0,1));P.sputT=.14+(.5-clamp(v/120,0,.5))*.15;}
+  }
+  else if (P.stalled && !P.dead) {
     P.crankT -= dt;
     if (P.crankT <= 0) {
       sfx.crank();
@@ -3816,7 +3942,14 @@ for (const im of [droneMesh, eyeMesh]) { im.count = 0; im.frustumCulled = false;
 const HIT_RADIUS = 0.32, HIT_HEIGHT = 0.45, GRAZE_RADIUS = 3.8;
 const BUL = 4608, bPos = new Float32Array(BUL * 3), bVel = new Float32Array(BUL * 3), bLife = new Float32Array(BUL), bCol = new Float32Array(BUL * 3);
 const bulGeo = new THREE.BufferGeometry(); bulGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3)); bulGeo.setAttribute('color', new THREE.BufferAttribute(bCol, 3));
-const bulPts = new THREE.Points(bulGeo, new THREE.PointsMaterial({ size: 2.8, map: dotTex, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false, fog: false }));
+const geometricRoundTex=canvasTex(64,64,(g,w)=>{
+  g.fillStyle='#18242f';g.beginPath();g.moveTo(32,2);g.lineTo(62,32);g.lineTo(32,62);g.lineTo(2,32);g.closePath();g.fill();
+  g.fillStyle='#ffffff';g.beginPath();g.moveTo(32,9);g.lineTo(55,32);g.lineTo(32,55);g.lineTo(9,32);g.closePath();g.fill();
+  g.fillStyle='#263644';g.fillRect(29,27,6,10);
+});
+const bulPts = new THREE.Points(bulGeo, new THREE.PointsMaterial({ size: 2.5, map: geometricRoundTex, alphaTest:.4, vertexColors: true, transparent:false, depthWrite:true, fog:false }));
+// Keep distant rounds legible at reduced resolution, without adding a draw call or a glow.
+bulPts.material.onBeforeCompile=shader=>{shader.vertexShader=shader.vertexShader.replace('gl_PointSize *= ( scale / - mvPosition.z );','gl_PointSize *= ( scale / - mvPosition.z ); gl_PointSize = clamp(gl_PointSize, 3.0, 30.0);');};
 bulPts.frustumCulled = false; scene.add(bulPts);
 for (let i = 0; i < BUL; i++) bPos[i * 3 + 1] = -9999;
 let bulI = -1, bulDrawCount = 0, bulletColoursDirty = false, droneSpawnT = 3, assaultRest = 5;
@@ -3895,7 +4028,7 @@ function spawnFormation(forceMode) {
 // built to be read and dodged, not merely survived. Rounds keep pace with you and close at a set speed, so a
 // pattern takes about three seconds to arrive: long enough to read the gap and slide into it.
 const AS_HOLD = 280, AS_REL = 92, AS_TIME = 16;
-const PATTERN_NAMES = ['風の格子','扇の航跡','天の輪','五本の流れ','螺旋','二重の門','六弁の花','六角の星','交差する絹'];
+const PATTERN_NAMES = ['風の格子','扇の航跡','天の輪','五本の流れ','螺旋','二重の門','二重の菱形','六角の星','折線の織物'];
 const AS_COLS = [[1, 0.42, 0.62], [0.42, 0.78, 1], [1, 0.74, 0.3], [0.7, 1, 0.6], [0.86, 0.6, 1]];
 function assaultMove(f, dt, fx, fz, hs) {
   f.age += dt;
@@ -3950,19 +4083,20 @@ function assaultVolley(f) {
       shape(off,0,.12,AS_REL);
       for(let arm=0;arm<6;arm++)for(let k=1;k<=4;k++){const a=arm/6*TAU;shape(off+Math.cos(a)*k*3,Math.sin(a)*k*1.05,.12,AS_REL);}
     }
-    if (p === 6) { // six-petalled rose, counter-rotating inner and outer contours
-      for (let layer=0;layer<2;layer++) for(let k=0;k<72;k++) {
-        const a=k/72*TAU+layer*.22,rad=22+8*Math.cos(6*a),lat=off+Math.cos(a)*rad*(layer?.72:1),height=1+Math.sin(a)*rad*.34;
-        shape(lat,height,layer*.23,AS_REL*(layer?1.1:.88));
+    if (p === 6) { // two offset diamonds: long, straight edges, without petal outlines
+      for(let layer=0;layer<2;layer++)for(let side=0;side<4;side++)for(let k=0;k<18;k++) {
+        const a=side/4*TAU,b=(side+1)/4*TAU,u=k/18,r=layer?23:34;
+        shape(off+lerp(Math.cos(a),Math.cos(b),u)*r,1+lerp(Math.sin(a),Math.sin(b),u)*r*.32,layer*.23,AS_REL*(layer?1.1:.88));
       }
     } else if (p === 7) { // two hexagons and their spokes: recognisable straight edges
       for(let layer=0;layer<2;layer++) for(let side=0;side<6;side++) for(let k=0;k<10;k++) {
         const a=side/6*TAU+layer*Math.PI/6,b=(side+1)/6*TAU+layer*Math.PI/6,u=k/10,r=layer?24:34;
         shape(off+lerp(Math.cos(a),Math.cos(b),u)*r,1+lerp(Math.sin(a),Math.sin(b),u)*r*.31,layer*.26,AS_REL*(layer?1.12:.92));
       }
-    } else { // Lissajous ribbons, woven through time with a fixed gap
-      for(let layer=0;layer<2;layer++) for(let k=0;k<80;k++) {
-        const a=k/80*TAU;shape(off+Math.sin(3*a+layer*.38)*32,1+Math.sin(2*a)*9,k*.006+layer*.18,AS_REL*(layer?1.08:.9));
+    } else { // angular interlaced zigzags, symmetrical across the route
+      for(let layer=0;layer<2;layer++)for(let k=0;k<80;k++) {
+        const u=k/79,triangle=1-4*Math.abs(((u*3+layer*.25)%1)-.5);
+        shape(off+(u-.5)*64,1+triangle*8,k*.006+layer*.18,AS_REL*(layer?1.08:.9));
       }
     }
   }
@@ -4161,6 +4295,7 @@ const trHeads = new THREE.Points(trHeadGeo, new THREE.PointsMaterial({ size: 0.9
 trHeads.frustumCulled = false; scene.add(trHeads);
 const _tw = new V3(), _tq = new THREE.Quaternion(), _td = new V3();
 function setTurret(on) {
+  if (vehKey === 'horse') { TURRET.state=0;TURRET.k=0;TURRET.cur=null;turretRoot.visible=false;$('#compass').classList.remove('armed','tracking');return; }
   if (on && (TURRET.state === 0 || TURRET.state === 3)) { TURRET.state = 1; TURRET.tau = 0; }
   else if (!on && (TURRET.state === 1 || TURRET.state === 2)) { TURRET.state = 3; TURRET.tau = 0; }
   $('#compass').classList.toggle('armed', on);
@@ -4219,7 +4354,9 @@ function hitDrone(f, d, dir) {
   if (d.hp <= 0) killDrone(f, d); else sfx.tick();
 }
 function updateTurret(dt) {
-  const T = TURRET, mount = TURRET_MOUNT[vehKey] || TURRET_MOUNT.sidecar;
+  const T = TURRET;
+  if (vehKey === 'horse') setTurret(false);
+  const mount = TURRET_MOUNT[vehKey] || TURRET_MOUNT.sidecar;
   turretRoot.position.set(mount[0], mount[1], mount[2]); turretRoot.scale.setScalar(1.45);
   // unfolding and folding: two latches, each a lurch and a clank
   if (T.state === 1 || T.state === 3) {
@@ -4439,6 +4576,12 @@ function updateVisuals(dt) {
   sky.position.copy(camera.position);
 
   const MD = models[vehKey], V = VEHICLES[vehKey];
+  if(MD.legs) {
+    const stride=P.dist*.66,run=clamp(speed/18,0,1)*(P.grounded?1:0);
+    for(const q of MD.legs){q.leg.rotation.x=Math.sin(stride+q.phase)*.62*run;q.knee.rotation.x=Math.max(0,Math.cos(stride+q.phase))*.95*run;}
+    MD.body.position.y=Math.sin(stride*2)*.065*run;MD.rider.position.y=Math.sin(stride*2+.35)*.035*run;
+    MD.neck.rotation.x=Math.sin(stride+.4)*.065*run;MD.tail.rotation.x=-.12-sf*.25;MD.tail.rotation.z=Math.sin(t*5)*.16*sf;
+  }
   visN.lerp(P.grounded ? P.n : UP, 1 - Math.exp(-10 * dt)).normalize();
   bz.set(Math.sin(P.yaw), 0, Math.cos(P.yaw)); bz.addScaledVector(visN, -bz.dot(visN)).normalize();
   bx.crossVectors(visN, bz).normalize();
@@ -4685,7 +4828,7 @@ const sfx = (() => {
       humG.gain.setTargetAtTime(k * 0.05, ctx.currentTime, 0.3);
     },
     update(speed, grinding, stream, kind) {
-      const bike = kind !== 'board', low = kind === 'sidecar' ? 0.72 : 1;
+      const bike = kind !== 'board' && kind !== 'horse', low = kind === 'sidecar' ? 0.72 : 1;
       if (!ctx) return; const now = ctx.currentTime;
       windGain.gain.setTargetAtTime(0.04 + clamp(speed / 80, 0, 1) * 0.42 + (stream ? 0.08 : 0), now, 0.15);
       bp.frequency.setTargetAtTime(220 + speed * 20, now, 0.15);
@@ -4694,6 +4837,7 @@ const sfx = (() => {
       eng.lfo.frequency.setTargetAtTime(5 + speed * 0.13, now, 0.1); eng.lp.frequency.setTargetAtTime(180 + speed * 5, now, 0.1);
       eng.g.gain.setTargetAtTime(bike ? 0.05 + clamp(speed / 110, 0, 1) * 0.05 : 0, now, 0.2); eng.lg.gain.setTargetAtTime(bike ? 0.035 : 0, now, 0.2);
     },
+    hoof(v) { burst(420,.8,.045,.035+v*.025);burst(125,.7,.065,.025+v*.025); },
     land(v) { burst(180, 0.8, 0.25, 0.25 + v * 0.5); if (v > 0.5) burst(90, 0.6, 0.4, 0.15 * v); },
     // ガチャン: a latch slamming home, iron on iron, over a dull thump
     clank(v = 1) { burst(2600, 9, 0.07, 0.32 * v, 1900); burst(1200, 6, 0.1, 0.22 * v); burst(95, 0.9, 0.22, 0.45 * v); },
@@ -4859,9 +5003,18 @@ function pickWorld(k) {
   featured = null;
   if (k !== biomeMode) { biomeMode = k; store.set('windlover.world4', k); rebuildAll(); updatePalette(0, true); if (started) recover(); }
   refreshCards();
+  window.dispatchEvent(new CustomEvent('wl:music-region',{detail:{region:musicRegion(),visit:true}}));
 }
 function setVehicle(k) {
+  if (!VEHICLES[k]) return;
   vehKey = k; store.set('windlover.vehicle4', k);
+  if(k==='horse') {
+    setTurret(false);P.stalled=false;P.crankT=0;
+    // Cancel reserved hits too, so returning to a motorbike cannot strand untargetable drones.
+    for(const r of tracers)r.d.incoming=Math.max(0,(r.d.incoming||0)-1);
+    for(const c of chainQ)c.d.doomed=false;
+    tracers.length=0;chainQ.length=0;
+  }
   S = loadS(); HOVER = VEHICLES[k].hover;
   for (const [key, m] of Object.entries(models)) m.group.visible = key === k;
   for (const box of [$('#vehCards'), $('#vehCards2')]) {
@@ -5029,11 +5182,12 @@ function frame(now) {
 setVehicle(vehKey); applyLens();
 placeHome(0); buildHome(); buildFeaturedVista(); updatePalette(0, true); refreshCards();
 requestAnimationFrame(frame);
-window.__wl = { tours: TOURS, tourAt, travelFeatured, get featured() { return featured; }, performance: { streaming: streamStats, quality }, combat: { hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, patternNames: PATTERN_NAMES, relativeSpeed: AS_REL, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
+window.__wl = { musicRegion, setVehicle, get vehicle(){return vehKey;}, tours: TOURS, tourAt, travelFeatured, get featured() { return featured; }, performance: { streaming: streamStats, quality }, combat: { hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, patternNames: PATTERN_NAMES, relativeSpeed: AS_REL, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
 // A lazy connection lets the menu's independent BGM bus reuse the game's audio clock.
 window.__wlAudio = { getContext() { sfx.init(); return sfx.context; }, getDestination() { sfx.init(); return sfx.output; }, get soundOn() { return sfx.on; } };
 })();
 </script>
-<script type="module" src="../music/game-music.mjs" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
+<script type="module" src="../music/game-music.mjs?v=20261022" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
 </body>
 </html>
+

@@ -1,4 +1,4 @@
-import { TRACKS, buildScore } from './scores.mjs';
+import { TRACKS, buildScore } from './scores.mjs?v=20261022';
 export { TRACKS, buildScore };
 
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -280,3 +280,4 @@ export function createJourneyMusic(options = {}) {
   return { unlock, setEnabled, select, setVolume, dispose, get state() { return state(); },
     inspect: () => ({ voices: allVoices.size, playingTrack: active?.track.id || null, cached: [...cache.keys()], pending: [...pending.keys()], contextState: context?.state || 'none', ownContext }) };
 }
+
