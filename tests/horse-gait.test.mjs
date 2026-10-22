@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 await import('../world/horse-gait.js');
 const g=globalThis.WindHorseGait;
-test('unhurried four-beat strides cap cadence, and simulation frame rates preserve the rhythm',()=>{
-  assert.ok(g.cadence(40)>1.5&&g.cadence(40)<1.6);
-  assert.ok(g.cadence(500)<=1.74);
+test('a forward gallop caps cadence, and simulation frame rates preserve the rhythm',()=>{
+  assert.ok(g.cadence(40)>1.7&&g.cadence(40)<1.85);
+  assert.ok(g.cadence(500)<=2.12);
   const cycles=[];
   for(const fps of [20,30,60,120]){const s=g.create();for(let i=0;i<fps*10;i++)g.advance(s,1/fps,80,true);cycles.push(s.cycles);}
   assert.ok(Math.max(...cycles)-Math.min(...cycles)<.04,JSON.stringify(cycles));
@@ -43,4 +43,23 @@ test('four audible contacts coincide with their own leg plants in transverse ord
  const state=g.create();state.cycles=1;state.phase=0;state.rate=g.cadence(60);state.blend=1;
  const contacts=[];for(let i=0;i<600;i++){g.advance(state,1/600,60,true);for(const e of state.beats){assert.ok(e.age>=0&&e.age<=1/600+.000001);const phase=(state.cycles-e.age*state.rate)%1;assert.ok(g.foot(phase+.000001,e.leg,1).stance);contacts.push(e.leg);}}
  assert.deepEqual(contacts.slice(0,4),[0,3,2,1]);
+});
+
+test('one clustered pa-ka-ra phrase leaves a clear recovery before the next stride',()=>{
+ const contacts=[...g.offsets].sort((a,b)=>a-b),rate=g.cadence(60);
+ const gaps=contacts.map((p,i)=>(i===3?1-contacts[3]:contacts[i+1]-p)/rate);
+ assert.ok(gaps[0]<.045,'The hind pickup no longer reads as a close pair');
+ assert.ok(gaps[1]>.075&&gaps[2]>.075,'The fore clops merge into a buzz');
+ assert.ok(gaps[3]>.25&&gaps[3]>gaps[1]*2.5,'No breathing space between strides');
+ let low=Infinity,high=-Infinity;
+ for(let i=0;i<1000;i++){
+  const p=g.pose(i/1000,1),a=p.pitch+p.riderPitch;
+  assert.ok(Math.abs(a)<.11,'The traveller pitches into a racing crouch');
+  // Apply the same saddle pivot and body rotation as the actual rider model.
+  const y=p.riderY+1.97+(3.38-1.97)*Math.cos(p.riderPitch);
+  const z=(3.38-1.97)*Math.sin(p.riderPitch);
+  const head=p.heave+y*Math.cos(p.pitch)-z*Math.sin(p.pitch);
+  low=Math.min(low,head);high=Math.max(high,head);
+ }
+ assert.ok(high-low<.13,'The rider bounces rigidly with the horse');
 });

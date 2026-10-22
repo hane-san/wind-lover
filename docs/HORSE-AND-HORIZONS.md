@@ -79,3 +79,5 @@ python tests/music-browser.py --browser /path/to/chromium --three /path/to/three
 ## 2026-10-22：淡く物悲しい旅（現行）
 
 軍馬の四拍と関節は引き継ぎ、視点・光・音楽・馬と騎手の力みを全体として落ち着かせました。現行の数値・編曲・検証は [QUIET-JOURNEY.md](QUIET-JOURNEY.md) と [MUSIC.md](MUSIC.md) を参照してください。
+
+その後の「ぱからっ」と駆け抜ける脚と蹄音の更新は [HORSE-GALLOP.md](HORSE-GALLOP.md) を参照してください。淡い景色と静かな曲は引き継いでいます。

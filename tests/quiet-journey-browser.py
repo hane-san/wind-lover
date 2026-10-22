@@ -21,7 +21,7 @@ try:
    for(const speed of [40,98]){w.P.vel.set(Math.sin(w.P.yaw)*speed,0,Math.cos(w.P.yaw)*speed);for(let i=0;i<180;i++)q.updateVisuals(1/60);fovs.push(q.camera.fov);}
    if(fovs[1]-fovs[0]>3||fovs[1]>70)throw Error('Racing FOV expansion');
    if(w.speedLines.material.opacity!==0||w.trail.mesh.geometry.attributes.alpha.array.some(x=>x!==0))throw Error('Racing streaks remain');
-   const pose=WindHorseGait.pose(.3,1);if(pose.riderPitch>.06||WindHorseGait.cadence(100)>1.75)throw Error('Rider still charging');
+   const pose=WindHorseGait.pose(.3,1);if(Math.abs(pose.riderPitch+pose.pitch)>.10||WindHorseGait.cadence(100)>2.12)throw Error('Rider still charging');
    if(w.scene.fog.far<3000)throw Error('Distant landmarks hidden');
    return{fovs,hoofCycleAtCruise:WindHorseGait.cadence(40),hoofCycleAtTop:WindHorseGait.cadence(98),fog:[w.scene.fog.near,w.scene.fog.far]};}''')
   for region in ['lake','mountain','desert']:

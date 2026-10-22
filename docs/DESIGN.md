@@ -10,7 +10,7 @@ Mood: melancholy and beautiful. Wide pale skies whose colours drift, Soviet ruin
 
 ## Current presentation — 22 October 2026
 
-The owner wants a pale, melancholy journey rather than racing exhilaration. The current presentation uses muted stone/sage/linen light, a restrained sun and layered distance. Racing streaks are removed; speed changes open the FOV by only about two degrees. The horse keeps a four-contact gallop with a quieter rider, whilst wind, hoof brightness and scarf motion are softened. All twelve regional songs now use sparse chamber arrangements with no driving drum groove. Travel physics, optional threats, steering and collisions are unchanged. These presentation values supersede the earlier FOV, ground vibration and music descriptions below. See [QUIET-JOURNEY.md](QUIET-JOURNEY.md).
+The owner wants a pale, melancholy journey rather than racing exhilaration. The current presentation uses muted stone/sage/linen light, a restrained sun and layered distance. Racing streaks are removed; speed changes open the FOV by only about two degrees. The horse keeps a four-contact gallop with a quieter rider, whilst wind, hoof brightness and scarf motion are softened. All twelve regional songs now use sparse chamber arrangements with no driving drum groove. Travel physics, optional threats, steering and collisions are unchanged. These presentation values supersede the earlier FOV, ground vibration and music descriptions below. See [QUIET-JOURNEY.md](QUIET-JOURNEY.md). The later grouped hoof rhythm and broader horse stride are specified in [HORSE-GALLOP.md](HORSE-GALLOP.md); the quiet landscape, music and camera remain in place.
 
 ## Core rules
 
