@@ -302,7 +302,8 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="../world/featured-routes.js"></script>
-<script src="../world/horse-gait.js?v=20261022-stride"></script>
+<script src="../world/horse-gait.js?v=20261022-charge"></script>
+<script src="../world/horse-sound.js?v=20261022-charge"></script>
 <script>
 'use strict';
 (() => {
@@ -3104,7 +3105,8 @@ function limb(parent, a, b, r, mat) {
   const coat = lam(0xb58b60), dark = lam(0x3b2e29), pale = lam(0xeee2c7), cloth = lam(0x2e6267), red = lam(0xa33332), gold = lam(0xd4b16b);
   const add = (geo, mat, x,y,z, parent=body, rx=0,ry=0,rz=0) => { const o=new THREE.Mesh(geo,mat);o.position.set(x,y,z);o.rotation.set(rx,ry,rz);parent.add(o);return o; };
   const oval = (x,y,z,a,b,c,mat,parent=body) => {const o=add(new THREE.SphereGeometry(1,12,8),mat,x,y,z,parent);o.scale.set(a,b,c);return o;};
-  oval(0,1.12,0,.45,.52,1.04,coat);
+  oval(0,1.12,0,.48,.52,1.04,coat);
+  oval(0,1.24,-.65,.43,.48,.5,coat);
   oval(0,1.28,.71,.38,.52,.45,coat);
   const neck=new THREE.Group();neck.position.set(0,1.4,.72);body.add(neck);
   oval(0,.34,.18,.27,.66,.32,coat,neck).rotation.x=.45;
@@ -3125,11 +3127,21 @@ function limb(parent, a, b, r, mat) {
   const legs=[];
   for(const side of [-1,1]) for(const front of [false,true]) {
     const leg=new THREE.Group();leg.position.set(side*.3,1.1,front?.69:-.67);body.add(leg);
-    limb(leg,[0,0,0],[0,-.52,front?-.07:.14],.115,coat);
-    const knee=new THREE.Group();knee.position.set(0,-.52,front?-.07:.14);leg.add(knee);
-    limb(knee,[0,0,0],[0,-.51,front?.06:-.13],.063,coat);
-    add(new THREE.BoxGeometry(.17,.17,.24),dark,0,-.59,front?.09:-.1,knee);
-    legs.push({leg,knee,front,index:front?(side<0?2:3):(side<0?0:1)});
+    let knee,hock=null;
+    if(front){
+      limb(leg,[0,0,0],[0,-.58,-.03],.105,coat);
+      knee=new THREE.Group();knee.position.set(0,-.58,-.03);leg.add(knee);
+      limb(knee,[0,0,0],[0,-.51,.035],.065,coat);
+      add(new THREE.BoxGeometry(.18,.17,.25),dark,0,-.59,.04,knee);
+    }else{
+      limb(leg,[0,0,0],[0,-.30,.22],.15,coat);
+      knee=new THREE.Group();knee.position.set(0,-.30,.22);leg.add(knee);
+      limb(knee,[0,0,0],[0,-.38,-.22],.095,coat);
+      hock=new THREE.Group();hock.position.set(0,-.38,-.22);knee.add(hock);
+      limb(hock,[0,0,0],[0,-.35,.06],.055,coat);
+      add(new THREE.BoxGeometry(.18,.17,.25),dark,0,-.42,.07,hock);
+    }
+    legs.push({leg,knee,hock,front,index:front?(side<0?2:3):(side<0?0:1)});
   }
   // The original shyrdak texture is shared with the world's Kyrgyz felt monuments.
   const felt=new THREE.MeshLambertMaterial({map:shyrdakTex[0],side:THREE.DoubleSide});
@@ -4580,13 +4592,14 @@ function updateVisuals(dt) {
     const gait=WindHorseGait.advance(MD.motion,dt,speed,P.grounded,started&&!P.dead),pose=WindHorseGait.pose(gait.phase,gait.blend);
     for(const q of MD.legs){
       const foot=WindHorseGait.foot(gait.phase,q.index,gait.blend,gait.air);
-      const angles=WindHorseGait.solve(q.front,foot.y,foot.z,pose.heave);
-      q.leg.rotation.x=angles.leg;q.knee.rotation.x=angles.knee;
+      const angles=WindHorseGait.solve(q.front,foot.y,foot.z,pose.heave,pose.pitch);
+      q.leg.rotation.x=angles.leg;q.knee.rotation.x=angles.knee;if(q.hock)q.hock.rotation.x=angles.hock;
     }
     MD.body.position.y=pose.heave;MD.body.rotation.x=pose.pitch;
-    MD.rider.position.y=pose.riderY;MD.rider.rotation.x=pose.riderPitch;
+    MD.rider.rotation.x=pose.riderPitch;
+    MD.rider.position.y=pose.riderY+1.97*(1-Math.cos(pose.riderPitch));MD.rider.position.z=-1.97*Math.sin(pose.riderPitch);
     MD.neck.rotation.x=pose.neck;MD.tail.rotation.set(pose.tailX,0,pose.tailZ);
-    if(!paused)for(const weight of gait.beats)sfx.hoof(weight*.6);
+    if(!paused)for(const event of gait.beats)sfx.hoof(event,P.onRoad);
   }
   visN.lerp(P.grounded ? P.n : UP, 1 - Math.exp(-10 * dt)).normalize();
   bz.set(Math.sin(P.yaw), 0, Math.cos(P.yaw)); bz.addScaledVector(visN, -bz.dot(visN)).normalize();
@@ -4742,7 +4755,7 @@ const UPC = new THREE.Color(0xffffff), ROADDUST = new THREE.Color(0x8f8e8a);
 
 // ---------------------------------------------------------------- audio
 const sfx = (() => {
-  let ctx = null, master, mix, windGain, bp, grindGain, noiseBuf, eng, carveF, carveG, humG = null, on = true;
+  let ctx = null, master, mix, windGain, bp, grindGain, noiseBuf, eng, carveF, carveG, humG = null, on = true, hoofPlayer=null;
   function init() {
     if (ctx) return;
     try {
@@ -4753,6 +4766,7 @@ const sfx = (() => {
       for(let i=0;i<curve.length;i++)curve[i]=Math.tanh(i/(curve.length-1)*2-1);
       soft.curve=curve;soft.oversample='2x';mix.connect(limiter);limiter.connect(soft);soft.connect(ctx.destination);
       master = ctx.createGain(); master.gain.value = on ? 0.7 : 0; master.connect(mix);
+      hoofPlayer=WindHorseSound.create(ctx,master);
       noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
       const d = noiseBuf.getChannelData(0); let last = 0;
       for (let i = 0; i < d.length; i++) { const w = Math.random() * 2 - 1; last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; }
@@ -4837,14 +4851,14 @@ const sfx = (() => {
     update(speed, grinding, stream, kind) {
       const bike = kind !== 'board' && kind !== 'horse', low = kind === 'sidecar' ? 0.72 : 1;
       if (!ctx) return; const now = ctx.currentTime;
-      windGain.gain.setTargetAtTime(0.04 + clamp(speed / 80, 0, 1) * 0.42 + (stream ? 0.08 : 0), now, 0.15);
+      windGain.gain.setTargetAtTime((0.04 + clamp(speed / 80, 0, 1) * 0.42 + (stream ? 0.08 : 0))*(kind==='horse'?.72:1), now, 0.15);
       bp.frequency.setTargetAtTime(220 + speed * 20, now, 0.15);
       grindGain.gain.setTargetAtTime(grinding ? 0.045 : 0, now, 0.05);
       eng.a.frequency.setTargetAtTime((30 + speed * 0.75) * low, now, 0.1); eng.b.frequency.setTargetAtTime((15 + speed * 0.38) * low, now, 0.1);
       eng.lfo.frequency.setTargetAtTime(5 + speed * 0.13, now, 0.1); eng.lp.frequency.setTargetAtTime(180 + speed * 5, now, 0.1);
       eng.g.gain.setTargetAtTime(bike ? 0.05 + clamp(speed / 110, 0, 1) * 0.05 : 0, now, 0.2); eng.lg.gain.setTargetAtTime(bike ? 0.035 : 0, now, 0.2);
     },
-    hoof(v) { burst(420,.8,.045,.035+v*.025);burst(125,.7,.065,.025+v*.025); },
+    hoof(event,hard) { if(ctx&&on)hoofPlayer.play(event,hard); },
     land(v) { burst(180, 0.8, 0.25, 0.25 + v * 0.5); if (v > 0.5) burst(90, 0.6, 0.4, 0.15 * v); },
     // ガチャン: a latch slamming home, iron on iron, over a dull thump
     clank(v = 1) { burst(2600, 9, 0.07, 0.32 * v, 1900); burst(1200, 6, 0.1, 0.22 * v); burst(95, 0.9, 0.22, 0.45 * v); },
