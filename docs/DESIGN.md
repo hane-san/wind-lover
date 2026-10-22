@@ -8,6 +8,10 @@ Leave the hangar at the back of the land and ride toward the sun, deeper in. An 
 
 Mood: melancholy and beautiful. Wide pale skies whose colours drift, Soviet ruins that thin out into Central Asia (the Tian Shan, the Ferghana road, Issyk-Kul, the Kyzylkum's blue-tiled ruins, the Pamir gorges, the Kazakh steppe, the port of Aktau), and strange geometric monuments that are uncanny but still belong to the world.
 
+## Current presentation — 22 October 2026
+
+The owner wants a pale, melancholy journey rather than racing exhilaration. The current presentation uses muted stone/sage/linen light, a restrained sun and layered distance. Racing streaks are removed; speed changes open the FOV by only about two degrees. The horse keeps a four-contact gallop with a quieter rider, whilst wind, hoof brightness and scarf motion are softened. All twelve regional songs now use sparse chamber arrangements with no driving drum groove. Travel physics, optional threats, steering and collisions are unchanged. These presentation values supersede the earlier FOV, ground vibration and music descriptions below. See [QUIET-JOURNEY.md](QUIET-JOURNEY.md).
+
 ## Core rules
 
 1. **Speed is survival.** Shells are aimed where you are now. At ≥ `SAFE` (38 m/s, about 137 km/h) they land behind you. Slower, they walk onto you.

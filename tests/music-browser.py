@@ -31,7 +31,8 @@ try:
     page.route('https://fonts.googleapis.com/**',lambda r:r.abort())
     page.add_init_script('''
       localStorage.setItem('windlover.shells','false');
-      window.audioProbe={contexts:[],starts:[]};
+      window.audioProbe={contexts:[],starts:[],renders:0,releases:[],holdRender:false};
+      const render=OfflineAudioContext.prototype.startRendering;OfflineAudioContext.prototype.startRendering=function(){audioProbe.renders++;const job=render.call(this);return audioProbe.holdRender?new Promise(resolve=>audioProbe.releases.push(()=>job.then(resolve))):job;};
       const Native=window.AudioContext,connect=AudioNode.prototype.connect,start=AudioBufferSourceNode.prototype.start;
       window.AudioContext=class extends Native{constructor(...args){super(...args);this.capture=this.createMediaStreamDestination();audioProbe.contexts.push(this);}createBuffer(...args){const b=super.createBuffer(...args);if(args[0]===1&&args[1]===this.sampleRate*2)this.noiseLoop=b;return b;}};
       AudioNode.prototype.connect=function(dest,...rest){const result=connect.call(this,dest,...rest);if(dest===this.context.destination&&this.context.capture)connect.call(this,this.context.capture);return result;};
@@ -43,7 +44,7 @@ try:
     assert page.evaluate('__wlMusic.state.enabled && audioProbe.contexts.length===0')
     assert len(requests)==0,'Default-on BGM must wait for a user gesture'
     assert page.locator('#musicTrack option').count()==13
-    page.route('**/assets/music/rust-horizon.ogg',lambda r:r.fulfill(body=b'invalid codec',content_type='audio/ogg'))
+    page.route('**/assets/music/quiet/*.ogg',lambda r:r.fulfill(body=b'invalid codec',content_type='audio/ogg'))
     page.locator('#btnGo').click(timeout=120000)
     page.wait_for_function('__wl.P.dist>2',timeout=60000)
     page.locator('#btnMenu').click()
@@ -55,8 +56,8 @@ try:
     page.select_option('#musicTrack','rust-horizon')
     page.wait_for_function('__wlMusic.state.status==="playing"',timeout=60000)
     page.wait_for_timeout(1100)
-    assert any(r.endswith('rust-horizon.wav') for r in requests),'PCM fallback must work at the Pages-relative path'
-    page.unroute('**/assets/music/rust-horizon.ogg')
+    assert page.evaluate('audioProbe.renders>0'), 'Quiet arrangements must render before playback'
+    assert requests and all('/assets/music/quiet/' in r for r in requests), 'The live arrangement fetched a driving archive mix'
     assert page.evaluate('audioProbe.contexts.length===1 && !__wlMusic.inspect().ownContext')
     assert page.evaluate('(()=>{const d=audioProbe.contexts[0].noiseLoop.getChannelData(0);return Math.abs(d[0]-d[d.length-1])<1e-6;})()'), 'The looping wind has an unmatched join'
     assert page.evaluate('__wlAudio.soundOn')
@@ -65,15 +66,15 @@ try:
     starts=page.evaluate('audioProbe.starts.length')
     page.locator('#menuClose').click();page.locator('#btnMenu').click()
     assert page.evaluate('audioProbe.starts.length')==starts,'Opening the menu restarted BGM'
-    # The outgoing song must remain live while the requested file is held in flight.
-    held=[];page.route('**/assets/music/glass-current.ogg',lambda r:held.append(r))
+    # The outgoing song must remain live while the requested arrangement render is held in flight.
+    page.evaluate('audioProbe.holdRender=true')
     page.select_option('#musicTrack','glass-current');page.wait_for_function('__wlMusic.state.status==="switching"')
     page.wait_for_timeout(400)
     assert page.evaluate('__wlMusic.inspect().playingTrack==="rust-horizon" && __wlMusic.inspect().voices===1')
-    assert held,'The requested track was not loaded'
-    held.pop().fulfill(path=str(root/'assets/music/glass-current.ogg'),content_type='audio/ogg')
+    assert page.evaluate('audioProbe.releases.length>0'), 'The requested arrangement was not prepared'
+    page.evaluate('audioProbe.holdRender=false;audioProbe.releases.splice(0).forEach(f=>f())')
     page.wait_for_function('__wlMusic.inspect().playingTrack==="glass-current"')
-    page.wait_for_timeout(1100);page.unroute('**/assets/music/glass-current.ogg')
+    page.wait_for_timeout(1100)
     page.wait_for_function('__wlMusic.inspect().voices===1',timeout=15000)
 
     page.evaluate('audioProbe.wrapSeams=true')
@@ -94,11 +95,11 @@ try:
     assert min(rms)>.001,{'minimumRMS':min(rms)}
     assert float(np.max(np.abs(np.diff(measured,axis=0))))<.3,'An abrupt click was present in the recorded output'
     # A cancelled request cannot restart the music after OFF.
-    held=[];page.route('**/assets/music/glass-current.ogg',lambda r:held.append(r))
+    page.evaluate('audioProbe.holdRender=true')
     page.select_option('#musicTrack','glass-current');page.wait_for_function('__wlMusic.state.status==="switching"')
     page.wait_for_timeout(100);page.locator('#musicToggle').click()
-    if held:held.pop().fulfill(path=str(root/'assets/music/glass-current.ogg'),content_type='audio/ogg')
-    page.wait_for_timeout(1200);page.unroute('**/assets/music/glass-current.ogg')
+    page.evaluate('audioProbe.holdRender=false;audioProbe.releases.splice(0).forEach(f=>f())')
+    page.wait_for_timeout(1200)
     assert page.evaluate('!__wlMusic.state.enabled && __wlMusic.inspect().voices===0 && audioProbe.contexts[0].state==="running"')
     page.locator('#menuSound').click();assert page.evaluate('__wlAudio.soundOn')
     page.select_option('#musicTrack','blue-viaduct');page.locator('#musicToggle').click()
@@ -117,7 +118,7 @@ try:
     page.wait_for_function('(distance)=>__wl.P.dist>distance+2',arg=distance,timeout=60000)
     assert page.evaluate('Number.isFinite(__wl.P.pos.x+__wl.P.pos.y+__wl.P.pos.z)')
     assert not errors,errors
-    result={'defaultOn':True,'loopWrapsRecorded':True,'windSeamMatched':True,'maximumOutputStep':float(np.max(np.abs(np.diff(measured,axis=0)))),'fallback':True,'sharedContext':True,'menuDoesNotRestart':True,'outgoingContinuesDuringLoad':True,'offDuringLoad':True,'persistentSettings':True,'drivingWithMusic':True,'recordedSeconds':len(pcm)/24000,'minimum100msRMS':min(rms),'mainThreadStallSeconds':1.6,'pageErrors':errors}
+    result={'defaultOn':True,'loopWrapsRecorded':True,'windSeamMatched':True,'maximumOutputStep':float(np.max(np.abs(np.diff(measured,axis=0)))),'quietArrangements':True,'sharedContext':True,'menuDoesNotRestart':True,'outgoingContinuesDuringLoad':True,'offDuringLoad':True,'persistentSettings':True,'drivingWithMusic':True,'recordedSeconds':len(pcm)/24000,'minimum100msRMS':min(rms),'mainThreadStallSeconds':1.6,'pageErrors':errors}
     (args.out/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
     print('PASS:',json.dumps(result),flush=True)
     browser.close()

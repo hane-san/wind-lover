@@ -1,4 +1,5 @@
-import { TRACKS, buildScore } from './scores.mjs?v=20261022';
+import { TRACKS, buildScore } from './quiet-score.mjs?v=20261022-quiet';
+import { buildScore as buildArchiveScore } from './scores.mjs?v=20261022';
 export { TRACKS, buildScore };
 
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -41,6 +42,7 @@ function drum(context, destination, event, at, noise) {
 }
 
 function note(context, destination, event, at, secondsPerBeat) {
+  if (['reed','bowed','lute','drone'].includes(event.voice)) return quietNote(context,destination,event,at,secondsPerBeat);
   const pad = event.voice === 'pad', bass = event.voice === 'bass', pluck = ['glass','pluck','keys'].includes(event.voice);
   const duration = event.duration * secondsPerBeat, attack = pad ? 0.65 : pluck ? 0.008 : 0.045, release = pad ? 1.6 : bass ? 0.095 : pluck ? 0.75 : 0.35;
   const env = envelope(context, at, duration, attack, release, event.velocity, pluck);
@@ -75,6 +77,21 @@ function note(context, destination, event, at, secondsPerBeat) {
   else { oscillator('triangle', 1, 0.75); oscillator('sine', 1, 0.18, 4); oscillator('sine', 2, 0.07); }
 }
 
+function quietNote(context,destination,event,at,secondsPerBeat){
+  const kind=event.voice,pluck=kind==='lute',hz=frequency(event.midi);
+  const duration=event.duration*secondsPerBeat,release=pluck?2:kind==='reed'?1.2:2.4;
+  const env=envelope(context,at,duration,pluck?.018:kind==='reed'?.20:.85,release,event.velocity,pluck);
+  const filter=context.createBiquadFilter(),pan=context.createStereoPanner();
+  filter.type='lowpass';filter.frequency.value=kind==='drone'?480:kind==='bowed'?1250:kind==='reed'?2200:2600;filter.Q.value=.45;
+  filter.connect(env.gain);env.gain.connect(pan);pan.pan.value=event.pan;pan.connect(destination);
+  const harmonics=kind==='reed'?[[1,.72],[2,.2],[3,.055]]:kind==='lute'?[[1,.7],[2,.19],[3,.07]]:[[1,.54],[1.002,.32],[2,.075]];
+  for(const [ratio,level]of harmonics){
+    const osc=context.createOscillator(),gain=context.createGain();osc.type=kind==='bowed'?'triangle':'sine';osc.frequency.value=hz*ratio;gain.gain.value=level;
+    osc.connect(gain);gain.connect(filter);osc.start(at);osc.stop(env.end+.02);
+    if(kind==='reed'&&ratio===1){const vibrato=context.createOscillator(),depth=context.createGain();vibrato.frequency.value=4.1;depth.gain.value=hz*.0018;vibrato.connect(depth);depth.connect(osc.frequency);vibrato.start(at);vibrato.stop(env.end+.02);}
+  }
+}
+
 export async function renderTrack(id, { sampleRate = 24000, Offline = globalThis.OfflineAudioContext || globalThis.webkitOfflineAudioContext } = {}) {
   if (!Offline) throw new Error('Offline audio rendering is not supported');
   const score = buildScore(id), frames = Math.round(score.seconds * sampleRate), duration = frames / sampleRate;
@@ -82,10 +99,10 @@ export async function renderTrack(id, { sampleRate = 24000, Offline = globalThis
   const context = new Offline(2, frames * 2 + sampleRate * 3, sampleRate), mix = context.createGain();
   const highpass = context.createBiquadFilter(); highpass.type = 'highpass'; highpass.frequency.value = 28;
   mix.connect(highpass); highpass.connect(context.destination);
-  for (const [time, level, panValue] of [[0.375,0.16,-0.48],[0.75,0.1,0.48]]) {
+  for (const [time, level, panValue] of [[0.91,0.21,-0.48],[1.63,0.14,0.48]]) {
     const delay = context.createDelay(2), filter = context.createBiquadFilter(), feedback = context.createGain(), wet = context.createGain(), pan = context.createStereoPanner();
-    delay.delayTime.value = 60 / score.bpm * time; filter.type = 'lowpass'; filter.frequency.value = 3000;
-    feedback.gain.value = 0.27; wet.gain.value = level; pan.pan.value = panValue;
+    delay.delayTime.value = time; filter.type = 'lowpass'; filter.frequency.value = 1800;
+    feedback.gain.value = 0.24; wet.gain.value = level; pan.pan.value = panValue;
     mix.connect(delay); delay.connect(filter); filter.connect(feedback); feedback.connect(delay); filter.connect(wet); wet.connect(pan); pan.connect(highpass);
   }
   const noise = context.createBuffer(1, sampleRate, sampleRate), rnd = random(703);
@@ -103,10 +120,11 @@ export async function renderTrack(id, { sampleRate = 24000, Offline = globalThis
     out.set(source.subarray(frames, frames * 2));
     for (const value of out) { peak = Math.max(peak, Math.abs(value)); energy += value * value; }
   }
-  const rms = Math.sqrt(energy / (frames * 2)), gain = Math.min(0.8 / Math.max(0.0001, peak), 0.115 / Math.max(0.0001, rms));
+  const rms = Math.sqrt(energy / (frames * 2)), gain = Math.min(0.65 / Math.max(0.0001, peak), 0.075 / Math.max(0.0001, rms));
   for (let channel = 0; channel < 2; channel++) {
     const out = buffer.getChannelData(channel); for (let i = 0; i < out.length; i++) out[i] *= gain;
   }
+  alignLoopSeam(buffer);
   return { id, buffer, score, peak: peak * gain, rms: rms * gain, bytes: frames * 2 * 4 };
 }
 
@@ -128,7 +146,8 @@ export function alignLoopSeam(buffer) {
 }
 
 export async function loadTrackAssets(id, context) {
-  const score = buildScore(id);
+  // Original recordings remain available to the archive audit and development tools.
+  const score = buildArchiveScore(id);
   let lastError;
   // Vorbis has a defined sample length. PCM WAV is the fallback for browsers without an Ogg decoder.
   for (const extension of ['ogg','wav']) {
@@ -143,6 +162,21 @@ export async function loadTrackAssets(id, context) {
     } catch (error) { lastError = error; }
   }
   throw lastError;
+}
+
+export async function loadQuietTrack(id, context) {
+  const score=buildScore(id);
+  try {
+    const response=await fetch(new URL('../assets/music/quiet/'+id+'.ogg',import.meta.url));
+    if(!response.ok)throw new Error('Quiet recording unavailable: '+response.status);
+    const buffer=await context.decodeAudioData(await response.arrayBuffer());
+    if(Math.abs(buffer.duration-score.seconds)>.02)throw new Error('Unexpected quiet loop length');
+    alignLoopSeam(buffer);
+    return {id,buffer,score,bytes:buffer.length*buffer.numberOfChannels*4};
+  } catch {
+    // Browsers without Vorbis can render the identical score once, then use the same loop path.
+    return renderTrack(id);
+  }
 }
 
 // The continuous audio clock owns playback. Drawing, chunk builds and timer jitter never schedule notes.
@@ -205,7 +239,7 @@ export function createJourneyMusic(options = {}) {
       if (disposed || id !== selected || !enabled || hidden) return null;
       // Evict an unused loop before decoding another, keeping the live pair bounded.
       for (const key of cache.keys()) if (key !== active?.track.id) cache.delete(key);
-      const track = await (options.loadTrack || loadTrackAssets)(id, context);
+      const track = await (options.loadTrack || loadQuietTrack)(id, context);
       if (!disposed && id === selected && enabled) {
         cache.set(id, track);
         while (cache.size > 2) cache.delete([...cache.keys()].find(key => key !== id && key !== active?.track.id));

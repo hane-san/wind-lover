@@ -1,4 +1,4 @@
-import { createJourneyMusic, TRACKS } from './journey-music.mjs?v=20261022';
+import { createJourneyMusic, TRACKS } from './journey-music.mjs?v=20261022-quiet';
 import { createRoutePlaylist } from './route-playlist.mjs?v=20261022';
 
 const settings = document.querySelector('#musicSettings');
