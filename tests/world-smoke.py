@@ -68,7 +68,7 @@ def main():
                 let steepest = 0;
                 for (let x = l.a; x <= l.b; x += 16) {
                   const z = w.loopZ(l, x), y = w.loopY(l, x), g = w.ground(x, z, y + 1);
-                  check(!g.water && g.h < y + 1, 'Blocked service road at ' + x);
+                  check(!g.water && g.h < y + 1, 'Blocked service road at ' + x + ' floor=' + g.h + ' expected=' + y + ' water=' + g.water);
                   check(g.h >= y - 0.1, 'Missing service road surface at ' + x);
                   steepest = Math.max(steepest, Math.abs(w.loopY(l, x + 1) - y));
                 }
@@ -121,7 +121,7 @@ def main():
                   if (!w.P.grounded) airborne++;
                 }
                 if (!Number.isFinite(w.P.pos.x + w.P.pos.y + w.P.pos.z) || w.P.pos.x < start + 1000 || w.P.stalled)
-                  throw Error('Unable to drive through ' + start);
+                  throw Error('Unable to drive through ' + start + JSON.stringify({pos:w.P.pos.toArray(),hull:w.P.hull,stalled:w.P.stalled,vel:w.P.vel.toArray()}));
                 results.push({start, travelled: w.P.pos.x - start, airborneSeconds: airborne / 120, hull: w.P.hull});
               }
               return results;
@@ -142,9 +142,11 @@ def main():
                 }''', x)
                 assert result == {'chunks': 25, 'finds': 1}, result
             # Existing single-world previews must remain independent of the journey.
+            page.locator('#worldCards2').evaluate('e=>e.closest("details").open=true')
             page.locator('#worldCards2 button').filter(has_text='雪の峠').click(timeout=120000)
             assert page.evaluate('__wl.railway(18800, __wl.railZ(18800)).d === Infinity')
             page.locator('#btnMenu').click()
+            page.locator('#worldCards2').evaluate('e=>e.closest("details").open=true')
             page.locator('#worldCards2 button').filter(has_text='廃線をたどる120km').click(timeout=120000)
             assert page.evaluate('__wl.railway(18800, __wl.railZ(18800)).d < 0.001')
             if args.screenshots:

@@ -47,7 +47,9 @@ Mood: melancholy and beautiful. Wide pale skies whose colours drift, Soviet ruin
 - The machine hugs the ground: it snaps to terrain when the gap is under 1.1 + 0.03·v m. Normal launches are capped at a vertical speed of 10 m/s. Long glides happen only at top speed off real edges. "空は飛びすぎない".
 - Ground contact is visible. A spring suspension on the chassis takes vertical jolts. On asphalt you feel a fine buzz (about 1 cm). Off-road you get coarse bumps and pitch chatter (about 2–3 cm, growing with speed). A camera share and a compass needle that shivers carry the feel through. In the air the chassis hangs slightly.
 - Camera: wide and pulled back. The rider is small, with lots of sky. FOV opens with speed.
-- Enemy-round collision uses a 0.65 m core, 0.45 m above `P.pos`, rather than the old roughly 2.4 m sphere. Collision sweeps the relative movement of rider and round between frames. Grazes within 4.5 m reward flow and gauge once per round, without slowing the machine. Solid-prop collision padding is 0.35 m; walls and roofs remain physical.
+- Enemy-round collision uses a 0.32 m core, 0.45 m above `P.pos`, rather than the old roughly 2.4 m sphere. Collision sweeps the relative movement of rider and round between frames. Grazes within 3.8 m reward flow and gauge once per round, without slowing the machine. Solid-prop collision padding is 0.35 m; walls and roofs remain physical.
+
+The three featured itineraries, nine geometric patterns, road audits and audio refinements are specified in [FEATURED-JOURNEYS.md](FEATURED-JOURNEYS.md). Its newer values supersede the earlier tuning figures below.
 
 ## Map (journey mode)
 
@@ -114,7 +116,7 @@ Some hostile formations come straight up the road at you (`mode: 'assault'`). On
   5. A sweeping spiral.
   6. A staggered double curtain.
 - Grazing a round (passing within about 5 m without being hit) gives a bright chime that climbs with a run of grazes, a spark, and a little flow.
-- Bullets use a fixed 3,600-slot buffer and one points draw. Ground-culling queries are staggered over 0.14 s; precise hit testing still runs every frame. Graze feedback is rate-limited separately from rewards. Sustained frame pressure gradually lowers render resolution to a minimum pixel ratio of 0.75; after sustained headroom it recovers. Physics and bullet density stay the same across quality levels.
+- Bullets use a fixed 4,608-slot buffer and one points draw. Ground-culling queries are staggered over 0.14 s; precise hit testing still runs every frame. Graze feedback is rate-limited separately from rewards. Sustained frame pressure gradually lowers render resolution to a minimum pixel ratio of 0.75; after sustained headroom it recovers. Physics and bullet density stay the same across quality levels.
 - With the turret up, these formations are the natural prey. Its 560 m forward reach usually starts the chain before they settle.
 
 ## The turret
@@ -145,7 +147,7 @@ Speed, three hull pips, a single warning line, a red vignette, and a retro brass
 
 ## Journey music
 
-Four original looping compositions combine melancholy and nostalgia with momentum and open sky. The menu has independent BGM on/off, song selection and volume; the first visit starts with music off. Choices persist locally. Music and sound effects share one audio context with separate gain paths. A playing song continues while the next asset loads, then the two crossfade over 0.9 seconds. Opening the menu never restarts the song. See `MUSIC.md` for the track list, implementation and audit notes.
+Four original looping compositions combine melancholy and nostalgia with momentum and open sky. The menu has independent BGM on/off, song selection and volume; the first visit enables music, which starts on the departure gesture. Choices persist locally. Music and sound effects share one audio context with separate gain paths. A playing song continues while the next asset loads, then the two crossfade over 0.9 seconds. Opening the menu never restarts the song. See `MUSIC.md` for the track list, implementation and audit notes.
 
 ## Roadmap (not built yet)
 

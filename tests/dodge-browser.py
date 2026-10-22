@@ -67,14 +67,14 @@ try:
           reset();P.invuln=1;q.shoot(P.pos.clone().add(new THREE.Vector3(5,.45,0)),new THREE.Vector3(-200,0,0),[1,.5,.2]);q.updateBullets(.05);
           check(P.hull===3,'Invulnerability was ignored');
           const patterns=[];
-          for(let pat=0;pat<6;pat++){
+          for(let pat=0;pat<w.combat.patternNames.length;pat++){
             reset();const x=17000;P.pos.set(x,w.railY(x)+1,w.railZ(x));
             const f={pos:P.pos.clone().add(new THREE.Vector3(230,26,0)),pat,pending:[]};q.assaultVolley(f);
             const rounds=q.rounds.map(b=>({p:b.p,v:b.v,delay:0})).concat(f.pending.map(b=>({p:b.p.toArray(),v:b.v.toArray(),delay:b.at-q.time})));
-            check(rounds.length >= [44,41,40,40,36,80][pat],'Insufficient density in pattern '+pat);
-            const targets=rounds.map(b=>b.p[2]+b.v[2]*(230/72)-P.pos.z);
+            check(rounds.length >= [44,41,40,40,36,80,120,100,140][pat],'Insufficient density in pattern '+pat);
+            const targets=rounds.map(b=>{const flight=230/(60-b.v[0]);return {z:b.p[2]+b.v[2]*flight-P.pos.z,y:b.p[1]+b.v[1]*flight-P.pos.y-.45};}).filter(p=>Math.abs(p.y)<w.combat.hitRadius+.35).map(p=>p.z);
             const safe=[];let run=0,longest=0;for(let z=-12;z<=12;z+=.2){if(targets.every(a=>Math.abs(a-z)>w.combat.hitRadius+.3)){safe.push(z);run++;longest=Math.max(longest,run);}else run=0;}
-            if(pat===0||pat===5)check(longest*.2>5,'A curtain closed every route through the road');
+            if(pat===0||pat===5||pat>=6)check(longest*.2>5,'A curtain closed every route through the road');
             patterns.push({pat,rounds:rounds.length,safeRoadMetres:safe.length*.2,longestRoadGap:longest*.2});
           }
           // Queued rows are cancelled by shelter and attack-off, including after a fire command.
@@ -136,11 +136,15 @@ try:
           q.clearDrones();q.assaultVolley({pos:w.P.pos.clone().add(new THREE.Vector3(230,26,0)),pat:0,pending:[]});q.updateBullets(2.1);document.querySelector('#menuSheet').hidden=true;window.__wlCam=(c)=>{c.position.set(w.P.pos.x-15,w.P.pos.y+4,w.P.pos.z);c.lookAt(w.P.pos.x+110,w.P.pos.y+4,w.P.pos.z)};}''')
         page.wait_for_timeout(500)
         page.screenshot(path=str(args.out / 'incoming-curtain.png'))
+        for pattern in [6,7,8]:
+            page.evaluate('''pat=>{const w=__wl,q=__qa;q.clearDrones();w.P.grounded=false;q.assaultVolley({pos:w.P.pos.clone().add(new THREE.Vector3(280,26,0)),pat,pending:[]});const f=w.forms; q.updateBullets(1.7);}''',pattern)
+            page.wait_for_timeout(250)
+            page.screenshot(path=str(args.out / ('geometry-'+str(pattern)+'.png')))
         assert not errors, errors
         result = {'combat': combat, 'drivingDodge': dodge, 'performance': performance, 'pageErrors': errors}
         (args.out / 'dodge-result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2))
         browser.close()
-        print('PASS: small swept hit area, rewarding grazes, six open patterns, streaming and bounded CPU work.', flush=True)
+        print('PASS: small swept hit area, rewarding grazes, nine open patterns, streaming and bounded CPU work.', flush=True)
 finally:
     server.shutdown()
     server.server_close()

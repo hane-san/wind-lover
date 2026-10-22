@@ -151,7 +151,7 @@ export function createJourneyMusic(options = {}) {
   const prefix = options.keyPrefix || 'windlover.journey-music.v1';
   const read = (key, fallback) => { try { const value = storage?.getItem(prefix + '.' + key); return value === null || value === undefined ? fallback : JSON.parse(value); } catch { return fallback; } };
   const save = (key, value) => { try { storage?.setItem(prefix + '.' + key, JSON.stringify(value)); } catch {} };
-  let enabled = read('enabled', false) === true, selected = read('track', TRACKS[0].id), volume = read('volume', 0.6);
+  let enabled = read('enabled', true) === true, selected = read('track', TRACKS[0].id), volume = read('volume', 0.6);
   if (!TRACKS.some(t => t.id === selected)) selected = TRACKS[0].id;
   if (typeof volume !== 'number' || !Number.isFinite(volume)) volume = 0.6;
   volume = clamp(volume, 0, 1);
@@ -175,7 +175,7 @@ export function createJourneyMusic(options = {}) {
     if (!master) {
       master = context.createGain(); master.gain.value = volume * 0.7;
       const limiter = context.createDynamicsCompressor(); limiter.threshold.value = -8; limiter.knee.value = 6; limiter.ratio.value = 4;
-      master.connect(limiter); limiter.connect(options.destination || context.destination);
+      master.connect(limiter); limiter.connect(options.getDestination?.() || options.destination || context.destination);
     }
     return context;
   }

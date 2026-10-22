@@ -33,16 +33,17 @@ try:
       localStorage.setItem('windlover.shells','false');
       window.audioProbe={contexts:[],starts:[]};
       const Native=window.AudioContext,connect=AudioNode.prototype.connect,start=AudioBufferSourceNode.prototype.start;
-      window.AudioContext=class extends Native{constructor(...args){super(...args);this.capture=this.createMediaStreamDestination();audioProbe.contexts.push(this);}};
+      window.AudioContext=class extends Native{constructor(...args){super(...args);this.capture=this.createMediaStreamDestination();audioProbe.contexts.push(this);}createBuffer(...args){const b=super.createBuffer(...args);if(args[0]===1&&args[1]===this.sampleRate*2)this.noiseLoop=b;return b;}};
       AudioNode.prototype.connect=function(dest,...rest){const result=connect.call(this,dest,...rest);if(dest===this.context.destination&&this.context.capture)connect.call(this,this.context.capture);return result;};
-      AudioBufferSourceNode.prototype.start=function(...args){if(this.loop&&this.buffer?.duration>30)audioProbe.starts.push(this.buffer.duration);return start.apply(this,args);};
+      AudioBufferSourceNode.prototype.start=function(...args){if(this.loop&&this.buffer?.duration>30){audioProbe.starts.push(this.buffer.duration);if(audioProbe.wrapSeams)args[1]=this.buffer.duration-.55;}return start.apply(this,args);};
     ''')
     url=f'http://127.0.0.1:{server.server_port}/'
     page.goto(url,wait_until='load',timeout=120000)
     page.wait_for_function('window.__wl && window.__wlMusic',timeout=120000)
-    assert page.evaluate('!__wlMusic.state.enabled && audioProbe.contexts.length===0')
-    assert len(requests)==0,'Disabled BGM must not download music'
+    assert page.evaluate('__wlMusic.state.enabled && audioProbe.contexts.length===0')
+    assert len(requests)==0,'Default-on BGM must wait for a user gesture'
     assert page.locator('#musicTrack option').count()==4
+    page.route('**/assets/music/rust-horizon.ogg',lambda r:r.fulfill(body=b'invalid codec',content_type='audio/ogg'))
     page.locator('#btnGo').click(timeout=120000)
     page.wait_for_function('__wl.P.dist>2',timeout=60000)
     page.locator('#btnMenu').click()
@@ -52,13 +53,12 @@ try:
     page.locator('#musicTrack').focus();page.keyboard.press('ArrowDown');page.keyboard.press('Enter')
     assert page.evaluate('__wl.inp.ky')==before
     page.select_option('#musicTrack','rust-horizon')
-    page.route('**/assets/music/rust-horizon.ogg',lambda r:r.fulfill(body=b'invalid codec',content_type='audio/ogg'))
-    page.locator('#musicToggle').click()
     page.wait_for_function('__wlMusic.state.status==="playing"',timeout=60000)
     page.wait_for_timeout(1100)
     assert any(r.endswith('rust-horizon.wav') for r in requests),'PCM fallback must work at the Pages-relative path'
     page.unroute('**/assets/music/rust-horizon.ogg')
     assert page.evaluate('audioProbe.contexts.length===1 && !__wlMusic.inspect().ownContext')
+    assert page.evaluate('(()=>{const d=audioProbe.contexts[0].noiseLoop.getChannelData(0);return Math.abs(d[0]-d[d.length-1])<1e-6;})()'), 'The looping wind has an unmatched join'
     assert page.evaluate('__wlAudio.soundOn')
     page.locator('#menuSound').click()
     assert page.evaluate('!__wlAudio.soundOn && __wlMusic.inspect().voices===1')
@@ -76,10 +76,11 @@ try:
     page.wait_for_timeout(1100);page.unroute('**/assets/music/glass-current.ogg')
     page.wait_for_function('__wlMusic.inspect().voices===1',timeout=15000)
 
+    page.evaluate('audioProbe.wrapSeams=true')
     page.evaluate('''()=>{const chunks=[];const r=new MediaRecorder(audioProbe.contexts[0].capture.stream,{mimeType:'audio/webm;codecs=opus'});r.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};window.musicRecording={r,chunks,stopped:new Promise(resolve=>r.onstop=resolve)};r.start();}''')
     page.wait_for_timeout(600)
     page.evaluate('''()=>{const end=performance.now()+1600;while(performance.now()<end){};}''')
-    for track in ['blue-viaduct','last-caravan','rust-horizon']:
+    for track in ['blue-viaduct','glass-current','last-caravan','rust-horizon']:
       page.select_option('#musicTrack',track)
       page.wait_for_function('(id)=>__wlMusic.inspect().playingTrack===id',arg=track,timeout=60000)
       page.wait_for_timeout(1100)
@@ -91,6 +92,7 @@ try:
     measured=pcm[24000:-4800]
     rms=[float(np.sqrt(np.mean(measured[i:i+2400]**2))) for i in range(0,len(measured)-2400,2400)]
     assert min(rms)>.001,{'minimumRMS':min(rms)}
+    assert float(np.max(np.abs(np.diff(measured,axis=0))))<.3,'An abrupt click was present in the recorded output'
     # A cancelled request cannot restart the music after OFF.
     held=[];page.route('**/assets/music/glass-current.ogg',lambda r:held.append(r))
     page.select_option('#musicTrack','glass-current');page.wait_for_function('__wlMusic.state.status==="switching"')
@@ -115,7 +117,7 @@ try:
     page.wait_for_function('(distance)=>__wl.P.dist>distance+2',arg=distance,timeout=60000)
     assert page.evaluate('Number.isFinite(__wl.P.pos.x+__wl.P.pos.y+__wl.P.pos.z)')
     assert not errors,errors
-    result={'fallback':True,'sharedContext':True,'menuDoesNotRestart':True,'outgoingContinuesDuringLoad':True,'offDuringLoad':True,'persistentSettings':True,'drivingWithMusic':True,'recordedSeconds':len(pcm)/24000,'minimum100msRMS':min(rms),'mainThreadStallSeconds':1.6,'pageErrors':errors}
+    result={'defaultOn':True,'loopWrapsRecorded':True,'windSeamMatched':True,'maximumOutputStep':float(np.max(np.abs(np.diff(measured,axis=0)))),'fallback':True,'sharedContext':True,'menuDoesNotRestart':True,'outgoingContinuesDuringLoad':True,'offDuringLoad':True,'persistentSettings':True,'drivingWithMusic':True,'recordedSeconds':len(pcm)/24000,'minimum100msRMS':min(rms),'mainThreadStallSeconds':1.6,'pageErrors':errors}
     (args.out/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
     print('PASS:',json.dumps(result),flush=True)
     browser.close()

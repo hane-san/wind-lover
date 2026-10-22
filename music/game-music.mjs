@@ -24,7 +24,7 @@ for (const track of TRACKS) {
   option.value = track.id; option.textContent = track.title;
   select.append(option);
 }
-const music = createJourneyMusic({ getContext: () => window.__wlAudio?.getContext(), onChange: show });
+const music = createJourneyMusic({ getContext: () => window.__wlAudio?.getContext(), getDestination: () => window.__wlAudio?.getDestination(), onChange: show });
 toggle.addEventListener('click', () => {
   if (music.state.enabled && music.state.status === 'unavailable') music.unlock();
   else music.setEnabled(!music.state.enabled);
@@ -33,8 +33,8 @@ select.addEventListener('change', () => music.select(select.value));
 volume.addEventListener('input', () => music.setVolume(Number(volume.value) / 100));
 
 // Unlock only on deliberate gestures. Opening the menu or changing a world never restarts a playing loop.
-for (const id of ['btnGo', 'btnRandom', 'btnMenu', 'menuClose']) {
-  document.getElementById(id)?.addEventListener('click', () => { if (music.state.enabled) music.unlock(); });
-}
+document.addEventListener('click', event => {
+  if (event.target.closest('[data-journey-route], #btnGo, #btnRandom, #btnMenu, #menuClose') && music.state.enabled) music.unlock();
+}, true);
 show(music.state); settings.disabled = false;
 window.__wlMusic = music;

@@ -34,7 +34,7 @@ The file is split by `// ------ name` section headers. Search for the header to 
 | walls | `wallImpact(nx,nz)`: a crash when more than `WALL_CRASH` m/s goes into the wall, otherwise a scrape. `tunnelWalls()` handles side walls and roof in galleries, tunnels and the hangar, and sets `P.inTunnel` |
 | bombardment | shells aimed at you (`SAFE` speed), the barrage when you stop, `die`, `arrive`, `retry`, `routeHeat` |
 | engine | stall, crank race, backfire, smoke, sparks |
-| drones | formations (V, ring, wave, helix), modes (pass, chase, flyby, assault), dense readable volleys, `updateBullets` with swept relative collision and a 0.65 m rider core. See `docs/DODGE.md`. |
+| drones | formations (V, ring, wave, helix), modes (pass, chase, flyby, assault), dense readable volleys, `updateBullets` with swept relative collision and a 0.32 m rider core. See `docs/DODGE.md`. |
 | camera & visuals | `MOODS` sky cycle, `updatePalette` (biome blend, moving sun, altitude sky), `updateVisuals` (camera, suspension, lean, effects) |
 | audio | `sfx`: procedural WebAudio (engine, wind, carve hiss, scrape, booms); `music/game-music.mjs` connects the menu to `createJourneyMusic`, sharing the SFX context through `__wlAudio` but keeping gains independent. See `docs/MUSIC.md`. |
 | UI | toast, HUD, compass (`updateCompass`), menu, start, over and tune sheets |
@@ -62,3 +62,9 @@ The scratchpad harness uses Playwright with the preinstalled Chromium:
 4. Check for `pageerror`, take screenshots and `Read` them.
 
 SwiftShader runs slower than real time (dt is clamped to 0.05 s), so measure sim-time distances and don't rely on wall-clock speeds.
+
+## Featured itineraries (21 October 2026)
+
+Read `docs/FEATURED-JOURNEYS.md` for current route, steering, bullet and audio tuning. `world/featured-routes.js` is a classic script loaded before the core: it owns sampled mountain/lake paths and their spatial index. `prepareFeaturedElevations` joins nearby legacy decks; keep lake endpoints identical after height changes. `rideRoute` chooses the closest suitable road, so one itinerary never attracts a rider already on another. Featured curve assistance remembers the chosen lateral offset; strong steering still wins.
+
+Run `node tests/featured-routes.test.mjs` and `python tests/featured-browser.py --three /path/to/three.min.js`. The latter audits physical/rendered surfaces and long route drives, as well as menu access and screenshots. The music browser test now covers default-on gesture playback and records actual loop wraps; the wind source join and shared output also require preservation.
