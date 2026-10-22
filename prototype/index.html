@@ -303,7 +303,8 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="../world/featured-routes.js"></script>
 <script src="../world/horse-gait.js?v=20261022-tall"></script>
-<script src="../world/horse-sound.js?v=20261022-pakara"></script>
+<script src="../world/horse-sound.js?v=20261022-wake"></script>
+<script src="../world/horse-wake.js?v=20261022-wake"></script>
 <script src="../world/travel-camera.js?v=20261022-tall"></script>
 <script>
 'use strict';
@@ -3224,6 +3225,7 @@ const DUST_N = 520, dust = Array.from({ length: DUST_N }, () => ({ p: new V3(0, 
 const dustGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(DUST_N * 3), 3));
 const dustMat = new THREE.PointsMaterial({ size: 1.1, map: dotTex, transparent: true, depthWrite: false, color: 0xffffff, opacity: 0.32 });
 const dustPts = new THREE.Points(dustGeo, dustMat); dustPts.frustumCulled = false; scene.add(dustPts);
+const horseWake = WindHorseWake.create(THREE, scene, dotTex);
 let dustI = 0;
 function emitDust(p, v, n, spread) {
   for (let i = 0; i < n; i++) {
@@ -3254,6 +3256,7 @@ const homeX = () => biomeMode === 'journey' ? BASE_X - BASE_LEN / 2 + 14 : 0;
 function startPose() { return Math.atan2(1, hwZd(0, homeX())); }
 function placeHome(speed) { const x = homeX(); P.pos.set(x, 0, hwZ(0, x)); updateChunks(true); placeAt(x, hwZ(0, x), startPose(), speed); P.stalled = false; P.reached = false; }
 function placeAt(x, z, yaw, speed) {
+  horseWake.clear();
   WindTravelCamera.reset(travelCam);
   const g = ground(x, z, Infinity);
   P.pos.set(x, g.h + HOVER + 0.5, z); P.yaw = yaw; P.grind = null; P.grounded = false; P.air = 0.01; P.n.copy(g.n);
@@ -4683,6 +4686,16 @@ function updateVisuals(dt) {
   shadow.quaternion.setFromUnitVectors(UP, sg.n);
 
   player.updateMatrixWorld(true);
+  // Let each planted hoof leave a brief, low wake; scenery keeps the open sky.
+  if(!MD.legs||!started||P.dead)horseWake.clear();
+  horseWake.update(dt);
+  if(MD.legs&&started&&!P.dead&&!paused&&P.grounded&&dt>0){
+    for(const event of MD.motion.beats){
+      MD.legs[event.leg].hoof.getWorldPosition(tmp);
+      tmp.y=ground(tmp.x,tmp.z,P.pos.y).h+.04;
+      horseWake.emit(tmp,P.vel,P.onWater?UPC:P.onRoad?ROADDUST:pal.dust,event.weight*(P.onRoad?.76:1),P.onWater,event.age);
+    }
+  }
   MD.scarf.getWorldPosition(scarfPts[0]);
   for (let i = 1; i < SCARF_N; i++) {
     const p = scarfPts[i], prev = scarfPts[i - 1];
@@ -5046,6 +5059,7 @@ function pickWorld(k) {
 }
 function setVehicle(k) {
   if (!VEHICLES[k]) return;
+  horseWake.clear();
   WindTravelCamera.reset(travelCam);
   vehKey = k; store.set('windlover.vehicle4', k);
   if(k==='horse') {
