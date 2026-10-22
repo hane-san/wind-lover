@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 await import('../world/horse-gait.js');
 const g=globalThis.WindHorseGait;
-test('powerful strides cap cadence, and simulation frame rates preserve the rhythm',()=>{
-  assert.ok(g.cadence(40)>1.6&&g.cadence(40)<1.9);
-  assert.ok(g.cadence(500)<=2.1);
+test('unhurried four-beat strides cap cadence, and simulation frame rates preserve the rhythm',()=>{
+  assert.ok(g.cadence(40)>1.5&&g.cadence(40)<1.6);
+  assert.ok(g.cadence(500)<=1.74);
   const cycles=[];
   for(const fps of [20,30,60,120]){const s=g.create();for(let i=0;i<fps*10;i++)g.advance(s,1/fps,80,true);cycles.push(s.cycles);}
   assert.ok(Math.max(...cycles)-Math.min(...cycles)<.04,JSON.stringify(cycles));

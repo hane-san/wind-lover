@@ -41,8 +41,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   position: fixed; z-index: 5; pointer-events: none; text-shadow: var(--shadow);
   left: calc(env(safe-area-inset-left, 0px) + 18px); top: calc(env(safe-area-inset-top, 0px) + 14px);
 }
-.speed { display: flex; align-items: baseline; gap: 5px; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
-.speed b { font-size: 30px; font-weight: 600; line-height: 1; letter-spacing: 0.01em; }
+.speed { display: flex; align-items: baseline; gap: 5px; opacity: 0.72; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.speed b { font-size: 23px; font-weight: 600; line-height: 1; letter-spacing: 0.01em; }
 .speed small { font-size: 10px; letter-spacing: 0.18em; color: var(--muted); }
 .gauge { margin-top: 7px; width: 72px; height: 2px; background: rgba(255, 255, 255, 0.28); box-shadow: var(--shadow); }
 .gauge i { display: block; height: 100%; width: 40%; background: #fff; }
@@ -70,7 +70,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   font-size: 12px; font-weight: 700; letter-spacing: 0.2em; color: #ffd6c8; white-space: nowrap;
   padding: 3px 10px; border-top: 1px solid #e0573d; border-bottom: 1px solid #e0573d; background: rgba(120, 30, 20, 0.28); text-shadow: var(--shadow);
 }
-#grain { position: fixed; inset: -20px; z-index: 2; pointer-events: none; opacity: 0.075; mix-blend-mode: overlay; background-size: 160px 160px; }
+#grain { position: fixed; inset: -20px; z-index: 2; pointer-events: none; opacity: 0.035; mix-blend-mode: overlay; background-size: 160px 160px; }
 #warmth { position: fixed; inset: 0; z-index: 2; pointer-events: none; background: radial-gradient(ellipse at 50% 42%, rgba(255, 240, 220, 0) 55%, rgba(92, 66, 44, 0.22) 100%), linear-gradient(180deg, rgba(255, 236, 214, 0.06), rgba(255, 220, 190, 0.08)); }
 #flash { position: fixed; inset: 0; z-index: 3; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0) 45%, rgba(255, 252, 240, 0.85) 100%); }
 #vignette { position: fixed; inset: 0; z-index: 3; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at 50% 55%, rgba(0, 0, 0, 0) 52%, rgba(170, 36, 20, 0.55) 100%); }
@@ -302,8 +302,8 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="../world/featured-routes.js"></script>
-<script src="../world/horse-gait.js?v=20261022-charge"></script>
-<script src="../world/horse-sound.js?v=20261022-charge"></script>
+<script src="../world/horse-gait.js?v=20261022-quiet"></script>
+<script src="../world/horse-sound.js?v=20261022-quiet"></script>
 <script>
 'use strict';
 (() => {
@@ -872,6 +872,10 @@ function adaptResolution(dt, frameMs) {
   else if (quality.cooldown <= 0 && quality.fast > 6) next = Math.min(ceiling, next + 0.1);
   if (Math.abs(next - quality.ratio) > 0.01) { quality.ratio = next; renderer.setPixelRatio(next); quality.cooldown = 3; quality.slow = quality.fast = 0; }
 }
+// A single in-material grade avoids a full-screen render target on mobile.
+// Threat sprites keep their own high-contrast colours; world surfaces keep local colour differences.
+const journeyGrade = 'float jl = dot(gl_FragColor.rgb, vec3(0.2126,0.7152,0.0722)); gl_FragColor.rgb = mix(vec3(jl),gl_FragColor.rgb,0.68)*0.93 + vec3(0.026,0.032,0.035);';
+THREE.ShaderChunk.fog_fragment += '\n#ifdef USE_FOG\n' + journeyGrade + '\n#endif\n';
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.3, 12000);
 scene.add(camera);
@@ -901,9 +905,9 @@ const skyMat = new THREE.ShaderMaterial({
   vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: `uniform vec3 top; uniform vec3 hor; uniform vec3 bot; uniform vec3 sunCol; uniform vec3 sunDir; varying vec3 vDir;
     void main(){ vec3 d = normalize(vDir); float h = d.y; vec3 c = h > 0.0 ? mix(hor, top, pow(clamp(h,0.0,1.0), 0.55)) : mix(hor, bot, clamp(-h*4.0,0.0,1.0));
-    float s = max(dot(d, normalize(sunDir)), 0.0); c += sunCol * (pow(s, 900.0) * 1.4 + pow(s, 14.0) * 0.22 + pow(s, 3.0) * 0.07);
+    float s = max(dot(d, normalize(sunDir)), 0.0); c += sunCol * (pow(s, 900.0) * 0.5 + pow(s, 14.0) * 0.12 + pow(s, 3.0) * 0.045);
     c = mix(c, hor * 1.04 + sunCol * 0.04, exp(-abs(h) * 16.0) * 0.55);
-    gl_FragColor = vec4(c, 1.0); }`,
+    gl_FragColor = vec4(c, 1.0); ${journeyGrade} }`,
   side: THREE.BackSide, depthWrite: false,
 });
 const sky = new THREE.Mesh(new THREE.SphereGeometry(9000, 32, 16), skyMat);
@@ -961,7 +965,7 @@ class Merger {
 }
 const shade = (hex, k) => new THREE.Color(hex).multiplyScalar(k).getHex();
 const terrainMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: detailTex });
-const waterMat = new THREE.MeshPhongMaterial({ color: 0x5a9cc8, shininess: 90, specular: 0xffffff, transparent: true, opacity: 0.86 });
+const waterMat = new THREE.MeshPhongMaterial({ color: 0x5a9cc8, shininess: 28, specular: 0xb5beb9, transparent: true, opacity: 0.86 });
 const waterGeo = new THREE.PlaneGeometry(CH, CH).rotateX(-Math.PI / 2);
 const propMat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 6 });
 const softMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
@@ -3209,13 +3213,13 @@ class Ribbon {
   }
 }
 const SCARF_N = 16, scarfPts = Array.from({ length: SCARF_N }, () => new V3());
-const scarf = new Ribbon(SCARF_N, ribbonMat(0xd9473b, 1, false));
+const scarf = new Ribbon(SCARF_N, ribbonMat(0x9a5144, 1, false));
 const TRAIL_N = 60, trailPts = Array.from({ length: TRAIL_N }, () => new V3()); let trailCount = 0;
 const trail = new Ribbon(TRAIL_N, ribbonMat(0xffffff, 0.32, true));
 
 const DUST_N = 520, dust = Array.from({ length: DUST_N }, () => ({ p: new V3(0, -9999, 0), v: new V3(), life: 0 }));
 const dustGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(DUST_N * 3), 3));
-const dustMat = new THREE.PointsMaterial({ size: 1.1, map: dotTex, transparent: true, depthWrite: false, color: 0xffffff, opacity: 0.55 });
+const dustMat = new THREE.PointsMaterial({ size: 1.1, map: dotTex, transparent: true, depthWrite: false, color: 0xffffff, opacity: 0.32 });
 const dustPts = new THREE.Points(dustGeo, dustMat); dustPts.frustumCulled = false; scene.add(dustPts);
 let dustI = 0;
 function emitDust(p, v, n, spread) {
@@ -3227,7 +3231,7 @@ function emitDust(p, v, n, spread) {
 const LINES = 80, lineData = [];
 const lineGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(LINES * 6), 3));
 const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, fog: false });
-const speedLines = new THREE.LineSegments(lineGeo, lineMat); speedLines.frustumCulled = false; camera.add(speedLines);
+const speedLines = new THREE.LineSegments(lineGeo, lineMat); speedLines.frustumCulled = false; speedLines.visible = false; camera.add(speedLines);
 for (let i = 0; i < LINES; i++) { const a = Math.random() * TAU, r = 2.2 + Math.random() * 5; lineData.push({ x: Math.cos(a) * r, y: Math.sin(a) * r * 0.7, z: -Math.random() * 40 }); }
 
 // ---------------------------------------------------------------- state
@@ -4491,12 +4495,12 @@ const PALC = BKEYS.map((k) => { const b = BIOMES[k]; return { top: new THREE.Col
 const COLK = ['top', 'hor', 'bot', 'sunCol', 'hemiSky', 'hemiGround', 'sunLight', 'cloud', 'dust'];
 const _wp = newW(); let curDom = -1, domHold = 0;
 const MOODS = [
-  { top: new THREE.Color(0x8e9ccc), hor: new THREE.Color(0xf3d9d2), sun: new THREE.Color(0xffd0bc) }, // rose dawn
-  { top: new THREE.Color(0x7aa0cc), hor: new THREE.Color(0xf2e8cc), sun: new THREE.Color(0xfff0c8) }, // pale gold
-  { top: new THREE.Color(0x9a8fb8), hor: new THREE.Color(0xf4d2b4), sun: new THREE.Color(0xffc49a) }, // amber dusk
-  { top: new THREE.Color(0x8b86c2), hor: new THREE.Color(0xe8d9e8), sun: new THREE.Color(0xf0d8ff) }, // lilac
-  { top: new THREE.Color(0x5f7fae), hor: new THREE.Color(0xc9d6e6), sun: new THREE.Color(0xdfe8ff) }, // blue hour
-  { top: new THREE.Color(0x6ea4b6), hor: new THREE.Color(0xd8ebe6), sun: new THREE.Color(0xe0fff4) }, // teal mist
+  { top: new THREE.Color(0x9299aa), hor: new THREE.Color(0xd6c8c0), sun: new THREE.Color(0xffd0bc) }, // rose dawn
+  { top: new THREE.Color(0x8b9da6), hor: new THREE.Color(0xdad4bf), sun: new THREE.Color(0xfff0c8) }, // pale gold
+  { top: new THREE.Color(0x99939f), hor: new THREE.Color(0xd8c6af), sun: new THREE.Color(0xffc49a) }, // amber dusk
+  { top: new THREE.Color(0x9392a6), hor: new THREE.Color(0xd1c9d0), sun: new THREE.Color(0xf0d8ff) }, // lilac
+  { top: new THREE.Color(0x788797), hor: new THREE.Color(0xc3cbd0), sun: new THREE.Color(0xdfe8ff) }, // blue hour
+  { top: new THREE.Color(0x879f9e), hor: new THREE.Color(0xccd7ce), sun: new THREE.Color(0xe0fff4) }, // teal mist
   { top: new THREE.Color(0x8fa3a0), hor: new THREE.Color(0xe2e6da), sun: new THREE.Color(0xf4f2e0) }, // green-grey haze
   { top: new THREE.Color(0x7f8fa8), hor: new THREE.Color(0xf0d6c4), sun: new THREE.Color(0xffe2cc) }, // faded peach over slate
   { top: new THREE.Color(0x9aa8bc), hor: new THREE.Color(0xe8ecf0), sun: new THREE.Color(0xf4f8ff) }, // cold silver
@@ -4504,7 +4508,7 @@ const MOODS = [
 ];
 const moodTop = new THREE.Color(), moodHor = new THREE.Color(), moodSun = new THREE.Color();
 const SUN_PERIOD = 540;
-const HIGH_TOP = new THREE.Color(0x24489a), HIGH_HOR = new THREE.Color(0xeef3f8); let altK = 0;
+const HIGH_TOP = new THREE.Color(0x626f8d), HIGH_HOR = new THREE.Color(0xeef3f8); let altK = 0;
 function updatePalette(dt, snap) {
   biomeW(P.pos.x, P.pos.z, _wp);
   for (const k of COLK) palT[k].setRGB(0, 0, 0);
@@ -4527,19 +4531,19 @@ function updatePalette(dt, snap) {
   // mood cycle (about 8 minutes): rose dawn, pale gold, lilac, teal mist
   // each stretch of land keeps its own sky, drifting slowly with the hour: ride on and the light changes with the place
   const place = vnoise(P.pos.x / 6500 + 3.7, P.pos.z / 6500 - 1.3, 97) * MOODS.length * 1.6 + vnoise(P.pos.x / 2200, P.pos.z / 2200, 98) * 1.2;
-  const mp = ((place + t / 160) % MOODS.length + MOODS.length) % MOODS.length, mi = Math.floor(mp), mf = smooth(0, 1, mp - mi), A = MOODS[mi], B = MOODS[(mi + 1) % MOODS.length];
+  const mp = ((place + t / 240) % MOODS.length + MOODS.length) % MOODS.length, mi = Math.floor(mp), mf = smooth(0, 1, mp - mi), A = MOODS[mi], B = MOODS[(mi + 1) % MOODS.length];
   moodTop.copy(A.top).lerp(B.top, mf); moodHor.copy(A.hor).lerp(B.hor, mf); moodSun.copy(A.sun).lerp(B.sun, mf);
   const mk = 0.36 + 0.24 * vnoise(P.pos.x / 4000 - 8.1, P.pos.z / 4000 + 2.2, 99);
   skyMat.uniforms.top.value.copy(pal.top).lerp(moodTop, mk); skyMat.uniforms.hor.value.copy(pal.hor).lerp(moodHor, mk); skyMat.uniforms.bot.value.copy(pal.bot).lerp(moodHor, mk * 0.6);
   skyMat.uniforms.sunCol.value.copy(pal.sunCol).lerp(moodSun, mk); skyMat.uniforms.sunDir.value.copy(pal.sunDir).normalize();
   skyMat.uniforms.top.value.lerp(HIGH_TOP, altK * 0.55); skyMat.uniforms.hor.value.lerp(HIGH_HOR, altK * 0.4);
   scene.fog.color.copy(skyMat.uniforms.hor.value); renderer.setClearColor(scene.fog.color);
-  scene.fog.near = lerp(420, 900, altK); scene.fog.far = lerp(4200, 5600, altK);
+  scene.fog.near = lerp(280, 650, altK); scene.fog.far = lerp(3700, 5100, altK);
   rangeMat.color.setScalar(0.62); rangeMat.emissive.copy(scene.fog.color).multiplyScalar(0.42 - altK * 0.12);
-  hemi.color.copy(pal.hemiSky); hemi.groundColor.copy(pal.hemiGround); hemi.intensity = pal.hemiI;
+  hemi.color.copy(pal.hemiSky); hemi.groundColor.copy(pal.hemiGround); hemi.intensity = pal.hemiI * .91;
   { let r = 0, g = 0, bl = 0; for (let i = 0; i < NB; i++) { const w = _wp[i]; if (!w) continue; r += PAL[i].water[0] * w; g += PAL[i].water[1] * w; bl += PAL[i].water[2] * w; } waterMat.color.setRGB(r, g, bl); }
-  sun.color.copy(pal.sunLight).lerp(moodSun, mk * 0.6); sun.intensity = pal.sunI; sun.position.copy(pal.sunDir).normalize();
-  for (const c of clouds) c.material.color.copy(pal.cloud);
+  sun.color.copy(pal.sunLight).lerp(moodSun, mk * 0.6); sun.intensity = pal.sunI * .78; sun.position.copy(pal.sunDir).normalize();
+  for (const c of clouds) { c.material.color.copy(pal.cloud).lerp(moodHor,.25); c.material.opacity=.62; }
   for (const c of cloudSea) { c.material.color.copy(pal.cloud).lerp(moodHor, 0.3); c.material.opacity = altK * 0.85; c.visible = altK > 0.02; }
   // announce a new land when it clearly takes over
   const d = dominant(_wp);
@@ -4563,27 +4567,27 @@ function updateVisuals(dt) {
     let dA = Math.atan2(Math.sin(ang - la), Math.cos(ang - la)); dA = clamp(dA, -0.32, 0.32);
     lookAng = lerp(lookAng, dA, 1 - Math.exp(-3 * dt));
     // offset-based follow: the camera keeps its place relative to the rider at any speed
-    const dist = S.camDist * (1.1 + sf * 0.24), height = 5.1 + (P.grounded ? 0 : 1.0) + (P.tuck ? -0.3 : 0);
+    const dist = S.camDist * (1.13 + sf * 0.10), height = 4.8 + (P.grounded ? 0 : 1.0) + (P.tuck ? -0.3 : 0);
     tmp2.copy(camDir).multiplyScalar(-dist); tmp2.y = height;
-    const swing = clamp(P.yawRate, -2.2, 2.2) * sf * 1.4; tmp2.x += -camDir.z * swing; tmp2.z += camDir.x * swing;
+    const swing = clamp(P.yawRate, -2.2, 2.2) * sf * 0.45; tmp2.x += -camDir.z * swing; tmp2.z += camDir.x * swing;
     camOff.lerp(tmp2, 1 - Math.exp(-7 * dt));
     camBaseY += (P.pos.y - camBaseY) * (1 - Math.exp(-14 * dt));
     camPos.set(P.pos.x + camOff.x, camBaseY + camOff.y, P.pos.z + camOff.z);
     const gh = ground(camPos.x, camPos.z).h + 1.2; if (camPos.y < gh) camPos.y = gh;
     camera.position.copy(camPos);
-    const rumble = sf * sf * 0.022 + shake;
+    const rumble = sf * sf * 0.006 + shake;
     if (rumble > 0) { camera.position.x += (Math.random() - 0.5) * rumble; camera.position.y += (Math.random() - 0.5) * rumble; }
-    camera.position.y += suspY * 0.18; // the ride comes through to the eye, softened
+    camera.position.y += suspY * 0.08; // the ride comes through to the eye, softened
     shake = Math.max(0, shake - dt * 1.5);
     const lAng = Math.atan2(camDir.x, camDir.z) + lookAng;
     lookSm.set(P.pos.x + Math.sin(lAng) * 52, camBaseY + 0.8, P.pos.z + Math.cos(lAng) * 52);
     const scenic=tourAt(P.pos.x,P.pos.z);
     if(scenic?.path.id==='lake'){const dx=LK.x-P.pos.x,dz=LK.z*funnel(P.pos.x)-P.pos.z,l=Math.hypot(dx,dz)||1;lookSm.x+=dx/l*5;lookSm.z+=dz/l*5;}
     camera.lookAt(lookSm);
-    camera.rotateZ(clamp(P.yawRate, -2, 2) * 0.04 * sf);
+    camera.rotateZ(clamp(P.yawRate, -2, 2) * 0.008 * sf);
   }
   dashPunch = Math.max(0, dashPunch - dt * 2.2);
-  const fov = (portrait ? 72 : 56) + (started ? sf * 14 * S.fovKick + dashPunch * 7 : 0);
+  const fov = (portrait ? 66 : 52) + (started ? sf * 2 * S.fovKick + dashPunch * 0.8 : 0);
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = lerp(camera.fov, fov, 1 - Math.exp(-6 * dt)); applyLens(); }
   sky.position.copy(camera.position);
 
@@ -4644,7 +4648,7 @@ function updateVisuals(dt) {
     if (f.got) continue;
     f.gem.rotation.y += dt * 1.6; f.gem.position.y = f.p.y + Math.sin(t * 2) * 0.3;
     const d = Math.hypot(f.p.x - P.pos.x, f.p.z - P.pos.z);
-    f.pillar.material.opacity = started ? clamp((1650 - d) / 900, 0, 1) * 0.26 : 0;
+    f.pillar.material.opacity = started ? clamp((1650 - d) / 900, 0, 1) * 0.075 : 0;
   }
   for (const L of landmarks.values()) if (L.embers) {
     const E = L.embers; E.seeds.forEach((q, i) => { q.y += q.v * dt; if (q.y > 80) q.y = 0; E.ep[i * 3] = q.x + Math.sin(t * 0.8 + q.w) * q.y * 0.15; E.ep[i * 3 + 1] = E.base + q.y; E.ep[i * 3 + 2] = q.z + Math.cos(t * 0.6 + q.w) * q.y * 0.15; });
@@ -4669,7 +4673,7 @@ function updateVisuals(dt) {
   for (let i = 1; i < SCARF_N; i++) {
     const p = scarfPts[i], prev = scarfPts[i - 1];
     p.y -= (0.8 - sf * 0.6) * dt;
-    p.x += Math.sin(t * 13 + i * 0.8) * 0.015 * (0.3 + sf); p.y += Math.cos(t * 11 + i) * 0.01 * (0.3 + sf);
+    p.x += Math.sin(t * 5 + i * 0.8) * 0.009 * (0.3 + sf); p.y += Math.cos(t * 4 + i) * 0.007 * (0.3 + sf);
     tmp2.subVectors(p, prev); const l = tmp2.length() || 1; p.copy(prev).addScaledVector(tmp2, 0.17 / l);
   }
   scarf.update(scarfPts, SCARF_N, (i) => 0.2 * (1 - i / SCARF_N * 0.6), () => 1, camera.position);
@@ -4679,7 +4683,7 @@ function updateVisuals(dt) {
     for (let i = TRAIL_N - 1; i > 0; i--) trailPts[i].copy(trailPts[i - 1]);
     trailPts[0].copy(tmp); lastTrail.copy(tmp); trailCount = Math.min(TRAIL_N, trailCount + 1);
   }
-  const trailA = started ? clamp((speed - 12) / 30, 0, 1) : 0;
+  const trailA = started && vehKey!=='horse' ? clamp((speed - 12) / 30, 0, 1) * .22 : 0;
   trail.update(trailPts, Math.max(2, trailCount), (i) => 0.2 * (1 - i / TRAIL_N), (i) => (1 - i / TRAIL_N) * trailA, camera.position);
 
   const dp = dustGeo.attributes.position.array;
@@ -4699,7 +4703,7 @@ function updateVisuals(dt) {
     lp[i * 6] = l.x; lp[i * 6 + 1] = l.y; lp[i * 6 + 2] = l.z; lp[i * 6 + 3] = l.x; lp[i * 6 + 4] = l.y; lp[i * 6 + 5] = l.z - len;
   }
   lineGeo.attributes.position.needsUpdate = true;
-  lineMat.opacity = started ? clamp((speed - 26) / 30, 0, 0.5) + dashPunch * 0.35 : 0;
+  lineMat.opacity = 0; // Wind is carried by the grass and floating seeds, not racing streaks.
 
   // wind seeds, recycled in a box around the rider
   for (let i = 0; i < SEEDS; i++) {
@@ -4851,12 +4855,12 @@ const sfx = (() => {
     update(speed, grinding, stream, kind) {
       const bike = kind !== 'board' && kind !== 'horse', low = kind === 'sidecar' ? 0.72 : 1;
       if (!ctx) return; const now = ctx.currentTime;
-      windGain.gain.setTargetAtTime((0.04 + clamp(speed / 80, 0, 1) * 0.42 + (stream ? 0.08 : 0))*(kind==='horse'?.72:1), now, 0.15);
-      bp.frequency.setTargetAtTime(220 + speed * 20, now, 0.15);
+      windGain.gain.setTargetAtTime((0.035 + clamp(speed / 80, 0, 1) * 0.25 + (stream ? 0.045 : 0))*(kind==='horse'?.72:1), now, 0.15);
+      bp.frequency.setTargetAtTime(180 + speed * 11, now, 0.15);
       grindGain.gain.setTargetAtTime(grinding ? 0.045 : 0, now, 0.05);
       eng.a.frequency.setTargetAtTime((30 + speed * 0.75) * low, now, 0.1); eng.b.frequency.setTargetAtTime((15 + speed * 0.38) * low, now, 0.1);
       eng.lfo.frequency.setTargetAtTime(5 + speed * 0.13, now, 0.1); eng.lp.frequency.setTargetAtTime(180 + speed * 5, now, 0.1);
-      eng.g.gain.setTargetAtTime(bike ? 0.05 + clamp(speed / 110, 0, 1) * 0.05 : 0, now, 0.2); eng.lg.gain.setTargetAtTime(bike ? 0.035 : 0, now, 0.2);
+      eng.g.gain.setTargetAtTime(bike ? 0.035 + clamp(speed / 110, 0, 1) * 0.035 : 0, now, 0.2); eng.lg.gain.setTargetAtTime(bike ? 0.025 : 0, now, 0.2);
     },
     hoof(event,hard) { if(ctx&&on)hoofPlayer.play(event,hard); },
     land(v) { burst(180, 0.8, 0.25, 0.25 + v * 0.5); if (v > 0.5) burst(90, 0.6, 0.4, 0.15 * v); },
@@ -5208,7 +5212,7 @@ window.__wl = { musicRegion, setVehicle, get vehicle(){return vehKey;}, tours: T
 window.__wlAudio = { getContext() { sfx.init(); return sfx.context; }, getDestination() { sfx.init(); return sfx.output; }, get soundOn() { return sfx.on; } };
 })();
 </script>
-<script type="module" src="../music/game-music.mjs?v=20261022" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
+<script type="module" src="../music/game-music.mjs?v=20261022-quiet" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
 </body>
 </html>
 
