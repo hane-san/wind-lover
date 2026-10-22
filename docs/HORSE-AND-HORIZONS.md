@@ -1,0 +1,46 @@
+# 馬と遠景、土地に合う音楽（2026-10-22）
+
+「乗り物」の **キルギスの馬** を選ぶと、サイドカーと同じ巡航・最高速度、加速、操舵、当たり判定で走れます。馬の速度はこのゲームの幻想的な設定です。カルパック風の白いフェルト帽、青緑の長衣、赤い帯、既存の羊角文様の鞍敷、革の手綱と鐙を組み合わせています。四肢・膝・首・尾と騎手が走行距離に合わせて動き、エンジン音と排気の代わりに風と蹄の音が聞こえます。タレットは起動できず、他の乗り物から切り替えた際も武器と未着弾の自機弾を解除します。選択は保存されます。
+
+文化的な手がかりは [UNESCOのカルパックの記録](https://ich.unesco.org/en/RL/ak-kalpak-craftsmanship-traditional-knowledge-and-skills-in-making-and-wearing-kyrgyz-men-s-headwear-01496) と [シルダック／アラ・キイズの記録](https://ich.unesco.org/en/RL/ala-kiyiz-and-shyrdak-art-of-kyrgyz-traditional-felt-carpet-making-00693) を参照しています。衣装・馬具を含めたゲーム上の造形は創作で、特定時代の完全な復元ではありません。
+
+## 音楽
+
+既存4曲に、下記のオリジナル8曲を追加しました。
+
+| 曲 | 主な地域 |
+|---|---|
+| 銅色の蜃気楼 | 砂漠 |
+| 忘れられた側線 | 廃線・都市 |
+| 天山を越える風 | 山道 |
+| 雪明かりの峠 | 雪・山道 |
+| イシク・クルの朝凪 | 湖岸 |
+| 湖岸に残る夕映え | 湖岸・都市 |
+| ジャイローの草を分けて | 草原 |
+| フェルトと星の道 | 草原 |
+
+初期の選曲は「おまかせ：この土地に合う曲」。砂漠・山道・湖・草原・都市ごとに4曲の候補があり、訪問時に直前と違う1曲を抽選します。走行中は実際の地形から地域を判定し、12秒以上同じ地域が続いたときに切り替えます。同じ場所でメニューを開くだけでは再抽選しません。手動で曲を選ぶと自動選曲を止め、手動／おまかせのモードも保存します。オン・オフと音量の既存設定は継承します。
+
+`music/scores.mjs` が楽譜、`music/route-playlist.mjs` が選曲です。追加曲は `python tools/render-music.py` でNumPy／SciPyからOggとPCM WAVに書き出せます。Node・FFmpegも使用します。既存4曲の音源は変更しません。各曲は約42〜75秒で、循環した残響・リリース、8msの継ぎ目補正、音量の正規化を済ませています。実行時は既存の音声クロックとクロスフェードを使用し、曲を読み込む間は前の音源が流れ続けます。
+
+## 弾と景色
+
+敵弾の丸い光粒を、濃い外枠と明るい面のある菱形に変更しました。解像度低下時も最小の画面上サイズを保ちます。花弁状の弾幕は二重の菱形に、曲線の織物は角のある折線に変更。九種類の模様と回避できる通路、0.32mの連続当たり判定、グレイズは維持しています。
+
+三つの旅路では、ユルトの集落、バルバル風の石像列と塔、隊商宿、途中が欠けた水道橋を交互の方向・距離へ追加。道路を走り続けても、曲がるにつれて異なる輪郭が視界に入ります。建物は道と廃線から離し、新しい建物の衝突面は各部分に対応させています。常時表示する案内やHUDは増やしません。
+
+草原はセージ色・オリーブ・枯草色、雪は青い陰と暖かな白を、位置から連続的に混ぜます。同じ関数を地面・草・遠景の地面に使い、区画ごとの乱数で色を変える方法は避けています。
+
+## 再検証
+
+```sh
+node --test tests/*.test.mjs
+python tests/travel-upgrade-browser.py --browser /path/to/chromium --three /path/to/three.min.js
+python tests/music-assets-browser.py --browser /path/to/chromium
+python tests/music-browser.py --browser /path/to/chromium --three /path/to/three.min.js
+python tests/featured-browser.py --browser /path/to/chromium --three /path/to/three.min.js
+python tests/dodge-browser.py --browser /path/to/chromium --three /path/to/three.min.js
+python tests/world-smoke.py --browser /path/to/chromium --three /path/to/three.min.js
+```
+
+ブラウザー試験はソフトウェア描画のChromiumを使用します。iPhone/Safari実機での手触り、聴感、発熱時の性能は未確認です。固定の走行条件では馬とサイドカーの位置・速度が一致し、武器起動の抑止、設定保存、草／雪の色差と境界の連続性、遠景各種類、ページエラーがないことを検査します。音源試験は全12曲の長さ・音量・継ぎ目を実デコードし、新曲のWAVフォールバックも検査します。

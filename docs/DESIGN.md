@@ -149,6 +149,8 @@ Speed, three hull pips, a single warning line, a red vignette, and a retro brass
 
 Four original looping compositions combine melancholy and nostalgia with momentum and open sky. The menu has independent BGM on/off, song selection and volume; the first visit enables music, which starts on the departure gesture. Choices persist locally. Music and sound effects share one audio context with separate gain paths. A playing song continues while the next asset loads, then the two crossfade over 0.9 seconds. Opening the menu never restarts the song. See `MUSIC.md` for the track list, implementation and audit notes.
 
+The horse, twelve-track regional music selection, angular rounds and spatial scenery colours are specified in [HORSE-AND-HORIZONS.md](HORSE-AND-HORIZONS.md).
+
 ## Roadmap (not built yet)
 
 1. Home loop: return to the hangar to bank what you found, then upgrade (hull, engine reliability, crank odds, grip, a shield against side entries).
@@ -162,3 +164,4 @@ Four original looping compositions combine melancholy and nostalgia with momentu
 
 - Highway crossings can distort the terrain locally.
 - Mobile performance has not been verified on hardware.
+
