@@ -22,7 +22,7 @@ try:
   page.locator('#featuredTrips [data-journey-route="lake"]').click(timeout=120000);page.locator('#btnMenu').click()
   report=page.evaluate('''()=>{
    const w=__wl,q=__travelQA,check=(v,m)=>{if(!v)throw Error(m)};
-   check(JSON.stringify(q.VEHICLES.horse.defaults)===JSON.stringify(q.VEHICLES.sidecar.defaults),'Different speed defaults');
+   check(q.VEHICLES.horse.defaults.maxSpeed>=116&&q.VEHICLES.horse.accel>q.VEHICLES.sidecar.accel,'Missing horse acceleration upgrade');
    w.setTurret(true);q.updateTurret(.05);check(w.TURRET.state===0&&w.TURRET.k===0,'Horse armed its turret');
    w.setVehicle('sidecar');w.setTurret(true);q.updateTurret(1);check(w.TURRET.state===2,'Existing turret no longer works');
    const target={incoming:2,doomed:true};q.tracers.push({d:target},{d:target});q.chainQ.push({d:target});w.P.stalled=true;
@@ -32,14 +32,16 @@ try:
    const saved=Object.fromEntries(Object.entries(w.P).map(([k,v])=>[k,v instanceof THREE.Vector3?v.clone():v]));
    const restore=()=>{for(const[k,v]of Object.entries(saved)){if(v instanceof THREE.Vector3)w.P[k].copy(v);else w.P[k]=v;}Object.assign(w.inp,{jx:0,jy:0,kx:0,ky:0});};
    const drives=[];for(const kind of ['sidecar','horse']){w.setVehicle(kind);restore();for(let i=0;i<600;i++)w.stepPhysics(1/120);drives.push({kind,pos:w.P.pos.toArray(),speed:w.P.vel.length(),hull:w.P.hull});}
-   check(Math.abs(drives[0].speed-drives[1].speed)<2.5&&drives.every(d=>d.speed>60&&d.hull===3),'Horse lost its established travelling speed');
+   check(drives[1].speed>drives[0].speed+3&&drives.every(d=>d.speed>60&&d.hull===3),'Horse lost its established travelling speed');
    check(q.models.horse.legs.length===4,'Missing horse legs');const rotations=q.models.horse.legs.map(l=>l.leg.rotation.x);q.updateVisuals(.05);w.P.dist+=2;q.updateVisuals(.05);check(q.models.horse.legs.some((l,i)=>Math.abs(l.leg.rotation.x-rotations[i])>.001),'Horse gait is static');
    const samples=[];for(const biome of ['steppe','snow']){const weights=Array(14).fill(0);weights[biome==='steppe'?3:5]=1;const colours=[];for(let x=0;x<3000;x+=100){const c=[.7,.7,.7];q.tintLand(c,0,x,800,weights);colours.push(c);}check(new Set(colours.map(c=>c.map(v=>v.toFixed(3)).join(','))).size>15,'Uniform land tint');samples.push({biome,colours:colours.slice(0,3)});}
    const wgt=q.biomeW(480,900,q.newW()),a=[.7,.7,.7],b=[.7,.7,.7];q.tintLand(a,0,480-.00001,900,wgt);q.tintLand(b,0,480+.00001,900,wgt);check(a.every((v,i)=>Math.abs(v-b[i])<1e-7),'Colour seam at chunk boundary');
    check(q.bulPts.material.map===q.geometricRoundTex&&q.bulPts.material.alphaTest===.4,'Fuzzy bullets remain');
-   const sites=q.vista.children.filter(o=>o.userData.vista).map(o=>o.userData.vista);check(sites.length>=20,'Too few scenic reveals');check(['jailoo','balbal','caravan','aqueduct'].every(style=>sites.some(o=>o.style===style)),'Missing scenic silhouettes');
+   const sites=q.vista.children.filter(o=>o.userData.vista).map(o=>o.userData.vista);check(sites.length>=20,'Too few scenic reveals');check(['jailoo','balbal','caravan','aqueduct','palace','bluegate'].every(style=>sites.some(o=>o.style===style)),'Missing scenic silhouettes');
    let vertices=0;w.scene.traverse(o=>{const a=o.geometry?.attributes?.position?.array;if(a){for(const v of a)check(Number.isFinite(v),'Non-finite geometry');vertices+=a.length/3;}});
-   return {drives,sites:sites.length,styles:[...new Set(sites.map(o=>o.style))],tintSamples:samples,vertices};}''')
+   const city=q.vista.children.find(o=>o.userData.astana)?.userData.astana;check(city?.towers>30&&city.crown&&city.tent,'Incomplete future city '+JSON.stringify(city));
+   for(const path of w.tours.paths)for(const seg of path.segments){const p=city.tentSite,u=Math.max(0,Math.min(1,((p.x-seg.a.x)*seg.dx+(p.z-seg.a.z)*seg.dz)/(seg.length*seg.length)));check(Math.hypot(p.x-seg.a.x-seg.dx*u,p.z-seg.a.z-seg.dz*u)>310+seg.half,'Giant tent crosses a road');}
+   return {drives,sites:sites.length,styles:[...new Set(sites.map(o=>o.style))],city,tintSamples:samples,vertices};}''')
   print(json.dumps(report,ensure_ascii=False),flush=True)
   # Automatic visits draw from each region, while repeated menu opens preserve the song.
   for region in ['desert','mountain','lake']:

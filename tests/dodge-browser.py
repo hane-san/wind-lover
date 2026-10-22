@@ -10,6 +10,7 @@ from playwright.sync_api import sync_playwright
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--browser', default='/usr/bin/chromium')
 parser.add_argument('--three', type=Path)
+parser.add_argument('--vehicle', choices=['sidecar','horse','chopper','board'], default='sidecar')
 parser.add_argument('--out', type=Path, default=Path('/tmp/wind-dodge-qa'))
 args = parser.parse_args()
 args.out.mkdir(parents=True, exist_ok=True)
@@ -45,7 +46,7 @@ try:
             route.fulfill(body=source, content_type='text/html')
 
         page.route('**/prototype/', instrument)
-        page.add_init_script("localStorage.setItem('windlover.shells','false')")
+        page.add_init_script("localStorage.setItem('windlover.shells','false');localStorage.setItem('windlover.vehicle4',JSON.stringify("+json.dumps(args.vehicle)+"))")
         page.goto(f'http://127.0.0.1:{server.server_port}/', timeout=120000)
         page.wait_for_function('window.__qa && window.__wlMusic', timeout=120000)
         page.locator('#btnGo').click(timeout=120000)
@@ -141,7 +142,7 @@ try:
             page.wait_for_timeout(250)
             page.screenshot(path=str(args.out / ('geometry-'+str(pattern)+'.png')))
         assert not errors, errors
-        result = {'combat': combat, 'drivingDodge': dodge, 'performance': performance, 'pageErrors': errors}
+        result = {'vehicle': args.vehicle, 'combat': combat, 'drivingDodge': dodge, 'performance': performance, 'pageErrors': errors}
         (args.out / 'dodge-result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2))
         browser.close()
         print('PASS: small swept hit area, rewarding grazes, nine open patterns, streaming and bounded CPU work.', flush=True)

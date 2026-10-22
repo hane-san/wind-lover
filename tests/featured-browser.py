@@ -22,7 +22,7 @@ try:
   page.route('**/prototype/',probe)
   page.goto(f'http://127.0.0.1:{server.server_port}/',timeout=120000);page.wait_for_function('window.__wlMusic && window.__wl',timeout=120000)
   assert page.evaluate('__wlMusic.state.enabled && __wlMusic.inspect().contextState==="none"')
-  assert page.locator('#featuredTrips [data-journey-route]').count()==3
+  assert page.locator('#featuredTrips [data-journey-route]').count()==4
   page.screenshot(path=str(args.out/'menu.png'))
   geometry=page.evaluate('''()=>{
     const w=__wl,check=(v,m)=>{if(!v)throw Error(m)},results=[];

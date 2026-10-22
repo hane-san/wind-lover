@@ -71,10 +71,20 @@ Run `node tests/featured-routes.test.mjs` and `python tests/featured-browser.py 
 
 ## Horse riding and connected journeys (22 October 2026)
 
-Read `docs/HORSE-RIDING.md` and `docs/CONNECTED-JOURNEY.md` before changing the horse or roads. These supersede the older equal-handling requirement: the horse keeps the established speed defaults but has its own road-relative rein response, gathered lead-change bounds, folded airborne legs and cancellable audio-clock hoof scheduling. `world/horse-riding.js` owns the riding state; gait, sound and wake remain separate. Keep the 0.32 m bullet core and responsive sidesteps. Do not bring back tyre hiss, metal sparks or an engine explosion for the horse.
+Read `docs/HORSE-RIDING.md` and `docs/CONNECTED-JOURNEY.md` before changing the horse or roads. These supersede the older equal-handling requirement: the horse has its own road-relative rein response, gathered lead-change bounds, folded airborne legs and cancellable audio-clock hoof scheduling. `world/horse-riding.js` owns the riding state; gait, sound and wake remain separate. Keep the 0.32 m bullet core and responsive sidesteps. Do not bring back tyre hiss, metal sparks or an engine explosion for the horse.
 
 `prepareJourneyNetwork()` creates two physical roads after lake elevation alignment: `lake-pass` (11.1 km) and `pass-line` (4.2 km). Their endpoints share existing road/rail heights; signs and scenery stay outside every road corridor. `rideRoute` distinguishes upper and lower decks and remembers the current path through shallow junctions. Geometry uses unpreferred nearest paths, so steering never deforms the world. Connection music uses `path.region`.
 
 `WindTravelCamera` adds bounded curve anticipation, centred combat framing and an OBB boom obstruction query. The rear view, muted colours and quiet regional music remain the reference. Keep cloth motion proportional to dt and frozen when paused.
 
 Run `python tests/horse-riding-browser.py --three /path/to/three.min.js`, `python tests/journey-network-browser.py --three /path/to/three.min.js`, `python tests/horse-rhythm-browser.py`, `python tests/journey-camera-browser.py --three /path/to/three.min.js` and the existing presentation/wake/music/world/dodge checks. `tests/featured-browser.py --full-only --vehicle horse` checks the complete pass and lake loop. Tests use software WebGL; do not report their CPU timing as real mobile FPS.
+
+## Faster flow and four departures (22 October 2026, later)
+
+Read `docs/VOYAGE-FLOW.md` before changing speed, weather or the newer roads. This request supersedes the older unchanged-speed and no-speed-threads notes: horse acceleration is 24, default cruise 48 m/s and max 116 m/s, with stronger sustained pull. Preserve the quiet score, the 0.32 m core, independent reins and rear camera. Only old untouched horse speed fields migrate; other saved tuning stays.
+
+Four neutral outline icons launch desert, mountain, lake and `silk` (Dushanbe–Samarkand, 24.9 km). `astana` is a connected 9.7 km city boulevard, not a fifth main icon. Both new roads return to the existing railway; their `travelRoad` flag distinguishes them from the two older `connection` roads. Road half-widths are 22 m (mountain, silk and connectors), 21 m (lake) and 32 m (city). Keep skyline buildings outside all corridors. The city is merged into two meshes.
+
+`world/journey-climate.js` supplies elevation-led snow and the lake's distance-led westward sunset. The lake state resets only on a new featured departure; dodging and menu pauses must never scrub its light. `world/horse-wake.js` has a fixed 240-particle contact pool; snow colours and sizes follow the same elevation state as the terrain and hoof sound. `world/flow-effects.js` has 52 world-space lines, keeps the central 11 m clear, eases under threats and respects reduced motion. No additional composer or full-screen blur.
+
+Run the meaningful browser suite in `docs/VOYAGE-FLOW.md`, including the four-icon mobile menu, full new-road drives, mesh rays, lake circuit, rein changes at the higher speed, wake lifetime and default-on music continuity. Software WebGL timings do not establish real-phone FPS.

@@ -10,7 +10,9 @@ Mood: melancholy and beautiful. Wide pale skies whose colours drift, Soviet ruin
 
 ## Current presentation — 22 October 2026
 
-The owner wants a pale, melancholy journey rather than racing exhilaration. The current presentation uses muted stone/sage/linen light, a restrained sun and layered distance. Racing streaks are removed; speed changes open the FOV by only about two degrees. The horse keeps a four-contact gallop with a quieter rider, whilst wind, hoof brightness and scarf motion are softened. All twelve regional songs now use sparse chamber arrangements with no driving drum groove. Travel physics, optional threats, steering and collisions are unchanged. These presentation values supersede the earlier FOV, ground vibration and music descriptions below. See [QUIET-JOURNEY.md](QUIET-JOURNEY.md). The later grouped hoof rhythm and broader horse stride are specified in [HORSE-GALLOP.md](HORSE-GALLOP.md); the quiet landscape, music and camera remain in place.
+The presentation combines a melancholy landscape with a faster, comfortable gallop. Muted stone/sage/linen light, a restrained sun, layered distance and the rear-follow camera keep scenery and bullets readable. Contact dust/snow and short wind threads sit outside the central reading corridor; the horse's speed-dependent FOV contribution is about 3.5 degrees at default tuning. All twelve regional songs use sparse chamber arrangements with no driving drum groove. Optional threats and the 0.32 m rider core remain. [QUIET-JOURNEY.md](QUIET-JOURNEY.md) records the earlier quiet presentation, and [HORSE-GALLOP.md](HORSE-GALLOP.md) specifies the grouped hoof rhythm and broader stride. The latest speed, weather and road values follow below.
+
+The later four departure icons, faster horse, contact dust/snow, altitude seasons, westward lake sunset and Astana boulevard are specified in [VOYAGE-FLOW.md](VOYAGE-FLOW.md). Those values supersede earlier unchanged-speed and no-speed-thread notes: the horse now has a 48 m/s cruise and 116 m/s base top speed. The quiet soundtrack, restrained rear camera and readable bullet corridor remain the reference.
 
 ## Core rules
 

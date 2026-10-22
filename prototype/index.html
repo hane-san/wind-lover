@@ -156,10 +156,18 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .tune-item input[type="range"] { width: 100%; accent-color: var(--accent); }
 .tune-check { display: flex; gap: 10px; align-items: center; font-size: 13px; }
 .tune-check input { width: 20px; height: 20px; accent-color: var(--accent); }
-.featured-trips { display: grid; gap: 8px; }
-.featured-trips .world { width: 100%; display: grid; grid-template-columns: 70px 1fr; text-align: left; min-height: 74px; }
-.featured-trips .sw { height: 100%; min-height: 74px; }
-.featured-trips b { font-size: 14px; }
+.featured-trips { display: grid; grid-template-columns:repeat(4,minmax(0,1fr));gap:7px; }
+.featured-trips .world { position:relative;width:100%;display:grid;grid-template-columns:1fr;text-align:center;min-height:108px;border-color:var(--line);background:rgba(255,255,255,.025);color:var(--muted);padding:8px 3px;align-content:start; }
+.featured-trips .world .sw { height:44px;min-height:44px;display:grid;place-items:center;background:none; }
+.featured-trips svg { width:36px;height:36px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round; }
+.featured-trips .world span {padding:5px 1px 1px;display:block;}
+.featured-trips .world b {font-size:10px;line-height:1.5;font-weight:500;display:block;}
+.featured-trips .world em {display:none;}
+.featured-trips .world[aria-pressed="true"] {border-color:var(--accent);color:var(--accent);background:rgba(214,227,210,.12);}
+.featured-trips .world[aria-pressed="true"]::after {content:'✓';position:absolute;top:3px;right:6px;font-size:11px;}
+.featured-trips .world:focus-visible {outline:2px solid var(--accent);outline-offset:3px;}
+.trip-note {font-size:11px;color:var(--muted);margin:0;line-height:1.65;}
+#btnRandom small {display:block;margin-top:4px;font-size:10px;line-height:1.6;color:var(--muted);font-weight:400;}
 details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 .music-settings { margin: 0; min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 12px; display: grid; gap: 10px; }
 .music-settings legend { padding: 0 6px; color: var(--muted); font-size: 12px; letter-spacing: 0.1em; }
@@ -239,12 +247,13 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
   <div class="card">
     <div class="eyebrow">CENTRAL ASIA · 風の先へ</div>
     <h1 class="title">Wind Lover</h1>
-    <p>砂漠の廃線、トンネルのある峠道、青い湖を一周する旅。遺された街と巨大な建造物を追い、弾の隙間をすり抜けて走る。道を離れて、広い世界へ寄り道してもいい。</p>
+    <p>砂漠の廃線、雪へ昇る峠道、青い湖の一周、青い都へ続く隊商路。遺された街と巨大な建造物を追い、弾の隙間をすり抜けて走る。道を離れて、広い世界へ寄り道してもいい。</p>
     <div class="row" id="vehCards"></div>
     <div class="featured-trips" id="featuredTrips"></div>
+    <p class="trip-note">アイコンから出発。草原の廃線は、アスタナの大通りにも続いています。</p>
     <button class="ghost wide" id="btnRandom" type="button">どこかの道から走りだす<small>地続きの旅路のどこか、道の上から</small></button>
     <details><summary>広い世界を選ぶ</summary><div class="worlds" id="worldCards"></div></details>
-    <p>画面をドラッグして操作します。上に倒すと前傾して加速、下に倒すとブレーキ、下に倒しながら曲げるとドリフト。最高速のまま段差に突っ込むと長く滑空し、越えられる障害物は自動で跳び越えます。高すぎるものにぶつかれば激突です。遅いほど砲撃とドローンの弾幕が追いつき、止まればエンストして集中砲撃を受けます。</p>
+    <p>左右に動いて弾幕のすき間へ。上へ倒すと前傾して加速、下へ倒すとブレーキ。馬は強い切り返しで低く跳び、脚を踏み替えます。走り続けながら、美しい遠景と地続きの旅路を楽しんでください。</p>
     <div class="row"><button class="go" id="btnGo" type="button">走りはじめる</button><span class="label">縦画面推奨・音が出ます</span></div>
   </div>
 </section>
@@ -257,6 +266,7 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
       <div><b id="recMote">0</b><span>風の欠片</span></div>
     </div>
     <div class="featured-trips" id="featuredTrips2"></div>
+    <p class="trip-note">出発地点を選ぶと移動します。旅路は道でつながっています。</p>
     <fieldset class="music-settings" id="musicSettings" disabled>
       <legend>旅の音楽</legend>
       <div class="music-controls">
@@ -301,11 +311,13 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 </section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="../world/featured-routes.js?v=20261022-network"></script>
+<script src="../world/featured-routes.js?v=20261022-voyage"></script>
 <script src="../world/horse-riding.js?v=20261022-reins"></script>
 <script src="../world/horse-gait.js?v=20261022-reins"></script>
 <script src="../world/horse-sound.js?v=20261022-reins"></script>
-<script src="../world/horse-wake.js?v=20261022-wake"></script>
+<script src="../world/horse-wake.js?v=20261022-voyage"></script>
+<script src="../world/flow-effects.js?v=20261022-voyage"></script>
+<script src="../world/journey-climate.js?v=20261022-voyage"></script>
 <script src="../world/travel-camera.js?v=20261022-network"></script>
 <script>
 'use strict';
@@ -330,14 +342,19 @@ const VEHICLES = {
   bike: { name: 'チョッパー', hover: 1.0, grip: 5.4, accel: 18, lean: 0.55, resp: 7, roll: 5.0, defaults: { maxSpeed: 95, cruise: 38, minSpeed: 0, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 1.0, jump: 14, camDist: 14, fovKick: 1.1, auto: true } },
   board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 10, roll: 5, defaults: { maxSpeed: 80, cruise: 30, minSpeed: 0, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 12, fovKick: 1.1, auto: true } },
 };
-// Keep the established travel speeds; riding has its own rein response and lead changes.
-VEHICLES.horse = { ...VEHICLES.sidecar, grip: 8.8, name: 'キルギスの馬', defaults: { ...VEHICLES.sidecar.defaults } };
+// A quicker travelling gallop keeps the independent rein response and lead changes.
+VEHICLES.horse = { ...VEHICLES.sidecar, grip: 8.8, accel:24, name: 'キルギスの馬', defaults: { ...VEHICLES.sidecar.defaults,maxSpeed:116,cruise:48 } };
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
 };
 let vehKey = store.get('windlover.vehicle4', 'sidecar'); if (!VEHICLES[vehKey]) vehKey = 'sidecar';
 const allS = store.get('windlover.settings.v11', {}) || {};
+// Carry old untouched horse speed defaults forward, preserving other saved tuning and music.
+if(!store.get('windlover.horse-flow.v1',false)){
+  if(allS.horse){if(allS.horse.maxSpeed===98)allS.horse.maxSpeed=116;if(allS.horse.cruise===40)allS.horse.cruise=48;store.set('windlover.settings.v11',allS);}
+  store.set('windlover.horse-flow.v1',true);
+}
 const loadS = () => ({ ...VEHICLES[vehKey].defaults, ...(allS[vehKey] || {}) });
 let S = loadS();
 const saveS = () => { allS[vehKey] = S; store.set('windlover.settings.v11', allS); };
@@ -757,7 +774,7 @@ function stationShelter(x, z, y) {
   return false;
 }
 const canopyPanel = (s, panel) => panel === 2 || panel === 3 || hash(s.x, panel, 611) > 0.46;
-function tintLand(colour, offset, x, z, weights) {
+function tintLand(colour, offset, x, z, weights, height) {
   const patch=vnoise(x/620,z/620,987),wash=vnoise(x/1650,z/1650,988),fine=vnoise(x/130,z/130,989);
   let ice=0,meadow=0;
   for(let b=0;b<NB;b++) {const k=BKEYS[b];ice+=weights[b]*(k==='snow'?1:['tianshan','pamir'].includes(k)?.28:0);meadow+=weights[b]*(['steppe','issyk','karakol','fergana','issykS'].includes(k)?1:0);}
@@ -767,6 +784,10 @@ function tintLand(colour, offset, x, z, weights) {
   for(let k=0;k<3;k++) {
     const snow=[-.045,-.018,.025][k]*(1-patch)+[.025,.012,-.018][k]*wash;
     colour[offset+k]=clamp(colour[offset+k]*(.96+.065*fine)+shift[k]*meadow+snow*ice,0,1);
+  }
+  if(biomeMode==='journey'&&x>32000&&x<48700){
+    const weather=WindJourneyClimate.mountain(x,z,height??heightAt(x,z)),snow=weather.snow*(.89+.07*patch);
+    for(let k=0;k<3;k++){colour[offset+k]=lerp(colour[offset+k],[.43,.60,.35][k],weather.region*(1-weather.snow)*.60);colour[offset+k]=lerp(colour[offset+k],[.87,.91,.94][k],snow);}
   }
 }
 function ageLand(colour, offset) {
@@ -869,8 +890,14 @@ function prepareJourneyNetwork(){
   const east={x:52000,z:railZ(52000),y:railY(52000)+.02};
   TOURS.addConnection('pass-line',[exit,{x:49000,z:1770,y:lerp(exit.y,east.y,.25)},
     {x:50700,z:east.z-180,y:lerp(exit.y,east.y,.7)},{x:51500,z:railZ(51500),y:railY(51500)+.02},east],'desert');
+  const silk=TOURS.addConnection('silk',[
+    {x:52000,z:railZ(52000),y:railY(52000)+.02},{x:54200,z:2200,y:120},
+    {x:56800,z:800,y:215},{x:59700,z:-500,y:420},{x:62500,z:-900,y:380},
+    {x:65000,z:-1600,y:140},{x:68000,z:-3000,y:70},{x:71000,z:railZ(71000),y:railY(71000)+.02},
+    {x:74200,z:railZ(74200),y:railY(74200)+.02}],'mountain');silk.connection=false;silk.travelRoad=true;
+  const city=TOURS.addConnection('astana',[54000,55300,57500,59900,61900,63500].map((x,i,a)=>({x,z:railZ(x)+(i===0||i===a.length-1?0:i===1?160:i===a.length-2?180:350),y:railY(x)+.02})),'city');city.connection=false;city.travelRoad=true;
   // At shallow crossings, draw the new road at the existing deck rather than hiding a small lip.
-  for(const path of TOURS.paths.filter(p=>p.connection)){
+  for(const path of TOURS.paths.filter(p=>p.connection||p.travelRoad)){
     for(let i=1;i<path.points.length-1;i++){
       const p=path.points[i],hw={...highway(p.x,p.z)},rw={...railway(p.x,p.z)};
       const candidates=[{d:hw.d,half:HW_HALF,y:deckAt(hw.cx,hw.cz)+.11},{d:rw.d,half:rw.half,y:routeY(rw,p.x)+.02}];
@@ -886,7 +913,10 @@ function prepareJourneyNetwork(){
     {...railNode,name:'湖岸 ↔ 天山の峠',path:'lake-pass'},
     {...entrance,name:'← 湖岸と廃線',path:'mountain'},
     {...exit,name:'砂漠の廃線へ →',path:'pass-line'},
-    {...east,name:'← 山道と湖岸',path:'pass-line'}];
+    {...east,name:'← 山道と湖岸',path:'pass-line'},
+    {x:54000,z:railZ(54000),y:railY(54000),name:'アスタナの大通り →',path:'astana'},
+    {x:63500,z:railZ(63500),y:railY(63500),name:'← 草原の未来都市',path:'astana'},
+    {x:52000,z:railZ(52000),y:railY(52000),name:'サマルカンドへ →',path:'silk'}];
   biomeMode=before;
 }
 prepareJourneyNetwork();
@@ -939,12 +969,16 @@ const cloudTex = canvasTex(256, 128, (g, w, h) => {
 
 // sky
 const skyMat = new THREE.ShaderMaterial({
-  uniforms: { top: { value: new THREE.Color() }, hor: { value: new THREE.Color() }, bot: { value: new THREE.Color() }, sunCol: { value: new THREE.Color() }, sunDir: { value: new V3(0, 1, 0) } },
+  uniforms: { top: { value: new THREE.Color() }, hor: { value: new THREE.Color() }, bot: { value: new THREE.Color() }, sunCol: { value: new THREE.Color() }, sunDir: { value: new V3(0, 1, 0) },stars:{value:0},clock:{value:0} },
   vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-  fragmentShader: `uniform vec3 top; uniform vec3 hor; uniform vec3 bot; uniform vec3 sunCol; uniform vec3 sunDir; varying vec3 vDir;
+  fragmentShader: `uniform vec3 top; uniform vec3 hor; uniform vec3 bot; uniform vec3 sunCol; uniform vec3 sunDir; uniform float stars;uniform float clock;varying vec3 vDir;
     void main(){ vec3 d = normalize(vDir); float h = d.y; vec3 c = h > 0.0 ? mix(hor, top, pow(clamp(h,0.0,1.0), 0.55)) : mix(hor, bot, clamp(-h*4.0,0.0,1.0));
     float s = max(dot(d, normalize(sunDir)), 0.0); c += sunCol * (pow(s, 900.0) * 0.5 + pow(s, 14.0) * 0.12 + pow(s, 3.0) * 0.045);
     c = mix(c, hor * 1.04 + sunCol * 0.04, exp(-abs(h) * 16.0) * 0.55);
+    if(stars>.001){vec2 uv=vec2(atan(d.z,d.x)/6.2831853+.5,asin(clamp(d.y,-1.0,1.0))/3.14159265+.5)*vec2(360.0,180.0);
+    vec2 cell=floor(uv);float rnd=fract(sin(dot(cell,vec2(127.1,311.7)))*43758.5453);
+    float pin=(1.0-smoothstep(.045,.19,length(fract(uv)-.5)))*step(.970,rnd)*smoothstep(.04,.20,h);
+    c+=vec3(.77,.86,1.0)*pin*stars*(.65+.25*sin(clock*.55+rnd*80.0));}
     gl_FragColor = vec4(c, 1.0); ${journeyGrade} }`,
   side: THREE.BackSide, depthWrite: false,
 });
@@ -1195,7 +1229,7 @@ function* terrainSteps(ch) {
         let v2 = lerp(c[k], hi[k], th); v2 = lerp(v2, rk[k], tr); v2 = lerp(v2, sh[k], ts);
         col[v * 3 + k] = v2 * shadeK;
       }
-      tintLand(col,v*3,x,z,w);
+      tintLand(col,v*3,x,z,w,y);
       ageLand(col, v * 3);
     }
     yield;
@@ -2044,13 +2078,14 @@ function buildChunkWinds(ch, rng) {
 // ---------------------------------------------------------------- featured roads and remembered skylines
 function buildFeaturedRoad(ch) {
   if (biomeMode !== 'journey') return;
-  const road = new Merger(), stone = new Merger(), paint = new THREE.Color(0xcfc6ad), asphalt = new THREE.Color(0x646461);
+  const road = new Merger(), stone = new Merger(), paint = new THREE.Color(0xcfc6ad), asphalt = new THREE.Color(0x646461),snowRoad=new THREE.Color(0xb0b9bd);
   const vertex = (p, side, up = .14) => new V3(p.x + p.nx * side, p.y + up, p.z + p.nz * side);
   for (const path of TOURS.paths) for (const seg of path.segments) {
     const a = seg.a, b = seg.b, x = (a.x + b.x) / 2, z = (a.z + b.z) / 2;
     if (Math.floor(x / CH) !== ch.cx || Math.floor(z / CH) !== ch.cz) continue;
     const h = seg.half, yaw = Math.atan2(seg.tx, seg.tz), y = (a.y + b.y) / 2, mode = path.id === 'mountain' ? TOURS.tunnel(x) : null;
     const strip = (off, width, up, colour) => { const p = vertex(a,off+width,up), q = vertex(a,off-width,up), r = vertex(b,off+width,up), s = vertex(b,off-width,up); road.tri(p,r,q,colour); road.tri(q,r,s,colour); };
+    const ice=path.id==='mountain'?WindJourneyClimate.mountain(x,z,y).snow:0;asphalt.setHex(0x646461).lerp(snowRoad,ice*.25);
     strip(0,h,.14,asphalt); for(const off of [-h+1,h-1]) strip(off,.11,.17,paint);
     if(Math.floor(seg.s/24)%2===0) strip(0,.12,.17,paint);
     const prev = path.segments[Math.max(0,seg.index-1)];
@@ -2131,6 +2166,18 @@ function buildFeaturedVista() {
       for(const side of [-1,1]) {m.part(B,G.box,side*28,48,-22,12,96,10,0xb6ac96);m.part(B,G.cyl,side*44,65,-10,4,130,4,wall);m.part(B,G.half,side*44,133,-10,5,10,5,0x668f94);}
       m.part(B,G.half,0,48,9,25,32,25,0x5c8d9a);
       m.part(B,G.box,0,25,-19.1,24,42,.2,0x485853);
+    } else if(style==='bluegate') {
+      for(const [xx,zz]of [[-58,0],[58,0],[0,40]]){
+        m.part(B,G.box,xx,21,zz,44,42,18,0xc6b08c);m.part(B,G.box,xx,44,zz-10,48,6,7,0x527f99);
+        m.part(B,G.scenicArch,xx,13,zz-10.5,14,23,2,0x608c9b);
+        m.part(B,G.half,xx,44,zz+5,17,23,17,0x477f9c);
+        for(const dx of [-17,17])m.part(B,G.box,xx+dx,28,zz-9.2,2,29,.25,0x709baf);
+      }
+      for(const xx of [-80,80]){m.part(B,G.cyl,xx,42,-6,3.8,84,3.8,0xc3ae89);m.part(B,G.half,xx,86,-6,5,8,5,0x5786a0);}
+    } else if(style==='palace') {
+      m.part(B,G.box,0,22,14,156,44,32,0xd4d4bc);m.part(B,G.box,0,46,-6,174,5,12,0xc4b794);
+      for(let i=-5;i<=5;i++)m.part(B,G.cyl,i*14,20,-12,2.5,40,2.5,0xe2e1cd);
+      m.part(B,G.half,0,48,12,29,25,24,0x9ba58a);
     } else if(style==='station') {
       for(let i=0;i<5;i++) {m.part(B,G.box,(i-2)*24,11,0,21,22,18,wall);m.part(B,G.box,(i-2)*24,23,0,23,1.4,21,0x7d8076);for(let k=-1;k<=1;k++)m.part(B,G.box,(i-2)*24+k*6,13,-9.1,3,7,.1,0x3e4744);}
       m.part(B,G.cyl,74,34,0,4,68,4,0x948976);m.part(B,G.cyl,74,72,0,9,9,9,0x75837e);
@@ -2159,14 +2206,25 @@ function buildFeaturedVista() {
     else if(style==='balbal'){block(0,0,8,8,0,46);for(let i=0;i<11;i++)block((i-5)*17,33+Math.sin(i)*9,2,2,0,11);}
     else if(style==='caravan'){for(const side of [-1,1]){block(side*37,0,7,40,0,24);block(side*28,-40,5,5,0,34);}block(0,-40,32,6,23,31);block(0,40,42,6,0,27);}
     else if(style==='aqueduct')for(let i=0;i<10;i++){block((i-4.5)*24,0,2.5,3.5,0,34);if(i!==4&&i!==7)block((i-4.5)*24+12,0,12,4,33,37);}
+    else if(style==='palace'){
+      block(0,14,78,16,0,44);block(0,-6,87,6,43.5,48.5);block(0,12,29,24,48,73);
+      for(let i=-5;i<=5;i++)block(i*14,-12,2.5,2.5,0,40);
+    }else if(style==='bluegate'){
+      for(const [xx,zz]of [[-58,0],[58,0],[0,40]]){block(xx,zz,22,9,0,42);block(xx,zz-10,24,3.5,41,47);block(xx,zz+5,17,17,44,67);}
+      for(const xx of [-80,80])block(xx,-6,5,5,0,94);
+    }
     else block(0,0,90,30,-3,140);
+    return true;
   };
   for(const [x,side,style,scale] of [[76700,520,'station',1],[78600,-720,'dome',1.6],[81200,850,'city',1.1],[85000,-600,'dome',1.1]])addSite(x,railZ(x)+side,style,scale);
   for(const [id,fraction,side,style,scale] of [['mountain',.18,380,'station',.8],['mountain',.5,-680,'city',1.1],['mountain',.8,520,'station',1.1],['lake',.08,-460,'city',1.3],['lake',.3,-420,'station',1],['lake',.68,-500,'dome',1],['lake',.87,-460,'city',1.2]]) {
     const p=TOURS.at(id,TOURS.paths.find(p=>p.id===id).length*fraction);addSite(p.x-p.tz*side,p.z+p.tx*side,style,scale);
   }
+  for(const [fraction,side,style,scale]of [[.08,300,'palace',1.2],[.18,-350,'caravan',1],[.42,420,'balbal',1],[.76,-320,'bluegate',1.3],[.88,350,'bluegate',1.5],[.95,-400,'dome',1.3]]){
+    const path=TOURS.paths.find(p=>p.id==='silk'),p=TOURS.at(path,path.length*fraction);addSite(p.x-p.tz*side,p.z+p.tx*side,style,scale);
+  }
   const reveals={mountain:['jailoo','balbal','caravan','aqueduct','jailoo','caravan','balbal','jailoo'],lake:['balbal','jailoo','aqueduct','caravan','jailoo','balbal','caravan','aqueduct','jailoo','balbal','jailoo','caravan'],
-    'lake-pass':['caravan','balbal','jailoo','aqueduct'],'pass-line':['balbal','caravan']};
+    'lake-pass':['caravan','balbal','jailoo','aqueduct'],'pass-line':['balbal','caravan'],silk:['palace','caravan','balbal','aqueduct','bluegate','caravan','bluegate']};
   for(const path of TOURS.paths) {
     const styles=reveals[path.id];if(!styles)continue;
     for(let i=0;i<styles.length;i++) {
@@ -2174,10 +2232,17 @@ function buildFeaturedVista() {
       addSite(p.x-p.tz*side,p.z+p.tx*side,styles[i],styles[i]==='jailoo'?1.1:1.25);
     }
   }
+  if(!featuredVista.children.some(o=>o.userData.vista?.style==='palace')){
+    const path=TOURS.paths.find(p=>p.id==='silk');
+    palaceSite:for(const fraction of [.045,.085,.13])for(const side of [400,-400,650,-650,950,-950]){
+      const p=TOURS.at(path,path.length*fraction);
+      if(addSite(p.x-p.tz*side,p.z+p.tx*side,'palace',1.2))break palaceSite;
+    }
+  }
   for(let i=0;i<10;i++) {const x=74400+i*1250;addSite(x,railZ(x)+(i%2?1:-1)*(400+hash(i,1,991)*480),['caravan','aqueduct','station','dome'][i%4],1.2);}
   // Multiple folded ridges bring the Tian Shan into the view from the lake and the pass.
   const peaks=new Merger(),rock=new THREE.Color(0x9ba8b1),snow=new THREE.Color(0xe2e6df),colour=new THREE.Color();
-  for(const region of [{x:15800,z:-1450,side:1,span:23000},{x:39200,z:3600,side:1,span:24000},{x:15500,z:-9650,side:-1,span:24000}]) {
+  for(const region of [{x:15800,z:-1450,side:1,span:23000},{x:39200,z:3600,side:1,span:24000},{x:15500,z:-9650,side:-1,span:24000},{x:61000,z:-6200,side:-1,span:19000}]) {
     const rows=8,cols=144,points=[];
     for(let j=0;j<=rows;j++)for(let i=0;i<=cols;i++) {
       const x=region.x-region.span/2+i*region.span/cols,z=region.z+region.side*j*650;
@@ -2190,22 +2255,87 @@ function buildFeaturedVista() {
       peaks.tri(a,c,b,colour);peaks.tri(b,c,d,colour);
     }
   }
-  const mat=new THREE.MeshBasicMaterial({vertexColors:true,fog:false,side:THREE.DoubleSide});featuredVista.add(new THREE.Mesh(peaks.build(),mat));
+  const mat=new THREE.MeshBasicMaterial({vertexColors:true,fog:false,side:THREE.DoubleSide}),foldedRange=new THREE.Mesh(peaks.build(),mat);foldedRange.userData.foldedRange=true;featuredVista.add(foldedRange);
+  buildAstanaVista(featuredVista);
   rebuildGlobals();
+}
+function buildAstanaVista(parent){
+  const path=TOURS.paths.find(p=>p.id==='astana'),city=new Merger(),glass=new Merger(),sphere=new THREE.SphereGeometry(1,16,10);
+  const reserve=(x,z,r)=>{
+    if(tourReserved(x,z,r+12)||lineReserved(x,z,r+12)||highway(x,z).d<HW_HALF+r+12)return true;
+    // The tent's footprint is wider than the 170 m nearest-road search horizon.
+    if(r>120)for(const path of TOURS.paths)for(const seg of path.segments){
+      const reach=r+12+seg.half;
+      if(x<Math.min(seg.a.x,seg.b.x)-reach||x>Math.max(seg.a.x,seg.b.x)+reach||z<Math.min(seg.a.z,seg.b.z)-reach||z>Math.max(seg.a.z,seg.b.z)+reach)continue;
+      const u=clamp(((x-seg.a.x)*seg.dx+(z-seg.a.z)*seg.dz)/(seg.length*seg.length),0,1);
+      if(Math.hypot(x-seg.a.x-seg.dx*u,z-seg.a.z-seg.dz*u)<reach)return true;
+    }return false;
+  };
+  const block=(x,z,hw,hd,bottom,top)=>HOME.colliders.push({x,z,hw,hd,bottom,top,c:1,s:0});
+  let towers=0,crown=false,tent=false;
+  for(let i=0;i<16;i++){
+    const p=TOURS.at(path,900+i*(path.length-1800)/15),envelope=Math.sin((i+.5)/16*Math.PI);
+    for(const side of [-1,1])for(let row=0;row<3;row++){
+      const offset=side*(155+row*330),x=p.x-p.tz*offset,z=p.z+p.tx*offset;
+      const w=36+hash(i,row,1001)*38,d=30+hash(i,side,1002)*30,h=(100+envelope*330)*(1-row*.13)+hash(i,row+side,1003)*90;
+      if(reserve(x,z,Math.hypot(w,d)/2))continue;
+      const y=heightAt(x,z),B=M(x,y,z);city.part(B,G.box,0,h/2,0,w,h,d,0xc7d5de);
+      glass.part(B,G.box,0,h*.49,-d/2-.08,w*.82,h*.88,.2,0x4b7b9b);
+      glass.part(B,G.box,w/2+.08,h*.49,0,.2,h*.88,d*.82,0x8aabbf);
+      city.part(B,G.box,0,h+2,0,w*.72,4,d*.72,0xc7c7b3);
+      for(let floor=14;floor<h-8;floor+=18)glass.part(B,G.box,0,floor,-d/2-.22,w*.84,.7,.25,0xb8b88b);
+      if(i%3===0)city.part(B,G.prism,0,h+14,0,w*.6,25,d*.6,0xb8bfb5);
+      block(x,z,w/2+.3,d/2+.3,y,y+h+27);towers++;
+    }
+  }
+  // A golden observation crown and a vast tent recall Astana without reproducing a building.
+  const p=TOURS.at(path,path.length*.5),x=p.x-p.tz*160,z=p.z+p.tx*160,y=heightAt(x,z),B=M(x,y,z);
+  if(!reserve(x,z,48)){
+    crown=true;
+    for(const side of [-1,1])city.part(B,G.cyl,side*12,132,0,4.5,264,4.5,0xd4d6c8);
+    city.part(B,G.cyl,0,251,0,37,9,37,0xb5a56c);city.part(B,sphere,0,288,0,43,43,43,0xd3b66d);
+    city.part(B,G.cyl,0,7,0,46,14,46,0xc0bba5);block(x,z,46,46,y,y+333);
+  }
+  let tentSite=null;
+  for(const fraction of [.67,.60,.75]){
+    const t=TOURS.at(path,path.length*fraction);
+    for(const offset of [1100,-1100,1550,-1550,2100,-2100]){
+      const x=t.x-t.tz*offset,z=t.z+t.tx*offset;
+      if(!reserve(x,z,310)&&!HOME.colliders.some(c=>Math.hypot(c.x-x,c.z-z)<310+Math.hypot(c.hw,c.hd))){tentSite={x,z};break;}
+    }if(tentSite)break;
+  }
+  if(tentSite){
+    tent=true;
+    const tx=tentSite.x,tz=tentSite.z,ty=heightAt(tx,tz);
+    const b=M(tx,ty,tz);glass.part(b,G.cone,0,135,0,285,270,285,0x92b0b2);city.part(b,G.cyl,0,154,0,3,308,3,0xc9ccbc);
+    city.part(b,G.cyl,0,5,0,290,10,290,0xb9bcae);block(tx,tz,290,290,ty,ty+300);
+  }
+  for(const fraction of [.30,.74]){
+    const p=TOURS.at(path,path.length*fraction),yaw=Math.atan2(p.tx,p.tz),B=M(p.x,p.y,p.z,yaw);
+    city.part(B,G.scenicArch,0,2,0,64,82,6,0xc6ceca);
+    for(const side of [-1,1]){const x=p.x-p.tz*side*64,z=p.z+p.tx*side*64;city.part(B,G.box,side*64,24,0,6,48,8,0xb9c3bd);block(x,z,4,5,p.y,p.y+48);}
+  }
+  for(const [merger,colour]of [[city,0xffffff],[glass,0xffffff]]){
+    const material=new THREE.MeshLambertMaterial({vertexColors:true,color:colour,fog:false,emissive:0x0b121a});
+    const mesh=new THREE.Mesh(merger.build(),material);mesh.userData.astana={towers,crown,tent,tentSite};parent.add(mesh);
+  }sphere.dispose();
 }
 function featuredCards() {
   for(const id of ['featuredTrips','featuredTrips2']) {
     const box=document.getElementById(id);box.innerHTML='';
     for(const r of TOURS.definitions) {
-      const b=document.createElement('button');b.type='button';b.className='world';b.dataset.journeyRoute=r.id;b.setAttribute('aria-pressed',String(featured===r.id&&biomeMode==='journey'));
-      b.innerHTML='<div class="sw"></div><span><b></b><em></em></span>';b.querySelector('.sw').style.background=`linear-gradient(${r.colour.join(',')})`;b.querySelector('b').textContent=r.name;b.querySelector('em').textContent=r.sub;
+      const b=document.createElement('button');b.type='button';b.className='world';b.dataset.journeyRoute=r.id;b.setAttribute('aria-pressed',String(started&&featured===r.id&&biomeMode==='journey'));
+      b.setAttribute('aria-label',r.name+'から出発');b.title=r.name+' — '+r.sub;
+      const icons={desert:'<path d="M9 31l5-12h12l5 12M12 25h16M10 29h20M15 19V9h10v10M15 13h10M18 9V6h4v3"/>',mountain:'<path d="M3 29L14 8l6 10 5-7 12 18M10 29v-6a10 10 0 0120 0v6M17 29v-6a3 3 0 016 0v6M11 14l3 3 3-3"/>',lake:'<path d="M3 17L11 7l7 9 7-10 12 12M3 23q5-4 10 0t10 0 14 0M3 29q5-4 10 0t10 0 14 0"/>',silk:'<path d="M4 31V17h10v14M15 31V11h10v20M26 31V17h10v14M17 31V21a3 3 0 016 0v10M3 17q6-12 12 0M25 17q6-12 12 0M17 11q3-10 6 0"/>'};
+      const labels={desert:'砂漠の廃線',mountain:'ビシュケク<br>オシュ',lake:'イシク・クル',silk:'ドゥシャンベ<br>サマルカンド'};
+      b.innerHTML='<div class="sw"><svg viewBox="0 0 40 40" aria-hidden="true">'+icons[r.id]+'</svg></div><span><b>'+labels[r.id]+'</b><em></em></span>';b.querySelector('em').textContent=r.sub;
       b.addEventListener('click',()=>{featured=r.id;if(!started)begin(false);else{travelFeatured(r.id);closeSheet('#menuSheet');}});box.append(b);
     }
   }
 }
 function musicRegion() {
   const key=biomeMode==='journey'?BKEYS[dominant(biomeW(P.pos.x,P.pos.z,newW()))]:biomeMode;
-  if(biomeMode==='journey') {const r=tourAt(P.pos.x,P.pos.z);if(r&&r.d<300)return r.path.region||r.path.id;if(P.pos.x>71000&&P.pos.x<88000)return 'desert';}
+  if(biomeMode==='journey') {const r=tourAt(P.pos.x,P.pos.z);if(r&&r.d<300)return r.path.id==='silk'?(P.pos.x>66000?'desert':'mountain'):r.path.region||r.path.id;if(P.pos.x>71000&&P.pos.x<88000)return 'desert';}
   if(['snow','tianshan','pamir'].includes(key))return 'mountain';
   if(['issyk','issykS','karakol','dusk','aktau'].includes(key))return 'lake';
   if(key==='kyzylkum')return 'desert';
@@ -2213,6 +2343,7 @@ function musicRegion() {
 }
 function travelFeatured(id) {
   const definition=TOURS.definitions.find(r=>r.id===id);if(!definition)return;
+  lakeJourney=WindJourneyClimate.create();
   featured=id;biomeMode='journey';store.set('windlover.world4','journey');clearShells();clearDrones();
   let x,z,yaw;
   if(definition.rail){x=definition.x;z=railZ(x);yaw=Math.atan2(1,railZd(x));}
@@ -2220,7 +2351,7 @@ function travelFeatured(id) {
   P.pos.set(x,0,z);rebuildAll();placeAt(x,z,yaw,Math.max(52,S.cruise*1.2));
   Object.assign(P,{dead:false,hull:3,stalled:false,reached:false,flow:.25,routeTrack:null,routeOffset:0,invuln:4,lean:0,leanV:0,sway:0,hold:0,stopT:0,barrage:false});
   inp.jx=inp.jy=inp.kx=inp.ky=0;inp.keys={};steerSm=0;camBaseY=P.pos.y;suspY=suspV=0;updatePalette(0,true);refreshCards();toast(definition.name,'道の先へ',2200);
-  window.dispatchEvent(new CustomEvent('wl:music-region',{detail:{region:id,visit:true}}));
+  window.dispatchEvent(new CustomEvent('wl:music-region',{detail:{region:musicRegion(),visit:true}}));
 }
 
 function drain(steps) { while (!steps.next().done) {} }
@@ -3280,6 +3411,9 @@ const dustGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.Bu
 const dustMat = new THREE.PointsMaterial({ size: 1.1, map: dotTex, transparent: true, depthWrite: false, color: 0xffffff, opacity: 0.32 });
 const dustPts = new THREE.Points(dustGeo, dustMat); dustPts.frustumCulled = false; scene.add(dustPts);
 const horseWake = WindHorseWake.create(THREE, scene, dotTex);
+const flowEffects=WindFlowEffects.create(THREE,scene);
+let lakeJourney=WindJourneyClimate.create();
+const reducedJourneyMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 let dustI = 0;
 function emitDust(p, v, n, spread) {
   for (let i = 0; i < n; i++) {
@@ -3313,7 +3447,7 @@ function placeHome(speed) { const x = homeX(); P.pos.set(x, 0, hwZ(0, x)); updat
 function placeAt(x, z, yaw, speed) {
   P.horse=WindHorseRiding.create();P.hopping=false;P.jumpBuf=0;P.sway=0;P.routeTrack=null;
   sfx.stopHooves();
-  horseWake.clear();
+  horseWake.clear();flowEffects.clear();
   WindTravelCamera.reset(travelCam);
   const g = ground(x, z, Infinity);
   P.pos.set(x, g.h + HOVER + 0.5, z); P.yaw = yaw; P.grind = null; P.grounded = false; P.air = 0.01; P.n.copy(g.n);
@@ -3403,12 +3537,12 @@ function stepPhysics(dt) {
       vf += S.tailwind * Math.max(0, fPl.x * windDir.x + fPl.z * windDir.z) * dt;
       const route = rideRoute(P.pos.x, P.pos.z, P.pos.y);
       P.onRoad = roadDist(P.pos.x, P.pos.z) < 5 || route.d < route.half;
-      if (P.onRoad) vf += 5 * dt;
+      if (P.onRoad) vf += (horse?6.2:5) * dt;
       if (vf > cruiseNow) vf -= (vf - cruiseNow) * (P.onWater ? 0.02 : P.onRoad ? 0.003 : 0.007) * dt;
       // the long pull: held straight, the old engine keeps winding up toward the top end, slowly;
       // laid over in a bend, the speed bleeds back toward a cornering pace
       const straight = 1 - smooth(0.3, 0.7, Math.abs(P.lean)), bend = smooth(0.62, 0.95, Math.abs(P.lean)); // light direction changes keep the pull; only a hard bend bleeds speed
-      if (S.auto && !braking && !P.stalled && !P.dead) { const top = maxNow * 0.96; if (vf > cruiseNow * 0.85 && vf < top) vf += 3.7 * straight * (1 - vf / top) * (P.onRoad ? 1.3 : 1) * dt; }
+      if (S.auto && !braking && !P.stalled && !P.dead) { const top = maxNow * 0.96; if (vf > cruiseNow * 0.85 && vf < top) vf += (horse?6.4:3.7) * straight * (1 - vf / top) * (P.onRoad ? 1.3 : 1) * dt; }
       if (vf > S.cruise * 1.3) vf -= (vf - S.cruise * 1.3) * 0.55 * bend * dt;
       if (vf > maxNow) vf -= (vf - maxNow) * 1.5 * dt;
       if (vf < S.minSpeed) vf = lerp(vf, S.minSpeed, 1 - Math.exp(-3 * dt));
@@ -4638,6 +4772,8 @@ const MOODS = [
 const moodTop = new THREE.Color(), moodHor = new THREE.Color(), moodSun = new THREE.Color();
 const SUN_PERIOD = 540;
 const HIGH_TOP = new THREE.Color(0x626f8d), HIGH_HOR = new THREE.Color(0xeef3f8); let altK = 0;
+const journeySkyColours=Object.fromEntries(Object.entries(WindJourneyClimate.colours).map(([name,values])=>[name,Object.fromEntries(Object.entries(values).map(([k,v])=>[k,new THREE.Color(v)]))]));
+const lakeSkyMix=new THREE.Color();let lakeLight=1;
 function updatePalette(dt, snap) {
   biomeW(P.pos.x, P.pos.z, _wp);
   for (const k of COLK) palT[k].setRGB(0, 0, 0);
@@ -4666,13 +4802,25 @@ function updatePalette(dt, snap) {
   skyMat.uniforms.top.value.copy(pal.top).lerp(moodTop, mk); skyMat.uniforms.hor.value.copy(pal.hor).lerp(moodHor, mk); skyMat.uniforms.bot.value.copy(pal.bot).lerp(moodHor, mk * 0.6);
   skyMat.uniforms.sunCol.value.copy(pal.sunCol).lerp(moodSun, mk); skyMat.uniforms.sunDir.value.copy(pal.sunDir).normalize();
   skyMat.uniforms.top.value.lerp(HIGH_TOP, altK * 0.55); skyMat.uniforms.hor.value.lerp(HIGH_HOR, altK * 0.4);
+  const coastal=tourAt(P.pos.x,P.pos.z),lakeBlend=coastal?.path.id==='lake'?1-smooth(60,240,coastal.d):0,cityBlend=coastal?.path.id==='astana'?1-smooth(120,700,coastal.d):0;
+  const lakeSky=WindJourneyClimate.sky(lakeJourney.evening);lakeLight=lerp(1,lakeSky.light,lakeBlend);
+  if(lakeBlend>0){
+    for(const [key,target]of [['top','top'],['hor','hor'],['bot','bot'],['sunCol','sun']]){
+      lakeSkyMix.copy(journeySkyColours.day[target]).lerp(journeySkyColours.dusk[target],lakeSky.sunset).lerp(journeySkyColours.night[target],lakeSky.night);
+      skyMat.uniforms[key].value.lerp(lakeSkyMix,lakeBlend);
+    }
+    tmp.set(-Math.cos(lakeSky.elevation),Math.sin(lakeSky.elevation),-.15).normalize();pal.sunDir.lerp(tmp,lakeBlend);skyMat.uniforms.sunDir.value.copy(pal.sunDir);
+  }
+  skyMat.uniforms.stars.value=lakeSky.stars*lakeBlend;skyMat.uniforms.clock.value=t;
   scene.fog.color.copy(skyMat.uniforms.hor.value); renderer.setClearColor(scene.fog.color);
-  scene.fog.near = lerp(280, 650, altK); scene.fog.far = lerp(3700, 5100, altK);
-  rangeMat.color.setScalar(0.62); rangeMat.emissive.copy(scene.fog.color).multiplyScalar(0.42 - altK * 0.12);
-  hemi.color.copy(pal.hemiSky); hemi.groundColor.copy(pal.hemiGround); hemi.intensity = pal.hemiI * .91;
+  scene.fog.near = lerp(280, 650, altK); scene.fog.far = lerp(lerp(4300,5800,altK),lakeSky.fog,lakeBlend);
+  rangeMat.color.setScalar(0.62*lerp(1,.42,lakeSky.night*lakeBlend)); rangeMat.emissive.copy(scene.fog.color).multiplyScalar(0.42 - altK * 0.12);
+  for(const mesh of featuredVista.children)if(mesh.userData.foldedRange)mesh.material.color.setScalar(lerp(1,.27,lakeSky.night*lakeBlend));
+  hemi.color.copy(pal.hemiSky); hemi.groundColor.copy(pal.hemiGround); hemi.intensity = pal.hemiI * .91 * lerp(1,.65,1-lakeLight);
+  if(cityBlend>0){hemi.color.lerp(lakeSkyMix.setHex(0xc9deed),cityBlend*.65);hemi.groundColor.lerp(lakeSkyMix.setHex(0x8c8f88),cityBlend*.60);}
   { let r = 0, g = 0, bl = 0; for (let i = 0; i < NB; i++) { const w = _wp[i]; if (!w) continue; r += PAL[i].water[0] * w; g += PAL[i].water[1] * w; bl += PAL[i].water[2] * w; } waterMat.color.setRGB(r, g, bl); }
-  sun.color.copy(pal.sunLight).lerp(moodSun, mk * 0.6); sun.intensity = pal.sunI * .78; sun.position.copy(pal.sunDir).normalize();
-  for (const c of clouds) { c.material.color.copy(pal.cloud).lerp(moodHor,.25); c.material.opacity=.62; }
+  sun.color.copy(pal.sunLight).lerp(moodSun, mk * 0.6); sun.intensity = pal.sunI * .78 * lakeLight; sun.position.copy(pal.sunDir).normalize();
+  for (const c of clouds) { c.material.color.copy(pal.cloud).lerp(moodHor,.25); c.material.opacity=lerp(.62,.17,lakeSky.night*lakeBlend); }
   for (const c of cloudSea) { c.material.color.copy(pal.cloud).lerp(moodHor, 0.3); c.material.opacity = altK * 0.85; c.visible = altK > 0.02; }
   // announce a new land when it clearly takes over
   const d = dominant(_wp);
@@ -4733,7 +4881,7 @@ function updateVisuals(dt) {
     camera.rotateZ(clamp(P.yawRate, -2, 2) * 0.008 * sf);
   }
   dashPunch = Math.max(0, dashPunch - dt * 2.2);
-  const fov = (portrait ? 66 : 52) + (started ? sf * 2 * S.fovKick + dashPunch * 0.8 : 0);
+  const fov = (portrait ? 66 : 52) + (started ? sf * (vehKey==='horse'?3.2:2) * S.fovKick + dashPunch * 0.8 : 0);
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = lerp(camera.fov, fov, 1 - Math.exp(-6 * dt)); applyLens(); }
   sky.position.copy(camera.position);
 
@@ -4754,7 +4902,7 @@ function updateVisuals(dt) {
     MD.body.rotation.y=-action.load*.035;
     MD.rider.updateMatrix();MD.neck.updateMatrix();
     sfx.horseRhythm(gait,{active:started&&!paused&&!P.dead,grounded:P.grounded,speed,
-      surface:P.onWater?'water':P.onRoad?(String(P.routeTrack).startsWith('rail')?'gravel':'road'):musicRegion()==='mountain'?'snow':'earth',load:Math.abs(action.load)});
+      surface:P.onWater?'water':WindJourneyClimate.mountain(P.pos.x,P.pos.z,P.pos.y).snow>.45?'snow':P.onRoad?(String(P.routeTrack).startsWith('rail')?'gravel':'road'):musicRegion()==='mountain'?'snow':'earth',load:Math.abs(action.load)});
   }
   visN.lerp(P.grounded ? P.n : UP, 1 - Math.exp(-10 * dt)).normalize();
   bz.set(Math.sin(P.yaw), 0, Math.cos(P.yaw)); bz.addScaledVector(visN, -bz.dot(visN)).normalize();
@@ -4831,9 +4979,10 @@ function updateVisuals(dt) {
     for(const event of MD.motion.beats){
       MD.legs.find(q=>q.index===event.leg).hoof.getWorldPosition(tmp);
       tmp.y=ground(tmp.x,tmp.z,P.pos.y).h+.04;
-      horseWake.emit(tmp,P.vel,P.onWater?UPC:P.onRoad?ROADDUST:pal.dust,event.weight*(P.onRoad?.76:1),P.onWater,event.age);
+      horseWake.emit(tmp,P.vel,P.onWater?UPC:P.onRoad?ROADDUST:pal.dust,event.weight*(P.onRoad?.85:1),P.onWater,event.age,{snow:WindJourneyClimate.mountain(P.pos.x,P.pos.z,P.pos.y).snow,speed,wind:windDir});
     }
   }
+  flowEffects.update(dt,{position:P.pos,velocity:P.vel,active:started&&!paused&&!P.dead,snow:WindJourneyClimate.mountain(P.pos.x,P.pos.z,P.pos.y).snow,pressure:travelCam.focus,reduced:reducedJourneyMotion});
   MD.scarf.getWorldPosition(scarfPts[0]);
   if(dt>0)for (let i = 1; i < SCARF_N; i++) {
     const p = scarfPts[i], prev = scarfPts[i - 1];
@@ -5369,6 +5518,7 @@ function frame(now) {
     playerPrevious.copy(P.pos);
     const sub = clamp(Math.ceil(P.vel.length() * dt / 1.4), dt > 0.022 ? 2 : 1, 5);
     for (let i = 0; i < sub; i++) stepPhysics(dt / sub);
+    WindJourneyClimate.advance(lakeJourney,dt,tourAt(P.pos.x,P.pos.z),P.vel.x,Math.hypot(P.vel.x,P.vel.z));
     updateWind(); updateChunks(false); updatePalette(dt, false);
     sfx.update(P.vel.length(), !!P.grind, P.inStream, P.stalled ? 'board' : vehKey); sfx.carve(P.grounded&&vehKey!=='horse' ? P.carve : 0, P.onWater);
     updateHud(); updateEngine(dt); updateThreat(dt); updateDrones(dt, playerPrevious); updateTurret(dt);
@@ -5382,7 +5532,7 @@ function frame(now) {
 setVehicle(vehKey); applyLens();
 placeHome(0); buildHome(); buildFeaturedVista(); updatePalette(0, true); refreshCards();
 requestAnimationFrame(frame);
-window.__wl = { riding: WindHorseRiding, musicRegion, setVehicle, get vehicle(){return vehKey;}, tours: TOURS, tourAt, travelFeatured, get featured() { return featured; }, performance: { streaming: streamStats, quality }, combat: { hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, patternNames: PATTERN_NAMES, relativeSpeed: AS_REL, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
+window.__wl = { climate:WindJourneyClimate,get lakeJourney(){return lakeJourney;},flowEffects,riding: WindHorseRiding, musicRegion, setVehicle, get vehicle(){return vehKey;}, tours: TOURS, tourAt, travelFeatured, get featured() { return featured; }, performance: { streaming: streamStats, quality }, combat: { hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, patternNames: PATTERN_NAMES, relativeSpeed: AS_REL, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
 // A lazy connection lets the menu's independent BGM bus reuse the game's audio clock.
 window.__wlAudio = { getContext() { sfx.init(); return sfx.context; }, getDestination() { sfx.init(); return sfx.output; }, get soundOn() { return sfx.on; } };
 })();

@@ -7,6 +7,7 @@
     {id:'desert',name:'ウズベキスタン・砂漠の廃線',sub:'峠から続く廃線、砂と青いドーム',x:75100,rail:true,colour:['#465a71','#e6c6a1','#aa8f68']},
     {id:'mountain',name:'ビシュケクからオシュへ',sub:'湖岸と廃線を結ぶ峠、断崖とトンネル',colour:['#718ca7','#d6dcd9','#777b74']},
     {id:'lake',name:'イシク・クルを一周',sub:'湖岸を巡り、東の分岐から天山の峠へ',colour:['#487fbc','#dbe8eb','#5e937d']},
+    {id:'silk',name:'ドゥシャンベからサマルカンドへ',sub:'緑の大通り、山間の隊商路、青い古都へ',colour:['#54715e','#d2b78b','#587f97']},
   ];
   const paths = [], grid = new Map(), CELL = 256;
   const mountain = [[32600,300,150],[34000,900,205],[35500,450,300],[36900,-550,405],[38400,-100,510],[39900,1200,610],[41400,1750,655],[43000,900,550],[44600,-300,420],[46300,200,290],[48000,1200,215]];
@@ -16,7 +17,7 @@
     for(let i=0;i<points.length;i++){const a=points[i===0&&closed?points.length-2:Math.max(0,i-1)],b=points[i===points.length-1&&closed?1:Math.min(points.length-1,i+1)],l=Math.hypot(b.x-a.x,b.z-a.z);points[i].nx=-(b.z-a.z)/l;points[i].nz=(b.x-a.x)/l;}
     for(let i=0;i<points.length-1;i++) {
       const a=points[i],b=points[i+1],dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);
-      const seg={path,a,b,dx,dz,length,index:i,s:path.length,half:id==='lake'?18:19,tx:dx/length,tz:dz/length,grade:(b.y-a.y)/length};
+      const seg={path,a,b,dx,dz,length,index:i,s:path.length,half:id==='astana'?32:id==='lake'?21:22,tx:dx/length,tz:dz/length,grade:(b.y-a.y)/length};
       path.segments.push(seg);path.length+=length;
       for(let x=Math.floor((Math.min(a.x,b.x)-170)/CELL);x<=Math.floor((Math.max(a.x,b.x)+170)/CELL);x++)
         for(let z=Math.floor((Math.min(a.z,b.z)-170)/CELL);z<=Math.floor((Math.max(a.z,b.z)+170)/CELL);z++) {
@@ -67,5 +68,5 @@
   function mountainAtX(x){let lo=0,hi=mp.length-2;while(lo<hi){const m=(lo+hi+1)>>1;if(mp[m].x<=x)lo=m;else hi=m-1;}const a=mp[lo],b=mp[lo+1],u=clamp((x-a.x)/(b.x-a.x),0,1);return{z:lerp(a.z,b.z,u),y:lerp(a.y,b.y,u)};}
   function tunnel(x){return x>=35280&&x<36240?'gallery':x>=36500&&x<37120?'tunnel':x>=41840&&x<42520?'gallery':null;}
   function relief(x,z){if(x<31000||x>49600)return -Infinity;const p=mountainAtX(x),d=Math.abs(z-p.z),gate=smooth(31000,32600,x)*(1-smooth(48000,49600,x));return (p.y-12+800*Math.pow(smooth(48,1100,d),.7)+((x>35150&&x<37250)||(x>41700&&x<42650)?120*(1-smooth(40,220,d)):0))*gate-200*(1-gate);}
-  globalThis.WindRoutes={definitions,paths,nearest,at,tunnel,relief,addConnection,junctions:[]};
+  globalThis.WindRoutes={definitions,paths,nearest,at,tunnel,relief,addConnection,mountainAtX,junctions:[]};
 })();
