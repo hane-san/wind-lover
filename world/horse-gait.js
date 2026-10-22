@@ -3,9 +3,9 @@
   const TAU=Math.PI*2,clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
   const smooth=x=>{x=clamp(x,0,1);return x*x*(3-2*x);};
   const mix=(a,b,k)=>a+(b-a)*k;
-  const cadence=speed=>1.42+.32*clamp((speed-10)/80,0,1);
-  // Right hind, left hind, right fore, left fore: four contacts, then suspension.
-  const offsets=[.12,0,.48,.34],weights=[.78,.88,1.12,1];
+  const cadence=speed=>1.55+.57*clamp((speed-10)/80,0,1);
+  // The close hind pair reads as one pickup, followed by two distinct fore contacts: pa-ka-ra, space.
+  const offsets=[.07,0,.44,.26],weights=[.72,.82,1.1,1];
   function create(){return {phase:0,cycles:0,blend:0,rate:0,beats:[],air:0};}
   function advance(state,dt,speed,grounded,active=true){
     state.beats.length=0;if(!(dt>0))return state;dt=Math.min(dt,.1);
@@ -22,18 +22,20 @@
   }
   function pose(phase,blend){
     const a=phase*TAU;
-    return {heave:(-.035+.045*Math.cos(a-.82*TAU))*blend,
-      pitch:.042*Math.sin(a-.09*TAU)*blend,neck:(.06+.04*Math.sin(a-.3))*blend,
-      riderY:.016*Math.sin(a-1.1)*blend,riderPitch:(.035+.018*Math.sin(a-1.2))*blend,
-      tailX:.12+.25*blend,tailZ:.09*Math.sin(a-1)*blend};
+    return {heave:(-.055+.065*Math.cos(a-.82*TAU))*blend,
+      pitch:.052*Math.sin(a-.09*TAU)*blend,neck:(.07+.055*Math.sin(a-.3))*blend,
+      // Yield through the hips: the rider follows the saddle but absorbs part of its rise and pitch.
+      riderY:(-.028*Math.cos(a-.82*TAU)+.01*Math.sin(a-1.1))*blend,
+      riderPitch:(.05+.022*Math.sin(a-1.35)-.55*.052*Math.sin(a-.09*TAU))*blend,
+      tailX:.12+.35*blend,tailZ:.055*Math.sin(a-1)*blend};
   }
   function foot(phase,index,blend,air=0){
     const u=((phase-offsets[index])%1+1)%1,front=index>=2,duty=front?.23:.27,stance=u<duty;
     const swing=clamp((u-duty)/(1-duty),0,1);
-    const reach=front?.54:.58,push=front?-.46:-.58;
-    const z=stance?mix(reach,push,u/duty):mix(push,reach,smooth(swing));
+    const reach=front?.64:.66,push=front?-.58:-.68;
+    const z=stance?mix(reach,push,smooth(u/duty)):mix(push,reach,smooth(swing));
     // Gather early under the belly, then reach forward before the next grounded stroke.
-    const lift=stance?0:(front?.35:.28)*Math.pow(Math.sin(Math.PI*swing),1.3);
+    const lift=stance?0:(front?.42:.34)*Math.pow(Math.sin(Math.PI*swing),1.3);
     return {z:z*blend,y:.085+lift*blend+.12*air,stance:stance&&blend>.1&&air<.1};
   }
   function solvePair(y,z,ay,az,by,bz,bendSign){
