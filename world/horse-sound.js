@@ -17,7 +17,7 @@
   }
   function create(context,destination){
     const bank=new Map();let voices=0;
-    const tone=context.createBiquadFilter();tone.type='lowpass';tone.frequency.value=2900;tone.Q.value=.5;tone.connect(destination);
+    const tone=context.createBiquadFilter();tone.type='lowpass';tone.frequency.value=3100;tone.Q.value=.5;tone.connect(destination);
     for(const hard of [false,true])for(let leg=0;leg<4;leg++){
       const data=samples(context.sampleRate,leg>=2,hard,leg),buffer=context.createBuffer(1,data.length,context.sampleRate);buffer.copyToChannel(data,0);bank.set(`${hard}:${leg}`,buffer);
     }
@@ -25,7 +25,7 @@
       if(voices>=24)return false;
       const source=context.createBufferSource(),gain=context.createGain(),pan=context.createStereoPanner();
       source.buffer=bank.get(`${!!hard}:${event.leg}`);source.playbackRate.value=.985+event.leg*.01;
-      gain.gain.value=.34*event.weight;pan.pan.value=event.leg%2?.13:-.13;
+      gain.gain.value=.36*event.weight;pan.pan.value=event.leg%2?.13:-.13;
       source.connect(gain);gain.connect(pan);pan.connect(tone);voices++;
       source.onended=()=>{source.disconnect();gain.disconnect();pan.disconnect();voices--;};
       source.start(at+Math.max(.003,.06-event.age));return true;
