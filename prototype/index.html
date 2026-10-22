@@ -302,8 +302,9 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="../world/featured-routes.js"></script>
-<script src="../world/horse-gait.js?v=20261022-pakara"></script>
+<script src="../world/horse-gait.js?v=20261022-tall"></script>
 <script src="../world/horse-sound.js?v=20261022-pakara"></script>
+<script src="../world/travel-camera.js?v=20261022-tall"></script>
 <script>
 'use strict';
 (() => {
@@ -3102,67 +3103,65 @@ function limb(parent, a, b, r, mat) {
   models.sidecar = { group: g, rider, scarf: scarfA, trail: trailA, arms: null, ears, dogHead };
   boardPivot.add(g);
 })();
-// Kyrgyz-inspired traveller: ak-kalpak, chapan, shyrdak saddle felt; no weapon mount.
+// Kyrgyz-inspired traveller on a tall bay horse; no weapon mount.
 (() => {
-  const g = new THREE.Group(), body = new THREE.Group(), rider = new THREE.Group();
-  g.add(body); body.add(rider);
-  const coat = lam(0xb58b60), dark = lam(0x3b2e29), pale = lam(0xeee2c7), cloth = lam(0x2e6267), red = lam(0xa33332), gold = lam(0xd4b16b);
-  const add = (geo, mat, x,y,z, parent=body, rx=0,ry=0,rz=0) => { const o=new THREE.Mesh(geo,mat);o.position.set(x,y,z);o.rotation.set(rx,ry,rz);parent.add(o);return o; };
-  const oval = (x,y,z,a,b,c,mat,parent=body) => {const o=add(new THREE.SphereGeometry(1,12,8),mat,x,y,z,parent);o.scale.set(a,b,c);return o;};
-  oval(0,1.12,0,.48,.52,1.04,coat);
-  oval(0,1.24,-.65,.43,.48,.5,coat);
-  oval(0,1.28,.71,.38,.52,.45,coat);
-  const neck=new THREE.Group();neck.position.set(0,1.4,.72);body.add(neck);
-  oval(0,.34,.18,.27,.66,.32,coat,neck).rotation.x=.45;
-  oval(0,.89,.43,.24,.34,.46,coat,neck).rotation.x=-.25;
-  oval(0,.77,.76,.24,.22,.27,dark,neck);
-  add(new THREE.BoxGeometry(.075,.58,.23),dark,0,.5,-.13,neck,-.4);
-  for(const side of [-1,1]) {
-    add(new THREE.ConeGeometry(.075,.28,5),coat,side*.15,1.21,.32,neck,0,0,side*-.2);
-    oval(side*.229,.98,.59,.025,.045,.04,dark,neck);
-    // Leather cheek pieces, browband and breast strap, with small brass fittings.
-    limb(neck,[side*.25,1.04,.4],[side*.25,.72,.78],.018,dark);
-    oval(side*.26,.78,.76,.045,.045,.045,gold,neck);
-    limb(body,[side*.35,1.43,.8],[side*.42,.9,.55],.026,red);
+  const g=new THREE.Group(),body=new THREE.Group(),rider=new THREE.Group(),rig=WindHorseGait.rig;
+  g.add(body);body.add(rider);const modelUp=new V3(0,1,0),modelTmp=new V3();
+  const coat=lam(0x8b654a),dark=lam(0x292723),muzzle=lam(0x51463b),horn=lam(0x35332f),pale=lam(0xe0d6bd),cloth=lam(0x3c5753),red=lam(0x854a40),gold=lam(0xa28b5e);
+  const add=(geo,mat,x,y,z,parent=body,rx=0,ry=0,rz=0)=>{const o=new THREE.Mesh(geo,mat);o.position.set(x,y,z);o.rotation.set(rx,ry,rz);parent.add(o);return o;};
+  const oval=(x,y,z,a,b,c,mat,parent=body)=>{const o=add(new THREE.SphereGeometry(1,16,10),mat,x,y,z,parent);o.scale.set(a,b,c);return o;};
+  // Continuous, softly shaded profiles replace the separate toy-like torso and head spheres.
+  function loft(rings,mat,parent=body,sides=16){
+    const pos=[],idx=[];
+    for(const [y,z,w,h]of rings)for(let j=0;j<sides;j++){const a=j/sides*TAU;pos.push(Math.cos(a)*w,y+Math.sin(a)*h,z);}
+    for(let i=0;i<rings.length-1;i++)for(let j=0;j<sides;j++){const a=i*sides+j,n=i*sides+(j+1)%sides,b=a+sides,bn=n+sides;idx.push(a,n,b,n,bn,b);}
+    for(const end of [0,rings.length-1]){const centre=pos.length/3;pos.push(0,rings[end][0],rings[end][1]);for(let j=0;j<sides;j++){const a=end*sides+j,b=end*sides+(j+1)%sides;idx.push(...(end?[centre,a,b]:[centre,b,a]));}}
+    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));geo.setIndex(idx);geo.computeVertexNormals();const mesh=new THREE.Mesh(geo,mat);parent.add(mesh);return mesh;
   }
-  add(new THREE.BoxGeometry(.5,.035,.06),red,0,1.07,.47,neck);
-  const tail=new THREE.Group();tail.position.set(0,1.23,-.96);body.add(tail);
-  limb(tail,[0,0,0],[0,-.48,-.27],.11,dark);limb(tail,[0,-.48,-.27],[0,-.94,-.32],.075,dark);
+  function taper(parent,a,b,wide,narrow,mat){const A=new V3(...a),B=new V3(...b),d=B.clone().sub(A);const o=new THREE.Mesh(new THREE.CylinderGeometry(narrow,wide,d.length(),10),mat);o.position.copy(A).add(B).multiplyScalar(.5);o.quaternion.setFromUnitVectors(modelUp,d.normalize());parent.add(o);return o;}
+  const torso=loft([[1.57,-1.18,.17,.25],[1.54,-.90,.36,.43],[1.49,-.48,.42,.43],[1.47,.05,.41,.44],[1.58,.62,.36,.51],[1.68,.91,.24,.39],[1.71,1.05,.11,.23]],coat);
+  const neck=new THREE.Group();neck.position.set(0,1.75,.80);body.add(neck);
+  loft([[.02,-.16,.25,.36],[.29,.04,.25,.40],[.57,.25,.20,.34],[.83,.43,.155,.26],[1.01,.55,.125,.17]],coat,neck);
+  loft([[1.00,.44,.11,.18],[.94,.60,.17,.21],[.80,.81,.15,.175],[.67,1.07,.13,.115],[.66,1.20,.12,.095]],coat,neck);
+  oval(0,.65,1.15,.145,.12,.14,muzzle,neck);
+  loft([[.11,-.27,.035,.15],[.49,-.09,.043,.18],[.87,.18,.034,.14],[1.09,.37,.025,.075]],dark,neck,8);
+  for(const side of [-1,1]){
+    const ear=add(new THREE.ConeGeometry(.055,.29,7),coat,side*.12,1.23,.50,neck,.12,0,side*-.10);ear.scale.z=.58;
+    oval(side*.167,.965,.63,.018,.025,.043,dark,neck);
+    oval(side*.132,.68,1.22,.018,.025,.043,dark,neck);
+    limb(neck,[side*.17,1.03,.59],[side*.16,.68,1.12],.012,dark);
+    oval(side*.16,.69,1.12,.025,.025,.025,gold,neck);
+    limb(body,[side*.28,1.95,.78],[side*.34,1.31,.64],.020,red);
+  }
+  add(new THREE.BoxGeometry(.30,.027,.035),dark,0,1.025,.67,neck);
+  const tail=new THREE.Group();tail.position.set(0,1.62,-1.12);body.add(tail);
+  const tailPath=new THREE.CatmullRomCurve3([new V3(0,0,0),new V3(0,-.33,-.17),new V3(.01,-.73,-.23),new V3(0,-1.05,-.16)]);
+  const tailGeo=new THREE.TubeGeometry(tailPath,14,.10,8,false),tp=tailGeo.attributes.position;
+  for(let i=0;i<=14;i++){const c=tailPath.getPointAt(i/14),radius=.35+.8*Math.sin(Math.PI*(i/14)*.75);for(let j=0;j<=8;j++){const k=i*9+j;modelTmp.set(tp.getX(k),tp.getY(k),tp.getZ(k)).sub(c).multiplyScalar(radius*(1-.72*Math.pow(i/14,4))).add(c);tp.setXYZ(k,modelTmp.x,modelTmp.y,modelTmp.z);}}
+  tailGeo.computeVertexNormals();tail.add(new THREE.Mesh(tailGeo,dark));
   const legs=[];
-  for(const side of [-1,1]) for(const front of [false,true]) {
-    const leg=new THREE.Group();leg.position.set(side*.3,1.1,front?.69:-.67);body.add(leg);
-    let knee,hock=null;
-    if(front){
-      limb(leg,[0,0,0],[0,-.58,-.03],.105,coat);
-      knee=new THREE.Group();knee.position.set(0,-.58,-.03);leg.add(knee);
-      limb(knee,[0,0,0],[0,-.51,.035],.065,coat);
-      add(new THREE.BoxGeometry(.18,.17,.25),dark,0,-.59,.04,knee);
-    }else{
-      limb(leg,[0,0,0],[0,-.30,.22],.15,coat);
-      knee=new THREE.Group();knee.position.set(0,-.30,.22);leg.add(knee);
-      limb(knee,[0,0,0],[0,-.38,-.22],.095,coat);
-      hock=new THREE.Group();hock.position.set(0,-.38,-.22);knee.add(hock);
-      limb(hock,[0,0,0],[0,-.35,.06],.055,coat);
-      add(new THREE.BoxGeometry(.18,.17,.25),dark,0,-.42,.07,hock);
-    }
-    legs.push({leg,knee,hock,front,index:front?(side<0?2:3):(side<0?0:1)});
+  for(const side of [-1,1])for(const front of [false,true]){
+    const leg=new THREE.Group();leg.position.set(side*.27,rig.hipY,front?rig.foreZ:rig.hindZ);body.add(leg);
+    let knee,hock=null,hoofParent,tip;
+    if(front){const [a,b]=rig.fore;taper(leg,[0,0,0],[0,...a],.12,.071,coat);knee=new THREE.Group();knee.position.set(0,...a);leg.add(knee);oval(0,0,0,.074,.085,.078,coat,knee);taper(knee,[0,0,0],[0,b[0]+.09,b[1]],.057,.038,dark);hoofParent=knee;tip=b;}
+    else{const [a,b,c]=rig.hind;taper(leg,[0,0,0],[0,...a],.16,.095,coat);knee=new THREE.Group();knee.position.set(0,...a);leg.add(knee);taper(knee,[0,0,0],[0,...b],.088,.058,coat);hock=new THREE.Group();hock.position.set(0,...b);knee.add(hock);oval(0,0,0,.065,.08,.072,dark,hock);taper(hock,[0,0,0],[0,c[0]+.09,c[1]],.045,.032,dark);hoofParent=hock;tip=c;}
+    const hoof=add(new THREE.CylinderGeometry(.062,.085,.15,9),horn,0,tip[0],tip[1],hoofParent);hoof.scale.z=1.25;
+    legs.push({leg,knee,hock,hoof,front,index:front?(side<0?2:3):(side<0?0:1)});
   }
-  // The original shyrdak texture is shared with the world's Kyrgyz felt monuments.
   const felt=new THREE.MeshLambertMaterial({map:shyrdakTex[0],side:THREE.DoubleSide});
-  for(const side of [-1,1])add(new THREE.PlaneGeometry(.8,.9),felt,side*.455,1.11,-.1,body,0,side*Math.PI/2,side*.08);
-  add(new THREE.BoxGeometry(.63,.1,.9),red,0,1.62,-.12);
-  add(new THREE.BoxGeometry(.42,.17,.57),dark,0,1.75,-.08);
-  for(const z of [-.4,.24])add(new THREE.BoxGeometry(.53,.18,.12),dark,0,1.86,z);
+  for(const side of [-1,1])add(new THREE.PlaneGeometry(.83,.78),felt,side*.415,1.48,-.12,body,0,side*Math.PI/2,side*.06);
+  add(new THREE.BoxGeometry(.57,.065,.86),red,0,1.95,-.12);
+  oval(0,2.055,-.08,.265,.10,.37,dark);
+  for(const z of [-.40,.24])add(new THREE.BoxGeometry(.46,.12,.09),dark,0,2.16,z);
   for(const side of [-1,1]) {
     limb(rider,[side*.16,1.98,-.06],[side*.44,1.54,.23],.12,cloth);
     limb(rider,[side*.44,1.54,.23],[side*.45,1.05,.18],.085,dark);
     add(new THREE.BoxGeometry(.16,.15,.3),dark,side*.45,1,.26,rider);
-    limb(body,[side*.4,1.64,-.02],[side*.52,.98,.18],.018,dark);
-    add(new THREE.TorusGeometry(.105,.018,4,10),gold,side*.5,.98,.18,body,0,Math.PI/2);
+    limb(body,[side*.38,1.96,-.02],[side*.49,1.30,.18],.016,dark);
+    add(new THREE.TorusGeometry(.105,.018,4,10),gold,side*.49,1.30,.18,body,0,Math.PI/2);
     limb(rider,[side*.21,2.53,-.05],[side*.31,2.21,.35],.09,cloth);
     limb(rider,[side*.31,2.21,.35],[side*.19,2.15,.64],.075,cloth);
     oval(side*.18,2.15,.65,.07,.065,.08,pale,rider);
-    limb(body,[side*.2,2.14,.64],[side*.25,2.13,1.46],.012,dark);
   }
   add(new THREE.CylinderGeometry(.25,.34,.73,10),cloth,0,2.28,-.07,rider);
   add(new THREE.BoxGeometry(.5,.09,.4),red,0,2.03,-.07,rider);
@@ -3174,8 +3173,12 @@ function limb(parent, a, b, r, mat) {
   add(new THREE.CylinderGeometry(.235,.21,.055,8),pale,0,3.065,.01,rider);
   for(const a of [0,Math.PI/2,Math.PI,Math.PI*1.5])limb(rider,[Math.sin(a)*.2,3.07,.01+Math.cos(a)*.2],[Math.sin(a)*.1,3.38,.01+Math.cos(a)*.1],.012,dark);
   const scarfA=new THREE.Object3D();scarfA.position.set(0,2.67,-.16);rider.add(scarfA);
+  // Move the rider's own geometry, keeping its group pivot available for saddle absorption.
+  for(const child of rider.children)child.position.y+=.32;
+  const reins=[];
+  for(const side of [-1,1]){const geo=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(27),3));const line=new THREE.Line(geo,new THREE.LineBasicMaterial({color:0x3a3026}));line.frustumCulled=false;body.add(line);reins.push({geo,hand:new V3(side*.18,2.47,.65),bit:new V3(side*.16,.69,1.12),a:new V3(),b:new V3()});}
   const trailA=new THREE.Object3D();trailA.position.set(0,.05,-1.15);g.add(trailA);
-  models.horse={group:g,rider,scarf:scarfA,trail:trailA,arms:null,body,neck,tail,legs,motion:WindHorseGait.create()};boardPivot.add(g);
+  models.horse={group:g,rider,scarf:scarfA,trail:trailA,arms:null,body,neck,tail,legs,reins,rig,torso,motion:WindHorseGait.create()};boardPivot.add(g);
 })();
 const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
 scene.add(shadow);
@@ -3251,10 +3254,12 @@ const homeX = () => biomeMode === 'journey' ? BASE_X - BASE_LEN / 2 + 14 : 0;
 function startPose() { return Math.atan2(1, hwZd(0, homeX())); }
 function placeHome(speed) { const x = homeX(); P.pos.set(x, 0, hwZ(0, x)); updateChunks(true); placeAt(x, hwZ(0, x), startPose(), speed); P.stalled = false; P.reached = false; }
 function placeAt(x, z, yaw, speed) {
+  WindTravelCamera.reset(travelCam);
   const g = ground(x, z, Infinity);
   P.pos.set(x, g.h + HOVER + 0.5, z); P.yaw = yaw; P.grind = null; P.grounded = false; P.air = 0.01; P.n.copy(g.n);
   fwd.set(Math.sin(yaw), 0, Math.cos(yaw)); P.vel.copy(fwd).multiplyScalar(speed);
   camDir.copy(fwd); camPos.copy(P.pos).addScaledVector(fwd, -S.camDist).add(new V3(0, 3, 0)); lookSm.copy(P.pos);
+  camOff.copy(camPos).sub(P.pos);camBaseY=P.pos.y;lookAng=0;
   trailCount = 0; for (const p of scarfPts) p.copy(P.pos).add(new V3(0, 1.6, 0));
 }
 function respawn() { placeHome(S.cruise * 0.45); }
@@ -4481,6 +4486,7 @@ function updateTurret(dt) {
 
 // ---------------------------------------------------------------- camera & visuals
 const camDir = new V3(0, 0, 1), camPos = new V3(), lookSm = new V3(), visN = new V3(0, 1, 0), camOff = new V3(0, 3, -7);
+const travelCam = WindTravelCamera.create();
 let camBaseY = 0, lift = 0, lookAng = 0, suspY = 0, suspV = 0, lastVy = 0;
 function applyLens() {
   const w = innerWidth, h = innerHeight, shift = w < h ? 0.095 : 0.055;
@@ -4558,6 +4564,11 @@ function updateVisuals(dt) {
     const a = t * 0.08, gh = ground(0, 0).h;
     camera.position.set(Math.cos(a) * 60, gh + 18, Math.sin(a) * 60); camera.lookAt(0, gh + 10, 0); camBaseY = gh;
   } else {
+    const cameraRoad=vehKey==='horse'&&P.onRoad?rideRoute(P.pos.x,P.pos.z,P.pos.y):null;
+    const viewPlay=WindTravelCamera.advance(travelCam,dt,{speed,
+      steer:Math.max(Math.abs(inp.jx),Math.abs(inp.kx)),yawRate:P.yawRate,
+      blocked:vehKey!=='horse'||!cameraRoad||cameraRoad.half-cameraRoad.d<4.5||P.inTunnel||!P.grounded||P.dead||P.stalled||P.grind||P.invuln>0||dashPunch>.02||Math.abs(P.vel.y)>8||
+        (shellsOn&&P.danger>.15)||forms.some(f=>!f.peace&&f.pos.distanceToSquared(P.pos)<1100*1100)});
     tmp.set(P.vel.x, 0, P.vel.z);
     if (tmp.lengthSq() > 9) tmp.normalize(); else tmp.copy(fwd);
     tmp.lerp(fwd, 0.2).normalize();
@@ -4567,8 +4578,9 @@ function updateVisuals(dt) {
     let dA = Math.atan2(Math.sin(ang - la), Math.cos(ang - la)); dA = clamp(dA, -0.32, 0.32);
     lookAng = lerp(lookAng, dA, 1 - Math.exp(-3 * dt));
     // offset-based follow: the camera keeps its place relative to the rider at any speed
-    const dist = S.camDist * (1.13 + sf * 0.10), height = 4.8 + (P.grounded ? 0 : 1.0) + (P.tuck ? -0.3 : 0);
+    const dist = S.camDist * (1.13 + sf * 0.10) + viewPlay.pull, height = 4.8 + viewPlay.rise + (P.grounded ? 0 : 1.0) + (P.tuck ? -0.3 : 0);
     tmp2.copy(camDir).multiplyScalar(-dist); tmp2.y = height;
+    tmp2.x+=camDir.z*viewPlay.side;tmp2.z-=camDir.x*viewPlay.side;
     const swing = clamp(P.yawRate, -2.2, 2.2) * sf * 0.45; tmp2.x += -camDir.z * swing; tmp2.z += camDir.x * swing;
     camOff.lerp(tmp2, 1 - Math.exp(-7 * dt));
     camBaseY += (P.pos.y - camBaseY) * (1 - Math.exp(-14 * dt));
@@ -4580,7 +4592,7 @@ function updateVisuals(dt) {
     camera.position.y += suspY * 0.08; // the ride comes through to the eye, softened
     shake = Math.max(0, shake - dt * 1.5);
     const lAng = Math.atan2(camDir.x, camDir.z) + lookAng;
-    lookSm.set(P.pos.x + Math.sin(lAng) * 52, camBaseY + 0.8, P.pos.z + Math.cos(lAng) * 52);
+    lookSm.set(P.pos.x + Math.sin(lAng) * 52 + camDir.z*viewPlay.look, camBaseY + (vehKey==='horse'?1.05:.8), P.pos.z + Math.cos(lAng) * 52 - camDir.x*viewPlay.look);
     const scenic=tourAt(P.pos.x,P.pos.z);
     if(scenic?.path.id==='lake'){const dx=LK.x-P.pos.x,dz=LK.z*funnel(P.pos.x)-P.pos.z,l=Math.hypot(dx,dz)||1;lookSm.x+=dx/l*5;lookSm.z+=dz/l*5;}
     camera.lookAt(lookSm);
@@ -4601,8 +4613,10 @@ function updateVisuals(dt) {
     }
     MD.body.position.y=pose.heave;MD.body.rotation.x=pose.pitch;
     MD.rider.rotation.x=pose.riderPitch;
-    MD.rider.position.y=pose.riderY+1.97*(1-Math.cos(pose.riderPitch));MD.rider.position.z=-1.97*Math.sin(pose.riderPitch);
+    MD.rider.position.y=pose.riderY+MD.rig.saddleY*(1-Math.cos(pose.riderPitch));MD.rider.position.z=-MD.rig.saddleY*Math.sin(pose.riderPitch);
     MD.neck.rotation.x=pose.neck;MD.tail.rotation.set(pose.tailX,0,pose.tailZ);
+    MD.rider.updateMatrix();MD.neck.updateMatrix();
+    for(const rein of MD.reins){rein.a.copy(rein.hand).applyMatrix4(MD.rider.matrix);rein.b.copy(rein.bit).applyMatrix4(MD.neck.matrix);const a=rein.geo.attributes.position;for(let i=0;i<9;i++){const u=i/8;tmp.lerpVectors(rein.a,rein.b,u);tmp.y-=Math.sin(Math.PI*u)*.075;a.setXYZ(i,tmp.x,tmp.y,tmp.z);}a.needsUpdate=true;}
     if(!paused)for(const event of gait.beats)sfx.hoof(event,P.onRoad);
   }
   visN.lerp(P.grounded ? P.n : UP, 1 - Math.exp(-10 * dt)).normalize();
@@ -5032,6 +5046,7 @@ function pickWorld(k) {
 }
 function setVehicle(k) {
   if (!VEHICLES[k]) return;
+  WindTravelCamera.reset(travelCam);
   vehKey = k; store.set('windlover.vehicle4', k);
   if(k==='horse') {
     setTurret(false);P.stalled=false;P.crankT=0;

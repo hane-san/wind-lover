@@ -14,6 +14,8 @@ The owner wants a pale, melancholy journey rather than racing exhilaration. The 
 
 ## Core rules
 
+The later tall horse proportions and restrained rear-follow camera variations are specified in [TALL-HORSE-AND-CAMERA.md](TALL-HORSE-AND-CAMERA.md). These replace only the horse's visual rig and the optional rear-follow composition; vehicle physics and the melancholy music/palette remain unchanged.
+
 1. **Speed is survival.** Shells are aimed where you are now. At ≥ `SAFE` (38 m/s, about 137 km/h) they land behind you. Slower, they walk onto you.
 2. **Don't stop.** After 2.1 s below 2.5 m/s a barrage starts. The engine stalls when you stop, and each crank has only about a 36% chance of catching.
 3. **Walls are real.** If more than 18 m/s of your velocity goes *into* a wall, you crash: hull −1, the engine stalls and a chase formation spawns. A shallower hit is a scrape: the inbound part is removed, speed and flow bleed off, the machine swings along the wall, and you get sparks and a grinding sound. Lean into the wall and you keep paying for it.
