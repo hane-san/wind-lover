@@ -6,6 +6,10 @@
   const cadence=speed=>1.55+.57*clamp((speed-10)/80,0,1);
   // The close hind pair reads as one pickup, followed by two distinct fore contacts: pa-ka-ra, space.
   const offsets=[.07,0,.44,.26],weights=[.72,.82,1.1,1];
+  // Shared with the rendered model so taller proportions cannot detach the planted hooves.
+  const rig=Object.freeze({hipY:1.48,foreZ:.78,hindZ:-.78,saddleY:2.29,riderTop:3.70,
+    fore:Object.freeze([Object.freeze([-.73,-.035]),Object.freeze([-.82,.05])]),
+    hind:Object.freeze([Object.freeze([-.40,.25]),Object.freeze([-.49,-.28]),Object.freeze([-.58,.08])])});
   function create(){return {phase:0,cycles:0,blend:0,rate:0,beats:[],air:0};}
   function advance(state,dt,speed,grounded,active=true){
     state.beats.length=0;if(!(dt>0))return state;dt=Math.min(dt,.1);
@@ -46,14 +50,15 @@
     return {leg,knee};
   }
   function solve(front,footY,footZ,heave,pitch=0){
-    const hipZ=front?.69:-.67,Y=footY-heave,Z=hipZ+footZ;
-    const y=Y*Math.cos(pitch)+Z*Math.sin(pitch)-1.1,z=-Y*Math.sin(pitch)+Z*Math.cos(pitch)-hipZ;
-    if(front){const a=solvePair(y,z,-.58,-.03,-.59,.04,1);return {...a,hock:0};}
+    const hipZ=front?rig.foreZ:rig.hindZ,Y=footY-heave,Z=hipZ+footZ;
+    const y=Y*Math.cos(pitch)+Z*Math.sin(pitch)-rig.hipY,z=-Y*Math.sin(pitch)+Z*Math.cos(pitch)-hipZ;
+    if(front){const [a,b]=rig.fore;return {...solvePair(y,z,...a,...b,1),hock:0};}
     // A real hind silhouette needs a forward stifle and a backward hock, not a second foreleg.
-    const leg=Math.atan2(-z,-y)+Math.atan2(.22,.30),cy=-.30*Math.cos(leg)-.22*Math.sin(leg),cz=-.30*Math.sin(leg)+.22*Math.cos(leg);
+    const [thigh,tibia,cannon]=rig.hind;
+    const leg=Math.atan2(-z,-y)+Math.atan2(thigh[1],-thigh[0]),cy=thigh[0]*Math.cos(leg)-thigh[1]*Math.sin(leg),cz=thigh[0]*Math.sin(leg)+thigh[1]*Math.cos(leg);
     const dy=y-cy,dz=z-cz,ly=dy*Math.cos(leg)+dz*Math.sin(leg),lz=-dy*Math.sin(leg)+dz*Math.cos(leg);
-    const a=solvePair(ly,lz,-.38,-.22,-.42,.07,-1);
+    const a=solvePair(ly,lz,...tibia,...cannon,-1);
     return {leg,knee:a.leg,hock:a.knee};
   }
-  globalThis.WindHorseGait=Object.freeze({cadence,create,advance,pose,foot,solve,offsets});
+  globalThis.WindHorseGait=Object.freeze({cadence,create,advance,pose,foot,solve,offsets,rig});
 })();

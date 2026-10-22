@@ -22,9 +22,10 @@ test('all four legs trace finite, continuous paths and leave a suspension interv
       assert.ok(Number.isFinite(angles.leg+angles.knee));
       const ry=(y,z,a)=>y*Math.cos(a)-z*Math.sin(a),rz=(y,z,a)=>y*Math.sin(a)+z*Math.cos(a);
       let y,z;
-      if(front){y=1.1+ry(-.58,-.03,angles.leg)+ry(-.59,.04,angles.leg+angles.knee);z=.69+rz(-.58,-.03,angles.leg)+rz(-.59,.04,angles.leg+angles.knee);}
-      else{y=1.1+ry(-.30,.22,angles.leg)+ry(-.38,-.22,angles.leg+angles.knee)+ry(-.42,.07,angles.leg+angles.knee+angles.hock);z=-.67+rz(-.30,.22,angles.leg)+rz(-.38,-.22,angles.leg+angles.knee)+rz(-.42,.07,angles.leg+angles.knee+angles.hock);}
-      const Y=p.heave+ry(y,z,p.pitch),Z=rz(y,z,p.pitch)-(front?.69:-.67);
+      const rig=g.rig,hipZ=front?rig.foreZ:rig.hindZ,parts=front?rig.fore:rig.hind;
+      y=rig.hipY;z=hipZ;let angle=angles.leg;
+      for(let j=0;j<parts.length;j++){if(j===1)angle+=angles.knee;if(j===2)angle+=angles.hock;y+=ry(...parts[j],angle);z+=rz(...parts[j],angle);}
+      const Y=p.heave+ry(y,z,p.pitch),Z=rz(y,z,p.pitch)-hipZ;
       assert.ok(Math.abs(Y-f.y)<.025&&Math.abs(Z-f.z)<.025,JSON.stringify({leg,phase,Y,Z,f}));
     }
     if(!planted)airborne++;
@@ -56,8 +57,8 @@ test('one clustered pa-ka-ra phrase leaves a clear recovery before the next stri
   const p=g.pose(i/1000,1),a=p.pitch+p.riderPitch;
   assert.ok(Math.abs(a)<.11,'The traveller pitches into a racing crouch');
   // Apply the same saddle pivot and body rotation as the actual rider model.
-  const y=p.riderY+1.97+(3.38-1.97)*Math.cos(p.riderPitch);
-  const z=(3.38-1.97)*Math.sin(p.riderPitch);
+  const y=p.riderY+g.rig.saddleY+(g.rig.riderTop-g.rig.saddleY)*Math.cos(p.riderPitch);
+  const z=(g.rig.riderTop-g.rig.saddleY)*Math.sin(p.riderPitch);
   const head=p.heave+y*Math.cos(p.pitch)-z*Math.sin(p.pitch);
   low=Math.min(low,head);high=Math.max(high,head);
  }
