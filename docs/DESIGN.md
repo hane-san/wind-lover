@@ -157,6 +157,8 @@ Four original looping compositions combine melancholy and nostalgia with momentu
 
 The horse, twelve-track regional music selection, angular rounds and spatial scenery colours are specified in [HORSE-AND-HORIZONS.md](HORSE-AND-HORIZONS.md).
 
+The newer [HORSE-RIDING.md](HORSE-RIDING.md) specifies dedicated rein response, gathered lead-change bounds, airborne leg poses and surface-dependent hoof audio; it supersedes equal horse/sidecar handling while keeping travel-speed defaults. [CONNECTED-JOURNEY.md](CONNECTED-JOURNEY.md) specifies the physical lake–pass–railway network and the camera's curve, combat and obstruction behaviour.
+
 ## Roadmap (not built yet)
 
 1. Home loop: return to the hangar to bank what you found, then upgrade (hull, engine reliability, crank odds, grip, a shield against side entries).

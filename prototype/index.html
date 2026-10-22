@@ -301,11 +301,12 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 </section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="../world/featured-routes.js"></script>
-<script src="../world/horse-gait.js?v=20261022-tall"></script>
-<script src="../world/horse-sound.js?v=20261022-wake"></script>
+<script src="../world/featured-routes.js?v=20261022-network"></script>
+<script src="../world/horse-riding.js?v=20261022-reins"></script>
+<script src="../world/horse-gait.js?v=20261022-reins"></script>
+<script src="../world/horse-sound.js?v=20261022-reins"></script>
 <script src="../world/horse-wake.js?v=20261022-wake"></script>
-<script src="../world/travel-camera.js?v=20261022-tall"></script>
+<script src="../world/travel-camera.js?v=20261022-network"></script>
 <script>
 'use strict';
 (() => {
@@ -329,8 +330,8 @@ const VEHICLES = {
   bike: { name: 'チョッパー', hover: 1.0, grip: 5.4, accel: 18, lean: 0.55, resp: 7, roll: 5.0, defaults: { maxSpeed: 95, cruise: 38, minSpeed: 0, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 1.0, jump: 14, camDist: 14, fovKick: 1.1, auto: true } },
   board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 10, roll: 5, defaults: { maxSpeed: 80, cruise: 30, minSpeed: 0, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 12, fovKick: 1.1, auto: true } },
 };
-// The horse shares the sidecar's complete handling envelope, including cruise and top speed.
-VEHICLES.horse = { ...VEHICLES.sidecar, name: 'キルギスの馬', defaults: { ...VEHICLES.sidecar.defaults } };
+// Keep the established travel speeds; riding has its own rein response and lead changes.
+VEHICLES.horse = { ...VEHICLES.sidecar, grip: 8.8, name: 'キルギスの馬', defaults: { ...VEHICLES.sidecar.defaults } };
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
@@ -737,10 +738,13 @@ const routeY = (rw, x) => rw.loop ? loopY(rw.loop, x) : railY(x);
 const lineReserved = (x, z, pad = 0) => railOn(x) && (railway(x, z).d < 32 + pad || Math.abs(z - railZ(x)) < 32 + pad);
 function rideRoute(x, z, y) {
   const hw = { ...highway(x, z), half: HW_HALF }, rw = railway(x, z);
-  // A road underneath a viaduct must never steer towards the elevated railway.
-  const base = rw.d < hw.d && Math.abs(y - routeY(rw, x) - HOVER) < 4 ? { ...rw } : hw;
-  const tr = tourAt(x, z);
-  return tr && tr.d < tr.half + 95 && tr.d < base.d && Math.abs(y - tr.y - HOVER) < 7 ? tr : base;
+  // At a crossing, stay on the deck under the feet in either direction of travel.
+  const railGap=Math.abs(y-routeY(rw,x)-.16-HOVER),roadGap=Math.abs(y-deckAt(hw.cx,hw.cz)-.25-HOVER);
+  const base = railGap<4&&(rw.d<hw.d||(rw.d<rw.half+2&&roadGap>6))?{...rw}:hw;
+  const tr = biomeMode==='journey'?TOURS.nearest(x,z,Math.abs(inp.jx+inp.kx)<.3?P.routeTrack:null):null;
+  const baseGap=base===hw?roadGap:railGap;
+  return tr&&tr.d<tr.half+95&&Math.abs(y-tr.y-HOVER)<7&&
+    (tr.d-(tr.path.id===P.routeTrack&&Math.abs(inp.jx+inp.kx)<.3?1.5:0)<base.d||(tr.d<tr.half+1&&Math.abs(y-tr.y-HOVER)<3&&baseGap>6))?tr:base;
 }
 function stationShelter(x, z, y) {
   if (biomeMode !== 'journey') return false;
@@ -824,7 +828,7 @@ function ground(x, z, y) {
   }
   if (Number.isFinite(y)) {
     const tr=tourAt(x,z);
-    if(tr&&tr.d<tr.half&&y>=tr.y-.25&&Math.abs(y-HOVER-tr.y-.14)+.04<Math.abs(y-HOVER-h)) {h=tr.y+.14;GI.n.set(-tr.grade*tr.tx,1,-tr.grade*tr.tz).normalize();GI.water=false;GI.roof=true;}
+    if(tr&&tr.d<tr.half&&y>=tr.y-.25&&Math.abs(tr.y+.14-h)>.75&&Math.abs(y-HOVER-tr.y-.14)+.04<Math.abs(y-HOVER-h)) {h=tr.y+.14;GI.n.set(-tr.grade*tr.tx,1,-tr.grade*tr.tz).normalize();GI.water=false;GI.roof=true;}
   }
   GI.h = h; return GI;
 }
@@ -854,6 +858,38 @@ function prepareFeaturedElevations() {
   biomeMode=previousWorld;
 }
 prepareFeaturedElevations();
+// Two old valley roads join the lakeshore, the railway and both ends of the mountain pass.
+// Heights are derived after lake crossings have been aligned, so every junction shares one deck.
+function prepareJourneyNetwork(){
+  const before=biomeMode;biomeMode='journey';
+  const lake=TOURS.at('lake',0),north=TOURS.at('lake',280),mountain=TOURS.paths.find(p=>p.id==='mountain');
+  const entrance=mountain.points[0],exit=mountain.points.at(-1),railNode={x:26800,z:railZ(26800),y:railY(26800)+.02};
+  TOURS.addConnection('lake-pass',[lake,north,{x:24600,z:lake.z+1100,y:lake.y+18},railNode,
+    {x:28800,z:-1450,y:lerp(railNode.y,150,.5)},{x:31000,z:-400,y:150},{x:31600,z:-140,y:150},entrance],'mountain');
+  const east={x:52000,z:railZ(52000),y:railY(52000)+.02};
+  TOURS.addConnection('pass-line',[exit,{x:49000,z:1770,y:lerp(exit.y,east.y,.25)},
+    {x:50700,z:east.z-180,y:lerp(exit.y,east.y,.7)},{x:51500,z:railZ(51500),y:railY(51500)+.02},east],'desert');
+  // At shallow crossings, draw the new road at the existing deck rather than hiding a small lip.
+  for(const path of TOURS.paths.filter(p=>p.connection)){
+    for(let i=1;i<path.points.length-1;i++){
+      const p=path.points[i],hw={...highway(p.x,p.z)},rw={...railway(p.x,p.z)};
+      const candidates=[{d:hw.d,half:HW_HALF,y:deckAt(hw.cx,hw.cz)+.11},{d:rw.d,half:rw.half,y:routeY(rw,p.x)+.02}];
+      candidates.sort((a,b)=>a.d-b.d);
+      for(const r of candidates)if(r.d<r.half+45&&Math.abs(r.y-p.y)<3){
+        const end=smooth(0,160,Math.min(path.segments[i].s,path.length-path.segments[i].s));
+        p.y=lerp(p.y,r.y,(1-smooth(r.half+2,r.half+45,r.d))*end);break;
+      }
+    }
+    for(const seg of path.segments)seg.grade=(seg.b.y-seg.a.y)/seg.length;
+  }
+  TOURS.junctions=[{...lake,name:'天山の峠へ →',path:'lake-pass'},
+    {...railNode,name:'湖岸 ↔ 天山の峠',path:'lake-pass'},
+    {...entrance,name:'← 湖岸と廃線',path:'mountain'},
+    {...exit,name:'砂漠の廃線へ →',path:'pass-line'},
+    {...east,name:'← 山道と湖岸',path:'pass-line'}];
+  biomeMode=before;
+}
+prepareJourneyNetwork();
 
 // ---------------------------------------------------------------- renderer / scene
 const app = $('#app');
@@ -1709,9 +1745,11 @@ function* propSteps(ch, rng) {
     for (let i = i0; i < Math.min(pts.length - 1, i0 + len); i++) {
       const [ax, az] = pts[i], [bx, bz] = pts[i + 1], dl = Math.hypot(bx - ax, bz - az) || 1, x = ax + (-(bz - az) / dl) * sideK, z = az + ((bx - ax) / dl) * sideK, y = heightAt(x, z);
       if (y < WATER + 0.5) continue;
-      const h = 13 + rng() * 6, B = M(x, y - 0.3, z, rng() * TAU);
+      const h = 13 + rng() * 6,yaw=rng()*TAU,leafShade=.85+rng()*.3;
+      if(highway(x,z).d<HW_HALF+5||lineReserved(x,z,5)||tourReserved(x,z,7))continue;
+      const B = M(x, y - 0.3, z, yaw);
       solid.part(B, G.cyl, 0, 1.5, 0, 0.25, 3, 0.25, 0xd8d2c2);
-      solid.part(B, G.ico, 0, h * 0.58, 0, 1.3, h * 0.45, 1.3, shade(0x5b7a3e, 0.85 + rng() * 0.3));
+      solid.part(B, G.ico, 0, h * 0.58, 0, 1.3, h * 0.45, 1.3, shade(0x5b7a3e, leafShade));
     }
   };
   const apricot = (x, z) => { if (highway(x, z).d < HW_HALF + 8 || lineReserved(x, z, 10) || tourReserved(x,z,16)) return;
@@ -2050,6 +2088,19 @@ function buildFeaturedRoad(ch) {
       }
     }
   }
+  for(const junction of TOURS.junctions){
+    const r=TOURS.nearest(junction.x,junction.z),yaw=Math.atan2(r.tx,r.tz);let point=null;
+    for(const distance of [38,-38,52,-52,68,-68]){
+      const x=junction.x+r.nx*distance,z=junction.z+r.nz*distance;
+      if(!tourReserved(x,z,7)&&!lineReserved(x,z,7)&&highway(x,z).d>HW_HALF+7){point={x,z};break;}
+    }
+    if(!point||Math.floor(point.x/CH)!==ch.cx||Math.floor(point.z/CH)!==ch.cz)continue;
+    const y=heightAt(point.x,point.z);
+    stone.add(G.box,M(point.x,y+2,point.z,yaw,.23,4,.23),0x797f71);
+    const sign=new THREE.Mesh(planeGeo,stationSign({name:junction.name}));
+    sign.applyMatrix4(M(point.x,y+3.5,point.z,yaw,8.5,1.6,1));ch.group.add(sign);
+    addCollider(point.x,point.z,yaw,.2,.2,y,y+4.3);
+  }
   if(road.p.length) {const mesh=new THREE.Mesh(road.build(),roadMat);mesh.userData.surface='featured-road';ch.group.add(mesh);}
   if(stone.p.length) ch.group.add(new THREE.Mesh(stone.build(),propMat));
 }
@@ -2114,7 +2165,8 @@ function buildFeaturedVista() {
   for(const [id,fraction,side,style,scale] of [['mountain',.18,380,'station',.8],['mountain',.5,-680,'city',1.1],['mountain',.8,520,'station',1.1],['lake',.08,-460,'city',1.3],['lake',.3,-420,'station',1],['lake',.68,-500,'dome',1],['lake',.87,-460,'city',1.2]]) {
     const p=TOURS.at(id,TOURS.paths.find(p=>p.id===id).length*fraction);addSite(p.x-p.tz*side,p.z+p.tx*side,style,scale);
   }
-  const reveals={mountain:['jailoo','balbal','caravan','aqueduct','jailoo','caravan','balbal','jailoo'],lake:['balbal','jailoo','aqueduct','caravan','jailoo','balbal','caravan','aqueduct','jailoo','balbal','jailoo','caravan']};
+  const reveals={mountain:['jailoo','balbal','caravan','aqueduct','jailoo','caravan','balbal','jailoo'],lake:['balbal','jailoo','aqueduct','caravan','jailoo','balbal','caravan','aqueduct','jailoo','balbal','jailoo','caravan'],
+    'lake-pass':['caravan','balbal','jailoo','aqueduct'],'pass-line':['balbal','caravan']};
   for(const path of TOURS.paths) {
     const styles=reveals[path.id];if(!styles)continue;
     for(let i=0;i<styles.length;i++) {
@@ -2153,7 +2205,7 @@ function featuredCards() {
 }
 function musicRegion() {
   const key=biomeMode==='journey'?BKEYS[dominant(biomeW(P.pos.x,P.pos.z,newW()))]:biomeMode;
-  if(biomeMode==='journey') {const r=tourAt(P.pos.x,P.pos.z);if(r&&r.d<300)return r.path.id;if(P.pos.x>71000&&P.pos.x<88000)return 'desert';}
+  if(biomeMode==='journey') {const r=tourAt(P.pos.x,P.pos.z);if(r&&r.d<300)return r.path.region||r.path.id;if(P.pos.x>71000&&P.pos.x<88000)return 'desert';}
   if(['snow','tianshan','pamir'].includes(key))return 'mountain';
   if(['issyk','issykS','karakol','dusk','aktau'].includes(key))return 'lake';
   if(key==='kyzylkum')return 'desert';
@@ -3200,7 +3252,7 @@ class Ribbon {
     g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3)); g.setAttribute('alpha', new THREE.BufferAttribute(this.alpha, 1));
     const idx = []; for (let i = 0; i < n - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
     g.setIndex(idx); this.mesh = new THREE.Mesh(g, mat); this.mesh.frustumCulled = false; scene.add(this.mesh);
-    this._d = new V3(); this._c = new V3(); this._s = new V3();
+    this._d = new V3(); this._c = new V3(); this._s = new V3();this._previousSide=new V3();
   }
   update(pts, count, wFn, aFn, camPos) {
     for (let i = 0; i < this.n; i++) {
@@ -3209,6 +3261,8 @@ class Ribbon {
       this._c.subVectors(camPos, p);
       this._s.crossVectors(this._d, this._c); const l = this._s.length();
       if (l > 1e-6) this._s.multiplyScalar(wFn(i) / 2 / l); else this._s.set(0, 0, 0);
+      // Keep adjacent cloth edges on the same side when the ribbon folds towards the camera.
+      if(i&&this._s.dot(this._previousSide)<0)this._s.negate();this._previousSide.copy(this._s);
       this.pos[i * 6] = p.x + this._s.x; this.pos[i * 6 + 1] = p.y + this._s.y; this.pos[i * 6 + 2] = p.z + this._s.z;
       this.pos[i * 6 + 3] = p.x - this._s.x; this.pos[i * 6 + 4] = p.y - this._s.y; this.pos[i * 6 + 5] = p.z - this._s.z;
       const a = i < count ? aFn(i) : 0; this.alpha[i * 2] = a; this.alpha[i * 2 + 1] = a;
@@ -3241,6 +3295,7 @@ for (let i = 0; i < LINES; i++) { const a = Math.random() * TAU, r = 2.2 + Math.
 
 // ---------------------------------------------------------------- state
 const P = {
+  horse: WindHorseRiding.create(),
   pos: new V3(), vel: new V3(), yaw: 0, n: new V3(0, 1, 0), grounded: false, air: 0, coyote: 0, jumpBuf: 0,
   grind: null, gS: 0, gSpeed: 0, gDir: 1, gSeg: 0, grindCD: 0, gauge: 40, dashCD: 0, inStream: false, inUpdraft: false, onWater: false,
   motes: 0, stalled: false, crankT: 0, sputT: 0, flow: 0, carve: 0, ajCD: 0, skipT: 0, hull: 3, braking: false, brakeHeat: 0, danger: 0, stopT: 0, dead: false, invuln: 0, found: foundKeys.size, drift: 0, drifting: false, tuck: false, yawRate: 0, lean: 0, onRoad: false, assistLean: 0, leanV: 0, sway: 0, hold: 0, holdSign: 0, grazes: 0, inTunnel: false, reached: false, dist: store.get('windlover.dist4', 0),
@@ -3256,6 +3311,8 @@ const homeX = () => biomeMode === 'journey' ? BASE_X - BASE_LEN / 2 + 14 : 0;
 function startPose() { return Math.atan2(1, hwZd(0, homeX())); }
 function placeHome(speed) { const x = homeX(); P.pos.set(x, 0, hwZ(0, x)); updateChunks(true); placeAt(x, hwZ(0, x), startPose(), speed); P.stalled = false; P.reached = false; }
 function placeAt(x, z, yaw, speed) {
+  P.horse=WindHorseRiding.create();P.hopping=false;P.jumpBuf=0;P.sway=0;P.routeTrack=null;
+  sfx.stopHooves();
   horseWake.clear();
   WindTravelCamera.reset(travelCam);
   const g = ground(x, z, Infinity);
@@ -3283,7 +3340,7 @@ function stepPhysics(dt) {
   if (inp.jumpPressed) P.jumpBuf = 0.15;
   const speed = P.vel.length(), sf = clamp(speed / S.maxSpeed, 0, 1), V = VEHICLES[vehKey];
   const back = sy < -0.35;
-  P.drifting = P.grounded && !P.grind && back && Math.abs(steer) > 0.35 && speed > 14;
+  P.drifting = vehKey !== 'horse' && P.grounded && !P.grind && back && Math.abs(steer) > 0.35 && speed > 14;
   P.tuck = sy > 0.35;
   const braking = back && !P.drifting, brakeAmt = braking ? clamp((-sy - 0.35) / 0.65, 0.2, 1) : 0;
   P.braking = braking;
@@ -3295,22 +3352,32 @@ function stepPhysics(dt) {
   else {
     // bike-like steering: the stick lays the machine over; the lean makes the turn (yaw = g·tan(lean)/v),
     // so the same lean carves a much wider arc at speed. Laying over takes time: that delay is the weight.
-    const maxLean = Math.min(1.2, 0.8 * S.turn) * (P.drifting ? 1.25 : 1) * (P.tuck ? 0.85 : 1);
+    const horse=vehKey==='horse',horseRoad=horse?rideRoute(P.pos.x,P.pos.z,P.pos.y):null;
+    const horseOnRoad=horseRoad&&horseRoad.d<horseRoad.half;
+    const maxLean = Math.min(1.2, (horse&&horseOnRoad?.46:.8) * S.turn) * (P.drifting ? 1.25 : 1) * (P.tuck ? 0.85 : 1);
     // the lean rides a damped spring: it goes over with weight, overshoots a touch and settles, so the line sways
-    const w0 = V.roll * 1.55 * (P.drifting ? 1.3 : 1);
-    P.leanV += (w0 * w0 * (steer * maxLean - P.lean) - 2 * 0.62 * w0 * P.leanV) * dt;
+    const w0 = V.roll * (horse?2.05:1.55) * (P.drifting ? 1.3 : 1);
+    P.leanV += (w0 * w0 * (steer * maxLean - P.lean) - 2 * (horse?.8:.62) * w0 * P.leanV) * dt;
     P.lean = clamp(P.lean + P.leanV * dt, -1.3, 1.3);
     // yaw ~ tan(lean)/v^0.88: the same at town speeds, a touch tighter flat out than pure bike physics
     const vTurn = Math.pow(Math.max(Math.hypot(P.vel.x, P.vel.z), 10), 0.88);
     // a short input is mostly a sidestep: the heading only comes round as the input is held
     if (Math.abs(steer) > 0.15 && Math.sign(steer) === P.holdSign) P.hold += dt; else { P.hold = Math.max(0, P.hold - dt * 3); if (Math.abs(steer) > 0.15) { P.holdSign = Math.sign(steer); P.hold = 0; } }
-    const holdK = P.drifting ? 1 : lerp(0.16, 1, smooth(0.8, 2.3, P.hold));
+    const holdK = horse&&horseOnRoad?lerp(.035,.8,smooth(1.15,2.1,P.hold)):P.drifting ? 1 : lerp(0.16, 1, smooth(0.8, 2.3, P.hold));
     P.yawRate = clamp(-(P.grounded ? 33 : 27) * holdK * Math.tan(P.lean) / vTurn * (P.drifting ? 1.6 : 1), -2.2, 2.2);
     P.yaw += P.yawRate * dt;
+    if(horse){
+      if(P.jumpBuf>0&&(P.grounded||P.coyote>0)){
+        WindHorseRiding.request(P.horse,'jump');P.jumpBuf=0;
+      }
+      WindHorseRiding.advance(P.horse,dt,{steer,speed,grounded:P.grounded,onRoad:horseOnRoad,
+        active:!P.dead,canHop:!P.inTunnel&&horseJumpClear(horseRoad),yawRate:P.yawRate});
+    }
     roadAffinity(steer, dt);
     // the float: laid over, the machine first slides sideways while still pointing ahead, and the heading follows
     { const hsx = Math.hypot(P.vel.x, P.vel.z), swayT = P.grounded && !P.drifting && !P.dead ? steer * 10.8 * clamp((hsx - 8) / 30, 0, 1) : 0;
       P.sway += (swayT - P.sway) * (1 - Math.exp(-(Math.abs(swayT) > Math.abs(P.sway) ? 6.5 : 5.2) * dt)); }
+    if(horse){P.sway=P.horse.lateral;if(P.horse.launch)horseJump(P.horse.launch);}
     fwd.set(Math.sin(P.yaw), 0, Math.cos(P.yaw));
 
     if (P.grounded) {
@@ -3384,7 +3451,7 @@ function stepPhysics(dt) {
       P.air += dt; P.gauge += 6 * dt; P.drift = 0;
     }
 
-    windFields(dt);
+    if(!horse)windFields(dt);else{P.inUpdraft=false;P.inStream=false;}
     autoHop();
     if (P.vel.length() > S.maxSpeed * 1.6) P.vel.multiplyScalar(1 - 1.5 * dt);
     P.pos.addScaledVector(P.vel, dt);
@@ -3419,9 +3486,10 @@ let roadPull = 0; // 0..1, how much the road is helping right now (also tightens
 function roadAffinity(steer, dt) {
   roadPull = Math.max(0, roadPull - dt * 2);
   P.assistLean *= Math.exp(-6 * dt);
-  if (!P.grounded || P.drifting || P.grind || window.__noAssist) return;
+  if ((!P.grounded && !(vehKey==='horse'&&P.hopping)) || P.drifting || P.grind || window.__noAssist) return;
   const hw = rideRoute(P.pos.x, P.pos.z, P.pos.y), half = hw.half, reach = half + 36;
   if (hw.d > reach) return;
+  if(vehKey==='horse'&&horseRoadAffinity(hw,steer,dt))return;
   let ty = Math.atan2(hw.nz, -hw.nx); if (Math.cos(ty - P.yaw) < 0) ty += Math.PI;
   if (hw.path) {
     const off=(P.pos.x-hw.cx)*hw.nx+(P.pos.z-hw.cz)*hw.nz;
@@ -3480,6 +3548,52 @@ function roadAffinity(steer, dt) {
       }
     }
   }
+}
+function horseRoadAffinity(hw,steer,dt){
+  if(hw.d>hw.half+1)return false;
+  let ty=Math.atan2(hw.nz,-hw.nx);if(Math.cos(ty-P.yaw)<0)ty+=Math.PI;
+  const ady=Math.atan2(Math.sin(ty-P.yaw),Math.cos(ty-P.yaw));
+  if(Math.abs(ady)>.7)return false;
+  const off=(P.pos.x-hw.cx)*hw.nx+(P.pos.z-hw.cz)*hw.nz;
+  const key=hw.path?hw.path.id:'loop' in hw?(hw.loop?'rail-loop:'+hw.loop.a:'rail'):('road:'+hw.row+':'+hw.k);
+  if(P.routeTrack!==key){P.routeTrack=key;P.routeOffset=off;}
+  // Releasing the rein preserves the chosen line, including the final decimetres of the sidestep.
+  if(Math.abs(steer)>.1)P.routeOffset=off+P.horse.lateral*.065;
+  P.routeOffset=clamp(P.routeOffset,-hw.half+2.2,hw.half-2.2);
+  const direction=Math.sin(P.yaw)*hw.nz-Math.cos(P.yaw)*hw.nx>=0?1:-1;
+  const lookDistance=Math.max(12,Math.hypot(P.vel.x,P.vel.z)*.32);
+  if(hw.path){const look=TOURS.at(hw.path,hw.s+direction*lookDistance);ty=Math.atan2(look.tx*direction,look.tz*direction);}
+  else{
+    const look=rideRoute(hw.cx+Math.sin(ty)*lookDistance,hw.cz+Math.cos(ty)*lookDistance,P.pos.y);
+    let next=Math.atan2(look.nz,-look.nx);if(Math.cos(next-ty)<0)next+=Math.PI;
+    if(Math.abs(Math.sin(next-ty))<.35)ty=next;
+  }
+  ty+=direction*Math.atan(clamp((off-P.routeOffset)/32,-.2,.2));
+  const delta=Math.atan2(Math.sin(ty-P.yaw),Math.cos(ty-P.yaw));
+  // Holding towards the verge is an intentional departure; the open country remains reachable.
+  const leaving=Math.abs(steer)>.65&&P.hold>1.15&&Math.abs(off)>hw.half-3;
+  const rate=delta*(1-Math.exp(-(leaving?1:7.5)*dt));P.yaw+=rate;roadPull=1;
+  P.assistLean=lerp(P.assistLean,clamp(-rate/Math.max(dt,.001)*P.vel.length()/105,-.22,.22),1-Math.exp(-8*dt));
+  return true;
+}
+function horseJumpClear(route){
+  // Only inspect a corridor when a jump could actually be requested, not on every physics substep.
+  if(P.horse.pending<=0&&!(Math.abs(inp.jx+inp.kx)>.52&&P.horse.sign&&Math.sign(inp.jx+inp.kx)!==P.horse.sign&&P.horse.held>.18)&&P.jumpBuf<=0)return true;
+  if(!P.grounded)return false;
+  const onRoute=route&&route.d<route.half-2.4;
+  if(!onRoute&&P.horse.kind!=='jump')return false;
+  const speed=Math.hypot(P.vel.x,P.vel.z)||1,duration=.42;
+  for(const u of [.35,.7,1]){
+    const x=P.pos.x+(P.vel.x-Math.cos(P.yaw)*P.horse.lateral)*duration*u;
+    const z=P.pos.z+(P.vel.z+Math.sin(P.yaw)*P.horse.lateral)*duration*u;
+    const next=rideRoute(x,z,P.pos.y),g=ground(x,z,P.pos.y);
+    if((onRoute&&next.d>next.half-1.6)||Math.abs(g.h-(P.pos.y-HOVER))>3||g.n.y<.88)return false;
+  }return true;
+}
+function horseJump(kind){
+  P.vel.y+=kind==='bound'?6.1:8.6;P.pos.y+=.025;P.hopping=true;
+  P.grounded=false;P.coyote=0;P.jumpBuf=0;P.air=.001;P.ajCD=.5;
+  sfx.horseLift(P.onRoad);
 }
 function doJump() {
   const n = P.grounded ? P.n : UP;
@@ -3551,7 +3665,7 @@ function autoHop() {
     }
     if (need > -Infinity) {
       const tq = d / hs, vy = need / tq + 0.5 * S.gravity * 1.2 * tq;
-      if (vy > 0 && vy <= 28) { P.vel.y = Math.max(P.vel.y, vy); P.hopping = true; P.grounded = false; P.air = 0.01; P.coyote = 0; P.ajCD = 0.4; landSquash = -0.3; sfx.jump(); }
+      if (vy > 0 && vy <= (vehKey==='horse'?11:28)) { P.vel.y = Math.max(P.vel.y, vy); P.hopping = true; P.grounded = false; P.air = 0.01; P.coyote = 0; P.ajCD = 0.4; landSquash = -0.3; if(vehKey==='horse'){P.horse.kind='jump';P.horse.flight=0;sfx.horseLift(P.onRoad);}else sfx.jump(); }
       return;
     }
   }
@@ -3565,14 +3679,17 @@ function nearMiss() {
 function crash() {
   if (P.dead || P.invuln > 0) return;
   shake = 1.6; P.vel.multiplyScalar(0.04); P.vel.y = 5; P.grounded = false; P.air = 0.01; P.flow = 0; P.invuln = 0.8;
-  tmp.copy(P.pos); emitDust(tmp, tmp2.set(0, 8, 0), 60, 18); sfx.boom(1); sfx.boom(0.7); vignette(0.9);
+  const horse=vehKey==='horse';if(horse){sfx.stopHooves();P.horse=WindHorseRiding.create();sfx.horseLand(false,18);}
+  tmp.copy(P.pos);emitDust(tmp,tmp2.set(0,horse?3:8,0),horse?18:60,horse?5:18);if(!horse){sfx.boom(1);sfx.boom(.7);}vignette(.9);
+  if(!horse){
   const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xffb070, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   fl.position.copy(P.pos); fl.scale.setScalar(22); scene.add(fl); flashes.push({ o: fl, life: 0.6 });
-  if(vehKey!=='horse')puff(20, true);
+  puff(20,true);
+  }
   if (navigator.vibrate) try { navigator.vibrate([80, 40, 160]); } catch (e) {}
   P.hull--; if (P.hull <= 0) { die('激突'); return; }
   // the engine dies on impact; the hunters close in while it cranks
-  P.stalled = vehKey!=='horse'; P.crankT = P.stalled?.9:0; if(P.stalled)sfx.stall(); toast('激突', `装甲 残り${P.hull}`, 1400);
+  P.stalled = vehKey!=='horse'; P.crankT = P.stalled?.9:0; if(P.stalled)sfx.stall(); toast('激突', `${horse?'体力':'装甲'} 残り${P.hull}`, 1400);
   if (shellsOn) { spawnFormation('chase'); const f = forms[forms.length - 1]; f.pos.set(P.pos.x - fwd.x * 260, P.pos.y + 40, P.pos.z - fwd.z * 260); for (const d of f.drones) d.copy(f.pos); }
 }
 function collide() {
@@ -3616,9 +3733,10 @@ function wallImpact(nx, nz, soft) {
   P.yaw += dy * 0.7; P.yawRate *= 0.35; P.lean *= 0.6; P.leanV *= 0.3; P.sway *= 0.3; fwd.set(Math.sin(P.yaw), 0, Math.cos(P.yaw));
   // contact point: the side of the machine against the wall
   tmp.set(P.pos.x - nx * 1.1, P.pos.y - HOVER + 0.6, P.pos.z - nz * 1.1);
-  sparks(tmp, nx, nz, 3 + Math.min(18, hit * 1.6));
+  if(vehKey==='horse')emitDust(tmp,tmp2.copy(P.vel).multiplyScalar(.3).add(UP),3,1.2);
+  else sparks(tmp, nx, nz, 3 + Math.min(18, hit * 1.6));
   shake = Math.max(shake, Math.min(0.75, 0.1 + hit / 26));
-  if (scrapeT < t) { sfx.scrape(Math.min(1, 0.25 + hit / 16)); scrapeT = t + 0.09; if (hit > 6 && navigator.vibrate) try { navigator.vibrate(18); } catch (e) {} }
+  if (scrapeT < t) { if(vehKey==='horse'){sfx.horseLand(false,hit*.4);P.horse.lateral*=.3;P.horse.pending=0;P.horse.kind=null;}else sfx.scrape(Math.min(1, 0.25 + hit / 16)); scrapeT = t + 0.09; if (hit > 6 && navigator.vibrate) try { navigator.vibrate(18); } catch (e) {} }
   if (hit > 7) vignette(Math.min(0.5, hit / 30));
   return false;
 }
@@ -3689,21 +3807,23 @@ function resolveGround(dt) {
   }
 }
 function landing(g) {
+  const horse=vehKey==='horse';
+  if(horse){P.horse.landing=1;sfx.horseLand(P.onRoad,Math.max(0,-P.vel.dot(g.n)));}
   const impact = -P.vel.dot(g.n), sp = P.vel.length();
   suspV -= Math.min(3, impact * 0.09);
   if (P.air > 0.35) {
     if (impact < Math.max(8, sp * 0.5)) {
-      P.gauge += 10; P.vel.addScaledVector(tmp.copy(P.vel).normalize(), 3);
+      P.gauge += 10; if(!horse)P.vel.addScaledVector(tmp.copy(P.vel).normalize(), 3);
       landSquash = 0.25;
     } else { P.vel.multiplyScalar(0.95); shake = Math.min(0.6, impact / 40); landSquash = 0.5; }
-    sfx.land(Math.min(1, impact / 25));
+    if(!horse)sfx.land(Math.min(1, impact / 25));
     if (navigator.vibrate) try { navigator.vibrate(12); } catch (e) {}
     emitDust(tmp.copy(P.pos).addScaledVector(UP, -HOVER), tmp2.copy(P.vel).multiplyScalar(0.85).add(UP), 18, Math.min(10, 3 + impact * 0.3));
   }
 }
 
 function tryGrind() {
-  if (P.grindCD > 0) return;
+  if (vehKey==='horse'||P.grindCD > 0) return;
   const sp = P.vel.length(); if (sp < 4) return;
   const q = tmp.copy(P.pos); q.y -= 0.55;
   let best = null, bd = 2.0 * 2.0, bseg = 0, bu = 0;
@@ -4568,7 +4688,13 @@ function updateVisuals(dt) {
     camera.position.set(Math.cos(a) * 60, gh + 18, Math.sin(a) * 60); camera.lookAt(0, gh + 10, 0); camBaseY = gh;
   } else {
     const cameraRoad=vehKey==='horse'&&P.onRoad?rideRoute(P.pos.x,P.pos.z,P.pos.y):null;
+    const pressure=shellsOn&&forms.some(f=>!f.peace&&f.pos.distanceToSquared(P.pos)<1100*1100)?1:0;
+    let previewBend=0;
+    if(cameraRoad?.path){const dir=Math.sin(P.yaw)*cameraRoad.tx+Math.cos(P.yaw)*cameraRoad.tz>=0?1:-1;
+      const ahead=TOURS.at(cameraRoad.path,cameraRoad.s+dir*clamp(speed*.9,35,110));
+      const angle=Math.atan2(ahead.tx*dir,ahead.tz*dir)-P.yaw;previewBend=Math.atan2(Math.sin(angle),Math.cos(angle))*.5;}
     const viewPlay=WindTravelCamera.advance(travelCam,dt,{speed,
+      threat:pressure,bend:previewBend,
       steer:Math.max(Math.abs(inp.jx),Math.abs(inp.kx)),yawRate:P.yawRate,
       blocked:vehKey!=='horse'||!cameraRoad||cameraRoad.half-cameraRoad.d<4.5||P.inTunnel||!P.grounded||P.dead||P.stalled||P.grind||P.invuln>0||dashPunch>.02||Math.abs(P.vel.y)>8||
         (shellsOn&&P.danger>.15)||forms.some(f=>!f.peace&&f.pos.distanceToSquared(P.pos)<1100*1100)});
@@ -4577,11 +4703,11 @@ function updateVisuals(dt) {
     tmp.lerp(fwd, 0.2).normalize();
     camDir.lerp(tmp, 1 - Math.exp(-1.7 * dt)).normalize();
     // look direction leads the camera: velocity heading plus a turn anticipation
-    const ang = Math.atan2(tmp.x, tmp.z) - clamp(P.yawRate, -2, 2) * 0.22, la = Math.atan2(camDir.x, camDir.z);
+    const ang = Math.atan2(tmp.x, tmp.z) + clamp(P.yawRate, -2, 2) * 0.22 + viewPlay.bend, la = Math.atan2(camDir.x, camDir.z);
     let dA = Math.atan2(Math.sin(ang - la), Math.cos(ang - la)); dA = clamp(dA, -0.32, 0.32);
     lookAng = lerp(lookAng, dA, 1 - Math.exp(-3 * dt));
     // offset-based follow: the camera keeps its place relative to the rider at any speed
-    const dist = S.camDist * (1.13 + sf * 0.10) + viewPlay.pull, height = 4.8 + viewPlay.rise + (P.grounded ? 0 : 1.0) + (P.tuck ? -0.3 : 0);
+    const dist = S.camDist * (1.13 + sf * 0.10) + viewPlay.pull, height = 4.8 + viewPlay.rise + (P.grounded ? 0 : vehKey==='horse'?.25:1.0) + (P.tuck ? -0.3 : 0);
     tmp2.copy(camDir).multiplyScalar(-dist); tmp2.y = height;
     tmp2.x+=camDir.z*viewPlay.side;tmp2.z-=camDir.x*viewPlay.side;
     const swing = clamp(P.yawRate, -2.2, 2.2) * sf * 0.45; tmp2.x += -camDir.z * swing; tmp2.z += camDir.x * swing;
@@ -4593,11 +4719,16 @@ function updateVisuals(dt) {
     const rumble = sf * sf * 0.006 + shake;
     if (rumble > 0) { camera.position.x += (Math.random() - 0.5) * rumble; camera.position.y += (Math.random() - 0.5) * rumble; }
     camera.position.y += suspY * 0.08; // the ride comes through to the eye, softened
+    const anchor={x:P.pos.x,y:P.pos.y+1.5,z:P.pos.z},fraction=WindTravelCamera.boomFraction(anchor,camera.position,colliders);
+    travelCam.boom=fraction<travelCam.boom?fraction:lerp(travelCam.boom,fraction,1-Math.exp(-2.5*dt));
+    camera.position.set(lerp(anchor.x,camera.position.x,travelCam.boom),lerp(anchor.y,camera.position.y,travelCam.boom),lerp(anchor.z,camera.position.z,travelCam.boom));
+    if(P.inTunnel&&cameraRoad?.path){const off=(camera.position.x-cameraRoad.cx)*cameraRoad.nx+(camera.position.z-cameraRoad.cz)*cameraRoad.nz;
+      const excess=off-clamp(off,-cameraRoad.half+1.6,cameraRoad.half-1.6);camera.position.x-=cameraRoad.nx*excess;camera.position.z-=cameraRoad.nz*excess;camera.position.y=Math.min(camera.position.y,cameraRoad.y+9.3);}
     shake = Math.max(0, shake - dt * 1.5);
     const lAng = Math.atan2(camDir.x, camDir.z) + lookAng;
     lookSm.set(P.pos.x + Math.sin(lAng) * 52 + camDir.z*viewPlay.look, camBaseY + (vehKey==='horse'?1.05:.8), P.pos.z + Math.cos(lAng) * 52 - camDir.x*viewPlay.look);
     const scenic=tourAt(P.pos.x,P.pos.z);
-    if(scenic?.path.id==='lake'){const dx=LK.x-P.pos.x,dz=LK.z*funnel(P.pos.x)-P.pos.z,l=Math.hypot(dx,dz)||1;lookSm.x+=dx/l*5;lookSm.z+=dz/l*5;}
+    if(scenic?.path.id==='lake'&&!P.inTunnel){const dx=LK.x-P.pos.x,dz=LK.z*funnel(P.pos.x)-P.pos.z,l=Math.hypot(dx,dz)||1,amount=5*(1-viewPlay.focus)*(1-clamp(Math.abs(inp.jx+inp.kx),0,1));lookSm.x+=dx/l*amount;lookSm.z+=dz/l*amount;}
     camera.lookAt(lookSm);
     camera.rotateZ(clamp(P.yawRate, -2, 2) * 0.008 * sf);
   }
@@ -4608,19 +4739,22 @@ function updateVisuals(dt) {
 
   const MD = models[vehKey], V = VEHICLES[vehKey];
   if(MD.legs) {
-    const gait=WindHorseGait.advance(MD.motion,dt,speed,P.grounded,started&&!P.dead),pose=WindHorseGait.pose(gait.phase,gait.blend);
+    const gait=WindHorseGait.advance(MD.motion,dt,speed,P.grounded,started&&!P.dead,P.horse.lead),pose=WindHorseGait.pose(gait.phase,gait.blend);
+    const action=WindHorseRiding.pose(P.horse,P.grounded,P.vel.y);
+    pose.heave+=action.heave;pose.pitch+=action.pitch;
     for(const q of MD.legs){
-      const foot=WindHorseGait.foot(gait.phase,q.index,gait.blend,gait.air);
+      const foot=WindHorseGait.foot(gait.phase,q.index,gait.blend,gait.air,action,gait.lead);
       const angles=WindHorseGait.solve(q.front,foot.y,foot.z,pose.heave,pose.pitch);
       q.leg.rotation.x=angles.leg;q.knee.rotation.x=angles.knee;if(q.hock)q.hock.rotation.x=angles.hock;
     }
     MD.body.position.y=pose.heave;MD.body.rotation.x=pose.pitch;
     MD.rider.rotation.x=pose.riderPitch;
     MD.rider.position.y=pose.riderY+MD.rig.saddleY*(1-Math.cos(pose.riderPitch));MD.rider.position.z=-MD.rig.saddleY*Math.sin(pose.riderPitch);
-    MD.neck.rotation.x=pose.neck;MD.tail.rotation.set(pose.tailX,0,pose.tailZ);
+    MD.neck.rotation.set(pose.neck,action.neckYaw,action.neckRoll);MD.tail.rotation.set(pose.tailX,action.load*.13,pose.tailZ);
+    MD.body.rotation.y=-action.load*.035;
     MD.rider.updateMatrix();MD.neck.updateMatrix();
-    for(const rein of MD.reins){rein.a.copy(rein.hand).applyMatrix4(MD.rider.matrix);rein.b.copy(rein.bit).applyMatrix4(MD.neck.matrix);const a=rein.geo.attributes.position;for(let i=0;i<9;i++){const u=i/8;tmp.lerpVectors(rein.a,rein.b,u);tmp.y-=Math.sin(Math.PI*u)*.075;a.setXYZ(i,tmp.x,tmp.y,tmp.z);}a.needsUpdate=true;}
-    if(!paused)for(const event of gait.beats)sfx.hoof(event,P.onRoad);
+    sfx.horseRhythm(gait,{active:started&&!paused&&!P.dead,grounded:P.grounded,speed,
+      surface:P.onWater?'water':P.onRoad?(String(P.routeTrack).startsWith('rail')?'gravel':'road'):musicRegion()==='mountain'?'snow':'earth',load:Math.abs(action.load)});
   }
   visN.lerp(P.grounded ? P.n : UP, 1 - Math.exp(-10 * dt)).normalize();
   bz.set(Math.sin(P.yaw), 0, Math.cos(P.yaw)); bz.addScaledVector(visN, -bz.dot(visN)).normalize();
@@ -4643,14 +4777,14 @@ function updateVisuals(dt) {
   const gliding = !P.grounded && !P.grind && inp.jumpHeld && P.vel.y < 1;
   const turnK = clamp((P.lean + P.assistLean) / 0.8, -1, 1);
   // the machine shows the lean it is actually carrying; a sidecar outfit stays flat and lifts its chair instead
-  let lean = P.grind ? Math.sin(t * 9) * 0.06 : vehKey === 'sidecar' ? turnK * 0.08 : vehKey==='horse'?clamp(P.lean+P.assistLean,-.28,.28) : (P.lean + P.assistLean) * (P.grounded ? 0.85 : 0.5);
+  let lean = P.grind ? Math.sin(t * 9) * 0.06 : vehKey === 'sidecar' ? turnK * 0.08 : vehKey==='horse'?clamp(P.lean*.30+P.assistLean,-.19,.19) : (P.lean + P.assistLean) * (P.grounded ? 0.85 : 0.5);
   if (vehKey === 'sidecar') { lift = lerp(lift, P.grounded && turnK > 0.3 && sf > 0.25 ? (turnK - 0.3) * Math.min(1, sf * 1.4) * 0.38 : 0, 1 - Math.exp(-3 * dt)); lean -= lift; }
   boardPivot.rotation.z = lerp(boardPivot.rotation.z, lean, 1 - Math.exp(-6 * dt));
   if (MD.ears) MD.ears.forEach((e, i) => { e.rotation.x = -0.3 - sf * 1.1 + Math.sin(t * 22 + i) * 0.12 * sf; });
   boardPivot.rotation.x = lerp(boardPivot.rotation.x, P.grounded ? (P.tuck ? 0.05 : 0) + chatter - suspV * 0.02 : clamp(-P.vel.y * 0.02, -0.35, 0.35), 1 - Math.exp(-(P.grounded ? 14 : 5) * dt));
   landSquash = lerp(landSquash, 0, 1 - Math.exp(-7 * dt));
   const crouch = (P.grind ? 0.12 : 0) + (gliding ? -0.05 : 0) + (P.tuck ? 0.18 : 0) + Math.max(0, landSquash);
-  MD.rider.scale.y = lerp(MD.rider.scale.y, 1 - crouch, 1 - Math.exp(-12 * dt));
+  MD.rider.scale.y = lerp(MD.rider.scale.y, MD.legs?1:1 - crouch, 1 - Math.exp(-12 * dt));
   // the rider hangs into the bend a beat after the machine and looks where it is going; the dog looks too
   { const mir = vehKey === 'sidecar' ? -1 : 1, tk = clamp((P.lean + P.assistLean) / 0.8, -1, 1);
     MD.rider.rotation.z = lerp(MD.rider.rotation.z, mir * (P.grounded ? tk * 0.16 * (0.4 + sf) : 0), 1 - Math.exp(-4 * dt));
@@ -4659,6 +4793,10 @@ function updateVisuals(dt) {
   if (MD.arms) {
     MD.arms.scale.x = lerp(MD.arms.scale.x, gliding ? 1.45 : 1, 1 - Math.exp(-8 * dt));
     MD.arms.position.y = lerp(MD.arms.position.y, gliding ? 1.52 : 1.42, 1 - Math.exp(-8 * dt));
+  }
+
+  if(MD.reins){MD.rider.updateMatrix();
+    for(const rein of MD.reins){rein.a.copy(rein.hand).applyMatrix4(MD.rider.matrix);rein.b.copy(rein.bit).applyMatrix4(MD.neck.matrix);const a=rein.geo.attributes.position;for(let i=0;i<9;i++){const u=i/8;tmp.lerpVectors(rein.a,rein.b,u);tmp.y-=Math.sin(Math.PI*u)*.075;a.setXYZ(i,tmp.x,tmp.y,tmp.z);}a.needsUpdate=true;}
   }
 
   for (const f of finds) {
@@ -4691,16 +4829,16 @@ function updateVisuals(dt) {
   horseWake.update(dt);
   if(MD.legs&&started&&!P.dead&&!paused&&P.grounded&&dt>0){
     for(const event of MD.motion.beats){
-      MD.legs[event.leg].hoof.getWorldPosition(tmp);
+      MD.legs.find(q=>q.index===event.leg).hoof.getWorldPosition(tmp);
       tmp.y=ground(tmp.x,tmp.z,P.pos.y).h+.04;
       horseWake.emit(tmp,P.vel,P.onWater?UPC:P.onRoad?ROADDUST:pal.dust,event.weight*(P.onRoad?.76:1),P.onWater,event.age);
     }
   }
   MD.scarf.getWorldPosition(scarfPts[0]);
-  for (let i = 1; i < SCARF_N; i++) {
+  if(dt>0)for (let i = 1; i < SCARF_N; i++) {
     const p = scarfPts[i], prev = scarfPts[i - 1];
     p.y -= (0.8 - sf * 0.6) * dt;
-    p.x += Math.sin(t * 5 + i * 0.8) * 0.009 * (0.3 + sf); p.y += Math.cos(t * 4 + i) * 0.007 * (0.3 + sf);
+    p.x += Math.sin(t * 5 + i * 0.8) * 0.009 * (0.3 + sf)*dt*60; p.y += Math.cos(t * 4 + i) * 0.007 * (0.3 + sf)*dt*60;
     tmp2.subVectors(p, prev); const l = tmp2.length() || 1; p.copy(prev).addScaledVector(tmp2, 0.17 / l);
   }
   scarf.update(scarfPts, SCARF_N, (i) => 0.2 * (1 - i / SCARF_N * 0.6), () => 1, camera.position);
@@ -4890,6 +5028,10 @@ const sfx = (() => {
       eng.g.gain.setTargetAtTime(bike ? 0.035 + clamp(speed / 110, 0, 1) * 0.035 : 0, now, 0.2); eng.lg.gain.setTargetAtTime(bike ? 0.025 : 0, now, 0.2);
     },
     hoof(event,hard) { if(ctx&&on)hoofPlayer.play(event,hard); },
+    horseRhythm(gait,options){if(ctx)hoofPlayer.sync(gait,{...options,active:options.active&&on});},
+    stopHooves(){if(ctx)hoofPlayer.stop();},
+    horseLift(hard){if(ctx&&on)hoofPlayer.lift(hard);},
+    horseLand(hard,impact){if(ctx&&on)hoofPlayer.land(hard,impact);},
     land(v) { burst(180, 0.8, 0.25, 0.25 + v * 0.5); if (v > 0.5) burst(90, 0.6, 0.4, 0.15 * v); },
     // ガチャン: a latch slamming home, iron on iron, over a dull thump
     clank(v = 1) { burst(2600, 9, 0.07, 0.32 * v, 1900); burst(1200, 6, 0.1, 0.22 * v); burst(95, 0.9, 0.22, 0.45 * v); },
@@ -5059,6 +5201,7 @@ function pickWorld(k) {
 }
 function setVehicle(k) {
   if (!VEHICLES[k]) return;
+  P.horse=WindHorseRiding.create();sfx.stopHooves();P.sway=0;P.hopping=false;P.jumpBuf=0;
   horseWake.clear();
   WindTravelCamera.reset(travelCam);
   vehKey = k; store.set('windlover.vehicle4', k);
@@ -5082,8 +5225,8 @@ function setVehicle(k) {
 }
 
 let last = performance.now();
-function openSheet(sel) { $(sel).hidden = false; paused = true; }
-function closeSheet(sel) { $(sel).hidden = true; paused = false; last = performance.now(); }
+function openSheet(sel) { $(sel).hidden = false; paused = true;sfx.stopHooves(); }
+function closeSheet(sel) { $(sel).hidden = true; paused = false; last = performance.now();if(started){renderer.domElement.tabIndex=0;renderer.domElement.focus({preventScroll:true});} }
 
 const TUNE = [
   ['maxSpeed', '最高速度', 50, 180, 1, (v) => Math.round(v * 3.6) + 'km/h'],
@@ -5153,7 +5296,9 @@ function begin(randomStart) {
   else placeHome(S.cruise * 0.45);
   last = performance.now();
   const hint = $('#hint'); hint.hidden = false;
-  hint.innerHTML = (isTouch ? 'ドラッグで操作　上で前傾・下でブレーキ・下＋左右でドリフト' : 'A・D 曲がる　W 前傾　S ブレーキ　S＋A・D ドリフト　R 立て直す') + '<br>段差は最高速で滑空、越えられる障害物は自動で跳ぶ';
+  hint.innerHTML = vehKey==='horse'?(isTouch?'ドラッグで左右へ　上で前傾・下でブレーキ<br>強い切り返しで、低く跳んで脚を踏み替える':'A・D 左右へ　W 前傾　S ブレーキ　Space 跳躍<br>強い切り返しで、低く跳んで脚を踏み替える'):
+    (isTouch ? 'ドラッグで操作　上で前傾・下でブレーキ・下＋左右でドリフト' : 'A・D 曲がる　W 前傾　S ブレーキ　S＋A・D ドリフト　R 立て直す') + '<br>段差は最高速で滑空、越えられる障害物は自動で跳ぶ';
+  renderer.domElement.tabIndex=0;renderer.domElement.focus({preventScroll:true});
   setTimeout(() => { hint.style.opacity = 0; }, 7000);
   toast(randomStart ? 'どこかの道の上' : '太陽の方へ', '針は、奥を指している', 3000);
 }
@@ -5205,13 +5350,14 @@ window.addEventListener('keydown', (e) => {
   if (e.target && e.target.closest('input, select, textarea, button')) return;
   if (e.repeat) { if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); return; }
   inp.keys[e.code] = true; keyAxis();
-  if (e.code === 'Space') e.preventDefault();
+  if (e.code === 'Space') {e.preventDefault();if(started&&!paused){inp.jumpHeld=true;inp.jumpPressed=true;sfx.resume();}}
   if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') inp.dashPressed = true;
   if (e.code === 'KeyR' && started) recover();
   if (e.code === 'Enter' && !started) $('#btnGo').click();
 });
 window.addEventListener('keyup', (e) => { inp.keys[e.code] = false; keyAxis(); if (e.code === 'Space') inp.jumpHeld = false; });
-window.addEventListener('blur', () => { inp.keys = {}; keyAxis(); inp.jumpHeld = false; store.set('windlover.dist4', P.dist); });
+window.addEventListener('blur', () => { sfx.stopHooves();inp.keys = {}; keyAxis(); inp.jumpHeld = false; store.set('windlover.dist4', P.dist); });
+document.addEventListener('visibilitychange',()=>{if(document.hidden)sfx.stopHooves();});
 window.addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); applyLens(); });
 
 // ---------------------------------------------------------------- loop
@@ -5224,7 +5370,7 @@ function frame(now) {
     const sub = clamp(Math.ceil(P.vel.length() * dt / 1.4), dt > 0.022 ? 2 : 1, 5);
     for (let i = 0; i < sub; i++) stepPhysics(dt / sub);
     updateWind(); updateChunks(false); updatePalette(dt, false);
-    sfx.update(P.vel.length(), !!P.grind, P.inStream, P.stalled ? 'board' : vehKey); sfx.carve(P.grounded ? P.carve : 0, P.onWater);
+    sfx.update(P.vel.length(), !!P.grind, P.inStream, P.stalled ? 'board' : vehKey); sfx.carve(P.grounded&&vehKey!=='horse' ? P.carve : 0, P.onWater);
     updateHud(); updateEngine(dt); updateThreat(dt); updateDrones(dt, playerPrevious); updateTurret(dt);
   }
   if (window.__turretHold) window.__turretHold(paused ? 0 : dt);
@@ -5236,7 +5382,7 @@ function frame(now) {
 setVehicle(vehKey); applyLens();
 placeHome(0); buildHome(); buildFeaturedVista(); updatePalette(0, true); refreshCards();
 requestAnimationFrame(frame);
-window.__wl = { musicRegion, setVehicle, get vehicle(){return vehKey;}, tours: TOURS, tourAt, travelFeatured, get featured() { return featured; }, performance: { streaming: streamStats, quality }, combat: { hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, patternNames: PATTERN_NAMES, relativeSpeed: AS_REL, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
+window.__wl = { riding: WindHorseRiding, musicRegion, setVehicle, get vehicle(){return vehKey;}, tours: TOURS, tourAt, travelFeatured, get featured() { return featured; }, performance: { streaming: streamStats, quality }, combat: { hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, patternNames: PATTERN_NAMES, relativeSpeed: AS_REL, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
 // A lazy connection lets the menu's independent BGM bus reuse the game's audio clock.
 window.__wlAudio = { getContext() { sfx.init(); return sfx.context; }, getDestination() { sfx.init(); return sfx.output; }, get soundOn() { return sfx.on; } };
 })();

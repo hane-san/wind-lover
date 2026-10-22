@@ -1,4 +1,4 @@
-"""Exercise horse selection, identical handling, weapon exclusion, region music and scenery in WebGL."""
+"""Exercise horse selection, travel speeds, weapon exclusion, region music and scenery in WebGL."""
 import argparse,functools,http.server,json,threading
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -32,7 +32,7 @@ try:
    const saved=Object.fromEntries(Object.entries(w.P).map(([k,v])=>[k,v instanceof THREE.Vector3?v.clone():v]));
    const restore=()=>{for(const[k,v]of Object.entries(saved)){if(v instanceof THREE.Vector3)w.P[k].copy(v);else w.P[k]=v;}Object.assign(w.inp,{jx:0,jy:0,kx:0,ky:0});};
    const drives=[];for(const kind of ['sidecar','horse']){w.setVehicle(kind);restore();for(let i=0;i<600;i++)w.stepPhysics(1/120);drives.push({kind,pos:w.P.pos.toArray(),speed:w.P.vel.length(),hull:w.P.hull});}
-   check(Math.abs(drives[0].speed-drives[1].speed)<1e-8&&drives[0].pos.every((v,i)=>Math.abs(v-drives[1].pos[i])<1e-8),'Horse has different movement');
+   check(Math.abs(drives[0].speed-drives[1].speed)<2.5&&drives.every(d=>d.speed>60&&d.hull===3),'Horse lost its established travelling speed');
    check(q.models.horse.legs.length===4,'Missing horse legs');const rotations=q.models.horse.legs.map(l=>l.leg.rotation.x);q.updateVisuals(.05);w.P.dist+=2;q.updateVisuals(.05);check(q.models.horse.legs.some((l,i)=>Math.abs(l.leg.rotation.x-rotations[i])>.001),'Horse gait is static');
    const samples=[];for(const biome of ['steppe','snow']){const weights=Array(14).fill(0);weights[biome==='steppe'?3:5]=1;const colours=[];for(let x=0;x<3000;x+=100){const c=[.7,.7,.7];q.tintLand(c,0,x,800,weights);colours.push(c);}check(new Set(colours.map(c=>c.map(v=>v.toFixed(3)).join(','))).size>15,'Uniform land tint');samples.push({biome,colours:colours.slice(0,3)});}
    const wgt=q.biomeW(480,900,q.newW()),a=[.7,.7,.7],b=[.7,.7,.7];q.tintLand(a,0,480-.00001,900,wgt);q.tintLand(b,0,480+.00001,900,wgt);check(a.every((v,i)=>Math.abs(v-b[i])<1e-7),'Colour seam at chunk boundary');
@@ -56,5 +56,5 @@ try:
    page.evaluate('''r=>{delete window.__wlCam;__wl.travelFeatured(r);document.querySelector('#menuSheet').hidden=true;__travelQA.paused=true;}''',region);page.wait_for_timeout(500);page.screenshot(path=str(args.out/(region+'-horse.png')))
   page.reload(timeout=120000);page.wait_for_function('window.__wl');assert page.evaluate('__wl.vehicle')=='horse'
   assert not errors,errors
-  report['pageErrors']=errors;(args.out/'result.json').write_text(json.dumps(report,ensure_ascii=False,indent=2));browser.close();print('PASS: horse, equal movement, no turret, scenery, spatial tints, automatic/manual music and persistence.',flush=True)
+  report['pageErrors']=errors;(args.out/'result.json').write_text(json.dumps(report,ensure_ascii=False,indent=2));browser.close();print('PASS: horse, travel speeds, no turret, scenery, spatial tints, automatic/manual music and persistence.',flush=True)
 finally:server.shutdown();server.server_close()

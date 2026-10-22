@@ -4,9 +4,9 @@
   const smooth = (a,b,x) => {const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
   const lerp = (a,b,t) => a+(b-a)*t;
   const definitions = [
-    {id:'desert',name:'ウズベキスタン・砂漠の廃線',sub:'砂と青いドーム、消えた駅をたどる',x:75100,rail:true,colour:['#465a71','#e6c6a1','#aa8f68']},
-    {id:'mountain',name:'ビシュケクからオシュへ',sub:'天山の峠とトンネル、断崖の道',colour:['#718ca7','#d6dcd9','#777b74']},
-    {id:'lake',name:'イシク・クルを一周',sub:'青い湖岸、カラコル、雪山の向こう',colour:['#487fbc','#dbe8eb','#5e937d']},
+    {id:'desert',name:'ウズベキスタン・砂漠の廃線',sub:'峠から続く廃線、砂と青いドーム',x:75100,rail:true,colour:['#465a71','#e6c6a1','#aa8f68']},
+    {id:'mountain',name:'ビシュケクからオシュへ',sub:'湖岸と廃線を結ぶ峠、断崖とトンネル',colour:['#718ca7','#d6dcd9','#777b74']},
+    {id:'lake',name:'イシク・クルを一周',sub:'湖岸を巡り、東の分岐から天山の峠へ',colour:['#487fbc','#dbe8eb','#5e937d']},
   ];
   const paths = [], grid = new Map(), CELL = 256;
   const mountain = [[32600,300,150],[34000,900,205],[35500,450,300],[36900,-550,405],[38400,-100,510],[39900,1200,610],[41400,1750,655],[43000,900,550],[44600,-300,420],[46300,200,290],[48000,1200,215]];
@@ -38,10 +38,21 @@
   for(let i=0;i<=N;i++){const a=i/N*TAU,x=15500+8540*Math.cos(a);lp.push({x,z:(-5000+1490*Math.sin(a))*widthAt(x),y:24+14*Math.sin(a)+6*Math.cos(2*a)});}
   // Reuse the exact first vertex at the seam, avoiding a floating point crack.
   lp[N]={...lp[0]};addPath('lake',lp,true);
-  function nearest(x,z) {
+  function addConnection(id,knots,region){
+    if(paths.some(p=>p.id===id))return paths.find(p=>p.id===id);
+    const points=[];
+    for(let j=0;j<knots.length-1;j++){
+      const a=knots[Math.max(0,j-1)],b=knots[j],c=knots[j+1],d=knots[Math.min(knots.length-1,j+2)];
+      const n=Math.ceil(Math.hypot(c.x-b.x,c.z-b.z)/24);
+      for(let i=0;i<n;i++){const u=i/n;points.push({x:cubic(a.x,b.x,c.x,d.x,u),z:cubic(a.z,b.z,c.z,d.z,u),y:cubic(a.y,b.y,c.y,d.y,u)});}
+    }
+    points.push({...knots.at(-1)});const path=addPath(id,points);path.connection=true;path.region=region;return path;
+  }
+  function nearest(x,z,preferred=null) {
     const candidates=grid.get(Math.floor(x/CELL)+','+Math.floor(z/CELL));if(!candidates)return null;
-    let best=null,d2=Infinity,u0=0;
-    for(const seg of candidates){const u=clamp(((x-seg.a.x)*seg.dx+(z-seg.a.z)*seg.dz)/(seg.length*seg.length),0,1),dx=x-seg.a.x-seg.dx*u,dz=z-seg.a.z-seg.dz*u,q=dx*dx+dz*dz;if(q<d2){d2=q;best=seg;u0=u;}}
+    let best=null,d2=Infinity,u0=0,score=Infinity;
+    for(const seg of candidates){const u=clamp(((x-seg.a.x)*seg.dx+(z-seg.a.z)*seg.dz)/(seg.length*seg.length),0,1),dx=x-seg.a.x-seg.dx*u,dz=z-seg.a.z-seg.dz*u,q=dx*dx+dz*dz;
+      const rank=preferred?Math.sqrt(q)-(seg.path.id===preferred?1.5:0):q;if(rank<score){score=rank;d2=q;best=seg;u0=u;}}
     if(!best||d2>170*170)return null;
     const cx=lerp(best.a.x,best.b.x,u0),cz=lerp(best.a.z,best.b.z,u0);
     return {d:Math.sqrt(d2),cx,cz,nx:-best.tz,nz:best.tx,tx:best.tx,tz:best.tz,y:lerp(best.a.y,best.b.y,u0),grade:best.grade,half:best.half,s:best.s+u0*best.length,path:best.path,segment:best};
@@ -56,5 +67,5 @@
   function mountainAtX(x){let lo=0,hi=mp.length-2;while(lo<hi){const m=(lo+hi+1)>>1;if(mp[m].x<=x)lo=m;else hi=m-1;}const a=mp[lo],b=mp[lo+1],u=clamp((x-a.x)/(b.x-a.x),0,1);return{z:lerp(a.z,b.z,u),y:lerp(a.y,b.y,u)};}
   function tunnel(x){return x>=35280&&x<36240?'gallery':x>=36500&&x<37120?'tunnel':x>=41840&&x<42520?'gallery':null;}
   function relief(x,z){if(x<31000||x>49600)return -Infinity;const p=mountainAtX(x),d=Math.abs(z-p.z),gate=smooth(31000,32600,x)*(1-smooth(48000,49600,x));return (p.y-12+800*Math.pow(smooth(48,1100,d),.7)+((x>35150&&x<37250)||(x>41700&&x<42650)?120*(1-smooth(40,220,d)):0))*gate-200*(1-gate);}
-  globalThis.WindRoutes={definitions,paths,nearest,at,tunnel,relief};
+  globalThis.WindRoutes={definitions,paths,nearest,at,tunnel,relief,addConnection,junctions:[]};
 })();

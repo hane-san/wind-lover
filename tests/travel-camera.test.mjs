@@ -25,3 +25,16 @@ test('frame rates preserve the slow composition without affecting any travel inp
  const positions=[];for(const fps of [20,30,60,120]){const input=Object.freeze({speed:65,steer:0,yawRate:0}),s=camera.create();for(let i=0;i<fps*20;i++)camera.advance(s,1/fps,input);positions.push(s.side);assert.equal(input.speed,65);}
  assert.ok(Math.max(...positions)-Math.min(...positions)<.025);
 });
+test('combat recentres and widens the forward view, and a bend preview stays bounded',()=>{
+ const s=camera.create();for(let i=0;i<21*60;i++)camera.advance(s,1/60,{speed:65});
+ for(let i=0;i<120;i++)camera.advance(s,1/60,{speed:65,threat:1,bend:.8});
+ assert.ok(s.focus>.99&&Math.abs(s.side)<.01&&s.pull>1.3&&s.pull<1.5&&s.bend<=.20);
+});
+test('camera boom stops in front of walls and lintels, including rotated boxes',()=>{
+ const target={x:0,y:3,z:0},eye={x:0,y:6,z:-18};
+ const wall={x:0,z:-9,c:1,s:0,hw:5,hd:1,bottom:0,top:12};
+ const t=camera.boomFraction(target,eye,[wall]);assert.ok(t>.3&&t<.5);
+ assert.equal(camera.boomFraction(target,eye,[{...wall,x:40}]),1);
+ assert.equal(camera.boomFraction(target,eye,[{...wall,bottom:8}]),1);
+ assert.ok(camera.boomFraction(target,eye,[{...wall,c:Math.SQRT1_2,s:Math.SQRT1_2}])<.6);
+});

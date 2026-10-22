@@ -3,7 +3,7 @@ import argparse,functools,http.server,json,threading
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 parser=argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--browser',default='/usr/bin/chromium');parser.add_argument('--views-only',action='store_true');parser.add_argument('--full-only',action='store_true');parser.add_argument('--three',type=Path);parser.add_argument('--out',type=Path,default=Path('/tmp/wind-featured-qa'))
+parser.add_argument('--browser',default='/usr/bin/chromium');parser.add_argument('--vehicle',choices=['sidecar','horse'],default='sidecar');parser.add_argument('--views-only',action='store_true');parser.add_argument('--full-only',action='store_true');parser.add_argument('--three',type=Path);parser.add_argument('--out',type=Path,default=Path('/tmp/wind-featured-qa'))
 args=parser.parse_args();args.out.mkdir(parents=True,exist_ok=True);root=Path(__file__).resolve().parents[1]
 class Handler(http.server.SimpleHTTPRequestHandler):
  def log_message(self,*unused):pass
@@ -15,7 +15,7 @@ try:
   errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
   if args.three:page.route('**/three.min.js',lambda r:r.fulfill(path=str(args.three.resolve()),content_type='application/javascript'))
   page.route('https://fonts.googleapis.com/**',lambda r:r.abort())
-  page.add_init_script("localStorage.setItem('windlover.shells','false')")
+  page.add_init_script("localStorage.setItem('windlover.shells','false');localStorage.setItem('windlover.vehicle4',JSON.stringify("+json.dumps(args.vehicle)+"))")
   def probe(r):
    s=(root/'prototype/index.html').read_text().replace('window.__wl = {','window.__featuredQA={renderer,camera,roadMat,get paused(){return paused},set paused(v){paused=v},get sky(){return sky},get vista(){return featuredVista}};\nwindow.__wl = {')
    r.fulfill(body=s,content_type='text/html')

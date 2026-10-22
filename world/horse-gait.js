@@ -10,16 +10,19 @@
   const rig=Object.freeze({hipY:1.48,foreZ:.78,hindZ:-.78,saddleY:2.29,riderTop:3.70,
     fore:Object.freeze([Object.freeze([-.73,-.035]),Object.freeze([-.82,.05])]),
     hind:Object.freeze([Object.freeze([-.40,.25]),Object.freeze([-.49,-.28]),Object.freeze([-.58,.08])])});
-  function create(){return {phase:0,cycles:0,blend:0,rate:0,beats:[],air:0};}
-  function advance(state,dt,speed,grounded,active=true){
+  const legIndex=(index,lead)=>lead<0?(index^1):index;
+  function create(){return {phase:0,cycles:0,blend:0,rate:0,stepRate:0,beats:[],air:0,lead:1};}
+  function advance(state,dt,speed,grounded,active=true,lead=1){
     state.beats.length=0;if(!(dt>0))return state;dt=Math.min(dt,.1);
+    if(!grounded||state.blend<.05)state.lead=lead;
     const target=active&&grounded?smooth((speed-1)/9):0,k=1-Math.exp(-9*dt);
     state.blend=mix(state.blend,target,k);state.air=mix(state.air,active&&!grounded?1:0,k);state.rate=mix(state.rate,cadence(speed),k);
+    state.stepRate=state.rate*target;
     if(target>.01){
       const before=state.cycles,after=before+state.rate*dt*target;
       for(let leg=0;leg<4;leg++){
         const beat=offsets[leg],cycle=Math.floor(after-beat);
-        if(cycle>Math.floor(before-beat))state.beats.push({leg,weight:weights[leg],age:(after-cycle-beat)/(state.rate*target)});
+        if(cycle>Math.floor(before-beat))state.beats.push({leg:legIndex(leg,state.lead),weight:weights[leg],age:(after-cycle-beat)/(state.rate*target)});
       }
       state.beats.sort((a,b)=>b.age-a.age);state.cycles=after;state.phase=after%1;
     }return state;
@@ -33,14 +36,15 @@
       riderPitch:(.05+.022*Math.sin(a-1.35)-.55*.052*Math.sin(a-.09*TAU))*blend,
       tailX:.12+.35*blend,tailZ:.055*Math.sin(a-1)*blend};
   }
-  function foot(phase,index,blend,air=0){
-    const u=((phase-offsets[index])%1+1)%1,front=index>=2,duty=front?.23:.27,stance=u<duty;
+  function foot(phase,index,blend,air=0,action=null,lead=1){
+    const u=((phase-offsets[legIndex(index,lead)])%1+1)%1,front=index>=2,duty=front?.23:.27,stance=u<duty;
     const swing=clamp((u-duty)/(1-duty),0,1);
     const reach=front?.64:.66,push=front?-.58:-.68;
     const z=stance?mix(reach,push,smooth(u/duty)):mix(push,reach,smooth(swing));
     // Gather early under the belly, then reach forward before the next grounded stroke.
     const lift=stance?0:(front?.42:.34)*Math.pow(Math.sin(Math.PI*swing),1.3);
-    return {z:z*blend,y:.085+lift*blend+.12*air,stance:stance&&blend>.1&&air<.1};
+    const fold=action?.fold||0;
+    return {z:mix(z*blend,front?.14:-.25,fold),y:mix(.085+lift*blend+.12*air,front?.60:.42,fold),stance:stance&&blend>.1&&air<.1};
   }
   function solvePair(y,z,ay,az,by,bz,bendSign){
     const a=Math.hypot(ay,az),b=Math.hypot(by,bz),d=clamp(Math.hypot(y,z),Math.abs(a-b)+.0001,a+b-.0001);
@@ -60,5 +64,5 @@
     const a=solvePair(ly,lz,...tibia,...cannon,-1);
     return {leg,knee:a.leg,hock:a.knee};
   }
-  globalThis.WindHorseGait=Object.freeze({cadence,create,advance,pose,foot,solve,offsets,rig});
+  globalThis.WindHorseGait=Object.freeze({cadence,create,advance,pose,foot,solve,offsets,rig,legIndex});
 })();
