@@ -164,6 +164,20 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 #tuneSheet details .tune-list { padding: 8px 0 16px; }
 #tuneSheet .tune-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 #tuneSheet .tune-actions button { padding: 11px 8px; letter-spacing: .04em; font-size: 13px; min-height: 44px; }
+#tuneSheet > .card { box-sizing: border-box; max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain; }
+.camera-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.camera-presets button { padding: 9px 4px; min-height: 44px; font-size: 11px; letter-spacing: 0; }
+.camera-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.camera-tools button { padding: 9px 4px; min-height: 44px; font-size: 12px; }
+.camera-tools button:disabled { opacity: .4; cursor: default; }
+#tuneSheet .tune-actions { position: sticky; bottom: -1px; background: var(--sheet); padding-top: 8px; }
+.camera-preview-bar { display: none; }
+#tuneSheet.previewing { background: none; pointer-events: none; }
+#tuneSheet.previewing > .card { display: none; }
+#tuneSheet.previewing .camera-preview-bar { display: grid; gap: 8px; position: fixed; pointer-events: auto; left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); top: calc(env(safe-area-inset-top, 0px) + 70px); max-width: 600px; margin: auto; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--sheet); }
+.camera-preview-bar p { margin: 0; font-size: 12px; line-height: 1.6; text-align: center; }
+.camera-preview-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.camera-preview-buttons button { min-height: 44px; padding: 9px 4px; font-size: 12px; letter-spacing: 0; }
 @media (max-height: 650px) {
   #tuneSheet .card { padding: 16px; gap: 10px; }
   .camera-tuning .tune-list { gap: 6px; }
@@ -313,11 +327,21 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
   <div class="card">
     <h2>視点と手ざわり調整</h2>
     <p>景色を止めて見比べられます。乗り物ごとに、この端末に保存。</p>
+    <div class="camera-presets" id="cameraPresets" role="group" aria-label="視点の見比べ">
+      <button class="ghost seg" type="button" data-camera-preset="riding" aria-pressed="false">高め追従</button>
+      <button class="ghost seg" type="button" data-camera-preset="scenic" aria-pressed="false">遠景ひろめ</button>
+      <button class="ghost seg" type="button" data-camera-preset="panorama" aria-pressed="false">大パノラマ</button>
+    </div>
     <div class="camera-tuning">
       <figure class="camera-preview"><canvas id="tunePreview" width="180" height="390" role="img" aria-label="現在の画角・高さ・角度で見た景色"></canvas></figure>
       <div class="tune-list" id="cameraTuneList" role="group" aria-label="カメラの調整"></div>
     </div>
-    <p class="trip-note">画角を広げると周囲が入り、角度は−で空、＋で足元へ。高さと距離も組み合わせて試せます。</p>
+    <p class="trip-note" id="cameraReadout"></p>
+    <div class="camera-tools">
+      <button class="ghost" id="cameraCompare" type="button" disabled>前の視点と比較</button>
+      <button class="ghost" id="cameraExpand" type="button">全画面で見比べる</button>
+    </div>
+    <p class="trip-note">画角を広げると周囲が入り、角度は−で空、＋で足元へ。表示中の視点が保存されます。</p>
     <details><summary>走りと速度による視野の変化</summary>
       <div class="tune-list" id="tuneList"></div>
       <label class="tune-check"><input type="checkbox" id="tuneAuto"> 自動で巡航速度まで加速する</label>
@@ -326,6 +350,14 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
     <div class="row tune-actions">
       <button class="ghost" id="cameraReset" type="button">視点を初期値へ</button>
       <button class="go" id="tuneClose" type="button">走りに戻る</button>
+    </div>
+  </div>
+  <div class="camera-preview-bar">
+    <p id="cameraExpandedReadout">景色を止めて比較中</p>
+    <div class="camera-preview-buttons">
+      <button class="ghost" id="cameraCycle" type="button">次の視点</button>
+      <button class="ghost" id="cameraCollapse" type="button">調整に戻る</button>
+      <button class="go" id="cameraPreviewClose" type="button">走りに戻る</button>
     </div>
   </div>
 </section>
@@ -364,8 +396,8 @@ const VEHICLES = {
 };
 // A quicker travelling gallop keeps the independent rein response and lead changes.
 VEHICLES.horse = { ...VEHICLES.sidecar, grip: 8.8, accel:24, name: 'キルギスの馬', defaults: { ...VEHICLES.sidecar.defaults,maxSpeed:116,cruise:48 } };
-// A zero FOV/tilt offset preserves the existing portrait and landscape compositions.
-for(const vehicle of Object.values(VEHICLES))Object.assign(vehicle.defaults,{camFov:0,camHeight:4.8,camTilt:0});
+// Neutral FOV, pitch and framing offsets preserve the existing compositions.
+for(const vehicle of Object.values(VEHICLES))Object.assign(vehicle.defaults,{camFov:0,camHeight:4.8,camTilt:0,camFrame:0});
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
@@ -4768,7 +4800,7 @@ const camDir = new V3(0, 0, 1), camPos = new V3(), lookSm = new V3(), visN = new
 const travelCam = WindTravelCamera.create();
 let camBaseY = 0, lift = 0, lookAng = 0, suspY = 0, suspV = 0, lastVy = 0;
 function applyLens() {
-  const w = innerWidth, h = innerHeight, shift = w < h ? 0.095 : 0.055;
+  const w = innerWidth, h = innerHeight, shift = (w < h ? 0.095 : 0.055)-S.camFrame;
   camera.aspect = w / h; camera.setViewOffset(w, h, 0, -h * shift, w, h); camera.updateProjectionMatrix();
 }
 const basis = new THREE.Matrix4(), bx = new V3(), bz = new V3();
@@ -4909,7 +4941,7 @@ function updateVisuals(dt) {
     camera.rotateZ(clamp(P.yawRate, -2, 2) * 0.008 * sf);
   }
   dashPunch = Math.max(0, dashPunch - dt * 2.2);
-  const fov = (portrait ? 66 : 52) + S.camFov + (started ? sf * (vehKey==='horse'?3.2:2) * S.fovKick + dashPunch * 0.8 : 0);
+  const fov = clamp((portrait ? 66 : 52) + S.camFov + (started ? sf * (vehKey==='horse'?3.2:2) * S.fovKick + dashPunch * 0.8 : 0),30,120);
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = lerp(camera.fov, fov, 1 - Math.exp(-6 * cameraDt)); applyLens(); }
   sky.position.copy(camera.position);
 
@@ -5389,7 +5421,7 @@ function setVehicle(k) {
     for(const c of chainQ)c.d.doomed=false;
     tracers.length=0;chainQ.length=0;
   }
-  S = loadS(); HOVER = VEHICLES[k].hover;
+  S = loadS(); HOVER = VEHICLES[k].hover;applyLens();
   for (const [key, m] of Object.entries(models)) m.group.visible = key === k;
   for (const box of [$('#vehCards'), $('#vehCards2')]) {
     box.innerHTML = '<span class="label">乗り物</span>';
@@ -5398,12 +5430,12 @@ function setVehicle(k) {
       b.setAttribute('aria-pressed', String(key === k)); b.addEventListener('click', () => setVehicle(key)); box.append(b);
     }
   }
-  if (!$('#tuneSheet').hidden) buildTune();
+  if (!$('#tuneSheet').hidden) {previousCamera=null;buildTune();}
 }
 
 let last = performance.now();
 function openSheet(sel) { $(sel).hidden = false; paused = true;sfx.stopHooves(); }
-function closeSheet(sel) { $(sel).hidden = true; paused = false; last = performance.now();if(started){renderer.domElement.tabIndex=0;renderer.domElement.focus({preventScroll:true});} }
+function closeSheet(sel) { $(sel).hidden = true;if(sel==='#tuneSheet')$('#tuneSheet').classList.remove('previewing'); paused = false; last = performance.now();if(started){renderer.domElement.tabIndex=0;renderer.domElement.focus({preventScroll:true});} }
 
 const TUNE = [
   ['maxSpeed', '最高速度', 50, 180, 1, (v) => Math.round(v * 3.6) + 'km/h'],
@@ -5415,13 +5447,29 @@ const TUNE = [
   ['gravity', '重力', 12, 50, 1, (v) => v],
   ['glide', '滑空のふわっと感', 0, 0.95, 0.01, (v) => Math.round(v * 100) + '%'],
   ['jump', 'ジャンプ力', 6, 30, 0.5, (v) => v],
-  ['camDist', 'カメラの距離', 4, 18, 0.5, (v) => v.toFixed(1)+'m'],
-  ['camFov', '画角（広角）', -18, 24, 1, (v) => v+'°'],
-  ['camHeight', 'カメラの高さ', 2, 12, 0.2, (v) => v.toFixed(1)+'m'],
-  ['camTilt', '上下の角度', -6, 12, 0.5, (v) => (v>0?'+':'')+v+'°'],
+  ['camDist', 'カメラの距離', 4, 36, 0.5, (v) => v.toFixed(1)+'m'],
+  ['camFov', '画角（広角）', -18, 46, 1, (v) => v+'°'],
+  ['camHeight', 'カメラの高さ', 2, 28, 0.2, (v) => v.toFixed(1)+'m'],
+  ['camTilt', '上下の角度', -14, 20, 0.5, (v) => (v>0?'+':'')+v+'°'],
+  ['camFrame', '空と大地', -0.12, 0.22, 0.01, (v) => Math.abs(v)<.001?'標準':(v<0?'空':'大地')+Math.round(Math.abs(v)*100)+'%'],
   ['fovKick', '速度で広がる視野', 0, 2, 0.05, (v) => v.toFixed(2)],
 ];
-const CAMERA_TUNE=['camFov','camHeight','camTilt','camDist'];
+const CAMERA_TUNE=['camFov','camHeight','camTilt','camDist','camFrame'];
+// The first composition follows the owner's 90° / 12m / -3° / 10.5m screenshot.
+const CAMERA_PRESETS={
+  riding:{label:'高め追従',camFov:24,camHeight:12,camTilt:-3,camDist:10.5,camFrame:0},
+  scenic:{label:'遠景ひろめ',camFov:38,camHeight:16,camTilt:-4,camDist:12,camFrame:.06},
+  panorama:{label:'大パノラマ',camFov:46,camHeight:20,camTilt:-5,camDist:14,camFrame:.08},
+};
+let previousCamera=null;
+const cameraSnapshot=()=>Object.fromEntries([...CAMERA_TUNE,'fovKick'].map(key=>[key,S[key]]));
+function rememberCamera(){previousCamera=cameraSnapshot();$('#cameraCompare').disabled=false;}
+function matchingCameraPreset(){return Object.keys(CAMERA_PRESETS).find(key=>CAMERA_TUNE.every(field=>Math.abs(S[field]-CAMERA_PRESETS[key][field])<.001));}
+function refreshCameraPresets(){
+  const selected=matchingCameraPreset();for(const button of $('#cameraPresets').children)button.setAttribute('aria-pressed',String(button.dataset.cameraPreset===selected));
+  $('#cameraCompare').disabled=!previousCamera||[...CAMERA_TUNE,'fovKick'].every(key=>Math.abs(S[key]-previousCamera[key])<.001);
+}
+function setCameraPreset(key){const preset=CAMERA_PRESETS[key];if(!preset)return;rememberCamera();for(const field of CAMERA_TUNE)S[field]=preset[field];saveS();buildTune();}
 function buildTune() {
   const list = $('#tuneList'),cameraList=$('#cameraTuneList'); list.innerHTML = '';cameraList.innerHTML='';
   const ordered=[...CAMERA_TUNE.map(key=>TUNE.find(row=>row[0]===key)),...TUNE.filter(row=>!CAMERA_TUNE.includes(row[0]))];
@@ -5432,15 +5480,26 @@ function buildTune() {
     row.querySelector('span').textContent = label;
     const input = row.querySelector('input'), out = row.querySelector('output');
     input.value = S[key]+base; out.textContent = fmt(S[key]+base);out.htmlFor=input.id;
-    input.addEventListener('input', () => { S[key] = parseFloat(input.value)-base; out.textContent = fmt(S[key]+base); saveS(); });
+    if(CAMERA_TUNE.includes(key)||key==='fovKick'){
+      input.addEventListener('pointerdown',rememberCamera);
+      input.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown'].includes(e.key))rememberCamera();});
+    }
+    input.addEventListener('input', () => { S[key] = parseFloat(input.value)-base; out.textContent = fmt(S[key]+base); saveS();if(key==='camFrame')applyLens();refreshCameraPresets(); });
     (CAMERA_TUNE.includes(key)?cameraList:list).append(row);
   }
   $('#tuneAuto').checked = S.auto;
+  $('#cameraCompare').disabled=!previousCamera;refreshCameraPresets();applyLens();
 }
 const tunePreview=$('#tunePreview'),tunePreviewContext=tunePreview.getContext('2d',{alpha:false});let lastTunePreview=-Infinity;
 function drawTunePreview(now){
-  if($('#tuneSheet').hidden||now-lastTunePreview<100||!tunePreviewContext)return;
+  if($('#tuneSheet').hidden||now-lastTunePreview<100)return;
   lastTunePreview=now;
+  const horizontal=2*Math.atan(Math.tan(camera.fov*Math.PI/360)*camera.aspect)*180/Math.PI;
+  const scope=`いまの視野：横${Math.round(horizontal)}°・縦${Math.round(camera.fov)}°`;
+  $('#cameraReadout').textContent=scope;
+  const preset=CAMERA_PRESETS[matchingCameraPreset()];
+  $('#cameraExpandedReadout').textContent=`${preset?preset.label:'調整した視点'} · 停止中　${scope}`;
+  if($('#tuneSheet').classList.contains('previewing')||!tunePreviewContext)return;
   const w=Math.min(320,innerWidth),h=Math.round(w*innerHeight/innerWidth);
   if(tunePreview.width!==w||tunePreview.height!==h){tunePreview.width=w;tunePreview.height=h;}
   tunePreviewContext.drawImage(renderer.domElement,0,0,w,h);
@@ -5451,14 +5510,20 @@ $('#btnMenu').addEventListener('click', () => {
   refreshCards(); openSheet('#menuSheet');
 });
 $('#menuClose').addEventListener('click', () => closeSheet('#menuSheet'));
-$('#menuTune').addEventListener('click', () => { $('#menuSheet').hidden = true; buildTune(); openSheet('#tuneSheet'); });
+$('#menuTune').addEventListener('click', () => { $('#menuSheet').hidden = true;$('#tuneSheet').classList.remove('previewing');previousCamera=null;rememberCamera(); buildTune(); openSheet('#tuneSheet');$('#tuneSheet > .card').scrollTop=0; });
 $('#menuSound').addEventListener('click', (e) => { const on = sfx.toggle(); e.currentTarget.textContent = on ? '効果音：オン' : '効果音：オフ'; });
 $('#menuRespawn').addEventListener('click', () => { clearShells(); respawn(); P.hull = 3; P.dead = false; closeSheet('#menuSheet'); });
 const shellsBtn = $('#menuShells'); const setShellsLabel = () => { shellsBtn.textContent = shellsOn ? '襲撃：オン' : '襲撃：オフ'; }; setShellsLabel();
 shellsBtn.addEventListener('click', () => { shellsOn = !shellsOn; store.set('windlover.shells', shellsOn); if (!shellsOn) { clearShells(); clearDrones(); } setShellsLabel(); });
 $('#overRetry').addEventListener('click', retry);
-$('#tuneReset').addEventListener('click', () => { S = { ...VEHICLES[vehKey].defaults }; saveS(); buildTune(); });
-$('#cameraReset').addEventListener('click',()=>{for(const key of [...CAMERA_TUNE,'fovKick'])S[key]=VEHICLES[vehKey].defaults[key];saveS();buildTune();});
+$('#tuneReset').addEventListener('click', () => { rememberCamera();S = { ...VEHICLES[vehKey].defaults }; saveS(); buildTune(); });
+$('#cameraReset').addEventListener('click',()=>{rememberCamera();for(const key of [...CAMERA_TUNE,'fovKick'])S[key]=VEHICLES[vehKey].defaults[key];saveS();buildTune();});
+for(const button of $('#cameraPresets').children)button.addEventListener('click',()=>setCameraPreset(button.dataset.cameraPreset));
+$('#cameraCompare').addEventListener('click',()=>{if(!previousCamera)return;const current=cameraSnapshot();Object.assign(S,previousCamera);previousCamera=current;saveS();buildTune();});
+$('#cameraExpand').addEventListener('click',()=>{$('#tuneSheet').classList.add('previewing');$('#cameraCollapse').focus({preventScroll:true});});
+$('#cameraCollapse').addEventListener('click',()=>{$('#tuneSheet').classList.remove('previewing');$('#cameraExpand').focus({preventScroll:true});});
+$('#cameraCycle').addEventListener('click',()=>{const keys=Object.keys(CAMERA_PRESETS);setCameraPreset(keys[(keys.indexOf(matchingCameraPreset())+1)%keys.length]);});
+$('#cameraPreviewClose').addEventListener('click',()=>closeSheet('#tuneSheet'));
 $('#tuneClose').addEventListener('click', () => closeSheet('#tuneSheet'));
 
 // somewhere on the road: any trunk highway of the journey, clear of tunnels, lake and the last approach
