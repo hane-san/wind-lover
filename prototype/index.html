@@ -156,6 +156,18 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .tune-item input[type="range"] { width: 100%; accent-color: var(--accent); }
 .tune-check { display: flex; gap: 10px; align-items: center; font-size: 13px; }
 .tune-check input { width: 20px; height: 20px; accent-color: var(--accent); }
+.camera-tuning { display: grid; grid-template-columns: minmax(90px, .8fr) minmax(0, 1fr); gap: 16px; align-items: center; }
+.camera-preview { margin: 0; min-width: 0; background: #182026; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+#tunePreview { display: block; width: 100%; max-height: 38vh; object-fit: contain; }
+.camera-tuning .tune-item { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 6px; font-size: 12px; }
+.camera-tuning .tune-item input { grid-column: 1 / -1; grid-row: 2; min-height: 26px; }
+#tuneSheet details .tune-list { padding: 8px 0 16px; }
+#tuneSheet .tune-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#tuneSheet .tune-actions button { padding: 11px 8px; letter-spacing: .04em; font-size: 13px; min-height: 44px; }
+@media (max-height: 650px) {
+  #tuneSheet .card { padding: 16px; gap: 10px; }
+  .camera-tuning .tune-list { gap: 6px; }
+}
 .featured-trips { display: grid; grid-template-columns:repeat(4,minmax(0,1fr));gap:7px; }
 .featured-trips .world { position:relative;width:100%;display:grid;grid-template-columns:1fr;text-align:center;min-height:108px;border-color:var(--line);background:rgba(255,255,255,.025);color:var(--muted);padding:8px 3px;align-content:start; }
 .featured-trips .world .sw { height:44px;min-height:44px;display:grid;place-items:center;background:none; }
@@ -299,13 +311,21 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 
 <section class="sheet" id="tuneSheet" hidden>
   <div class="card">
-    <h2>手ざわり調整</h2>
-    <p>乗り物ごとに、この端末に保存されます。</p>
-    <div class="tune-list" id="tuneList"></div>
-    <label class="tune-check"><input type="checkbox" id="tuneAuto"> 自動で巡航速度まで加速する</label>
-    <div class="row">
-      <button class="ghost" id="tuneReset" type="button">初期値に戻す</button>
-      <button class="go" id="tuneClose" type="button">戻る</button>
+    <h2>視点と手ざわり調整</h2>
+    <p>景色を止めて見比べられます。乗り物ごとに、この端末に保存。</p>
+    <div class="camera-tuning">
+      <figure class="camera-preview"><canvas id="tunePreview" width="180" height="390" role="img" aria-label="現在の画角・高さ・角度で見た景色"></canvas></figure>
+      <div class="tune-list" id="cameraTuneList" role="group" aria-label="カメラの調整"></div>
+    </div>
+    <p class="trip-note">画角を広げると周囲が入り、角度は−で空、＋で足元へ。高さと距離も組み合わせて試せます。</p>
+    <details><summary>走りと速度による視野の変化</summary>
+      <div class="tune-list" id="tuneList"></div>
+      <label class="tune-check"><input type="checkbox" id="tuneAuto"> 自動で巡航速度まで加速する</label>
+      <div class="row"><button class="ghost" id="tuneReset" type="button">すべて初期値に戻す</button></div>
+    </details>
+    <div class="row tune-actions">
+      <button class="ghost" id="cameraReset" type="button">視点を初期値へ</button>
+      <button class="go" id="tuneClose" type="button">走りに戻る</button>
     </div>
   </div>
 </section>
@@ -344,6 +364,8 @@ const VEHICLES = {
 };
 // A quicker travelling gallop keeps the independent rein response and lead changes.
 VEHICLES.horse = { ...VEHICLES.sidecar, grip: 8.8, accel:24, name: 'キルギスの馬', defaults: { ...VEHICLES.sidecar.defaults,maxSpeed:116,cruise:48 } };
+// A zero FOV/tilt offset preserves the existing portrait and landscape compositions.
+for(const vehicle of Object.values(VEHICLES))Object.assign(vehicle.defaults,{camFov:0,camHeight:4.8,camTilt:0});
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
@@ -4830,6 +4852,8 @@ function updatePalette(dt, snap) {
 
 function updateVisuals(dt) {
   t += dt;
+  // Only the lens/boom can settle whilst tuning; the journey and horse stay paused.
+  const cameraDt = paused && !$('#tuneSheet').hidden ? 0.05 : dt;
   const speed = P.vel.length(), sf = clamp(speed / S.maxSpeed, 0, 1), portrait = camera.aspect < 1;
   if (!started) {
     const a = t * 0.08, gh = ground(0, 0).h;
@@ -4855,11 +4879,11 @@ function updateVisuals(dt) {
     let dA = Math.atan2(Math.sin(ang - la), Math.cos(ang - la)); dA = clamp(dA, -0.32, 0.32);
     lookAng = lerp(lookAng, dA, 1 - Math.exp(-3 * dt));
     // offset-based follow: the camera keeps its place relative to the rider at any speed
-    const dist = S.camDist * (1.13 + sf * 0.10) + viewPlay.pull, height = 4.8 + viewPlay.rise + (P.grounded ? 0 : vehKey==='horse'?.25:1.0) + (P.tuck ? -0.3 : 0);
+    const dist = S.camDist * (1.13 + sf * 0.10) + viewPlay.pull, height = S.camHeight + viewPlay.rise + (P.grounded ? 0 : vehKey==='horse'?.25:1.0) + (P.tuck ? -0.3 : 0);
     tmp2.copy(camDir).multiplyScalar(-dist); tmp2.y = height;
     tmp2.x+=camDir.z*viewPlay.side;tmp2.z-=camDir.x*viewPlay.side;
     const swing = clamp(P.yawRate, -2.2, 2.2) * sf * 0.45; tmp2.x += -camDir.z * swing; tmp2.z += camDir.x * swing;
-    camOff.lerp(tmp2, 1 - Math.exp(-7 * dt));
+    camOff.lerp(tmp2, 1 - Math.exp(-7 * cameraDt));
     camBaseY += (P.pos.y - camBaseY) * (1 - Math.exp(-14 * dt));
     camPos.set(P.pos.x + camOff.x, camBaseY + camOff.y, P.pos.z + camOff.z);
     const gh = ground(camPos.x, camPos.z).h + 1.2; if (camPos.y < gh) camPos.y = gh;
@@ -4868,7 +4892,7 @@ function updateVisuals(dt) {
     if (rumble > 0) { camera.position.x += (Math.random() - 0.5) * rumble; camera.position.y += (Math.random() - 0.5) * rumble; }
     camera.position.y += suspY * 0.08; // the ride comes through to the eye, softened
     const anchor={x:P.pos.x,y:P.pos.y+1.5,z:P.pos.z},fraction=WindTravelCamera.boomFraction(anchor,camera.position,colliders);
-    travelCam.boom=fraction<travelCam.boom?fraction:lerp(travelCam.boom,fraction,1-Math.exp(-2.5*dt));
+    travelCam.boom=fraction<travelCam.boom?fraction:lerp(travelCam.boom,fraction,1-Math.exp(-2.5*cameraDt));
     camera.position.set(lerp(anchor.x,camera.position.x,travelCam.boom),lerp(anchor.y,camera.position.y,travelCam.boom),lerp(anchor.z,camera.position.z,travelCam.boom));
     if(P.inTunnel&&cameraRoad?.path){const off=(camera.position.x-cameraRoad.cx)*cameraRoad.nx+(camera.position.z-cameraRoad.cz)*cameraRoad.nz;
       const excess=off-clamp(off,-cameraRoad.half+1.6,cameraRoad.half-1.6);camera.position.x-=cameraRoad.nx*excess;camera.position.z-=cameraRoad.nz*excess;camera.position.y=Math.min(camera.position.y,cameraRoad.y+9.3);}
@@ -4877,12 +4901,16 @@ function updateVisuals(dt) {
     lookSm.set(P.pos.x + Math.sin(lAng) * 52 + camDir.z*viewPlay.look, camBaseY + (vehKey==='horse'?1.05:.8), P.pos.z + Math.cos(lAng) * 52 - camDir.x*viewPlay.look);
     const scenic=tourAt(P.pos.x,P.pos.z);
     if(scenic?.path.id==='lake'&&!P.inTunnel){const dx=LK.x-P.pos.x,dz=LK.z*funnel(P.pos.x)-P.pos.z,l=Math.hypot(dx,dz)||1,amount=5*(1-viewPlay.focus)*(1-clamp(Math.abs(inp.jx+inp.kx),0,1));lookSm.x+=dx/l*amount;lookSm.z+=dz/l*amount;}
+    // Pitch about the current eye, preserving the usual target at the neutral setting.
+    const lookDistance=Math.hypot(lookSm.x-camera.position.x,lookSm.z-camera.position.z);
+    const pitch=Math.atan2(camera.position.y-lookSm.y,lookDistance)+S.camTilt*Math.PI/180;
+    lookSm.y=camera.position.y-Math.tan(pitch)*lookDistance;
     camera.lookAt(lookSm);
     camera.rotateZ(clamp(P.yawRate, -2, 2) * 0.008 * sf);
   }
   dashPunch = Math.max(0, dashPunch - dt * 2.2);
-  const fov = (portrait ? 66 : 52) + (started ? sf * (vehKey==='horse'?3.2:2) * S.fovKick + dashPunch * 0.8 : 0);
-  if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = lerp(camera.fov, fov, 1 - Math.exp(-6 * dt)); applyLens(); }
+  const fov = (portrait ? 66 : 52) + S.camFov + (started ? sf * (vehKey==='horse'?3.2:2) * S.fovKick + dashPunch * 0.8 : 0);
+  if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = lerp(camera.fov, fov, 1 - Math.exp(-6 * cameraDt)); applyLens(); }
   sky.position.copy(camera.position);
 
   const MD = models[vehKey], V = VEHICLES[vehKey];
@@ -5387,21 +5415,35 @@ const TUNE = [
   ['gravity', '重力', 12, 50, 1, (v) => v],
   ['glide', '滑空のふわっと感', 0, 0.95, 0.01, (v) => Math.round(v * 100) + '%'],
   ['jump', 'ジャンプ力', 6, 30, 0.5, (v) => v],
-  ['camDist', 'カメラの距離', 4, 18, 0.5, (v) => v],
+  ['camDist', 'カメラの距離', 4, 18, 0.5, (v) => v.toFixed(1)+'m'],
+  ['camFov', '画角（広角）', -18, 24, 1, (v) => v+'°'],
+  ['camHeight', 'カメラの高さ', 2, 12, 0.2, (v) => v.toFixed(1)+'m'],
+  ['camTilt', '上下の角度', -6, 12, 0.5, (v) => (v>0?'+':'')+v+'°'],
   ['fovKick', '速度で広がる視野', 0, 2, 0.05, (v) => v.toFixed(2)],
 ];
+const CAMERA_TUNE=['camFov','camHeight','camTilt','camDist'];
 function buildTune() {
-  const list = $('#tuneList'); list.innerHTML = '';
-  for (const [key, label, min, max, step, fmt] of TUNE) {
+  const list = $('#tuneList'),cameraList=$('#cameraTuneList'); list.innerHTML = '';cameraList.innerHTML='';
+  const ordered=[...CAMERA_TUNE.map(key=>TUNE.find(row=>row[0]===key)),...TUNE.filter(row=>!CAMERA_TUNE.includes(row[0]))];
+  for (const [key, label, min, max, step, fmt] of ordered) {
+    const base=key==='camFov'?(innerWidth<innerHeight?66:52):0;
     const row = document.createElement('label'); row.className = 'tune-item';
-    row.innerHTML = `<span></span><input type="range" id="tune-${key}" min="${min}" max="${max}" step="${step}"><output></output>`;
+    row.innerHTML = `<span></span><input type="range" id="tune-${key}" min="${min+base}" max="${max+base}" step="${step}"><output></output>`;
     row.querySelector('span').textContent = label;
     const input = row.querySelector('input'), out = row.querySelector('output');
-    input.value = S[key]; out.textContent = fmt(S[key]);
-    input.addEventListener('input', () => { S[key] = parseFloat(input.value); out.textContent = fmt(S[key]); saveS(); });
-    list.append(row);
+    input.value = S[key]+base; out.textContent = fmt(S[key]+base);out.htmlFor=input.id;
+    input.addEventListener('input', () => { S[key] = parseFloat(input.value)-base; out.textContent = fmt(S[key]+base); saveS(); });
+    (CAMERA_TUNE.includes(key)?cameraList:list).append(row);
   }
   $('#tuneAuto').checked = S.auto;
+}
+const tunePreview=$('#tunePreview'),tunePreviewContext=tunePreview.getContext('2d',{alpha:false});let lastTunePreview=-Infinity;
+function drawTunePreview(now){
+  if($('#tuneSheet').hidden||now-lastTunePreview<100||!tunePreviewContext)return;
+  lastTunePreview=now;
+  const w=Math.min(320,innerWidth),h=Math.round(w*innerHeight/innerWidth);
+  if(tunePreview.width!==w||tunePreview.height!==h){tunePreview.width=w;tunePreview.height=h;}
+  tunePreviewContext.drawImage(renderer.domElement,0,0,w,h);
 }
 $('#tuneAuto').addEventListener('change', (e) => { S.auto = e.target.checked; saveS(); });
 $('#btnMenu').addEventListener('click', () => {
@@ -5416,6 +5458,7 @@ const shellsBtn = $('#menuShells'); const setShellsLabel = () => { shellsBtn.tex
 shellsBtn.addEventListener('click', () => { shellsOn = !shellsOn; store.set('windlover.shells', shellsOn); if (!shellsOn) { clearShells(); clearDrones(); } setShellsLabel(); });
 $('#overRetry').addEventListener('click', retry);
 $('#tuneReset').addEventListener('click', () => { S = { ...VEHICLES[vehKey].defaults }; saveS(); buildTune(); });
+$('#cameraReset').addEventListener('click',()=>{for(const key of [...CAMERA_TUNE,'fovKick'])S[key]=VEHICLES[vehKey].defaults[key];saveS();buildTune();});
 $('#tuneClose').addEventListener('click', () => closeSheet('#tuneSheet'));
 
 // somewhere on the road: any trunk highway of the journey, clear of tunnels, lake and the last approach
@@ -5507,7 +5550,7 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => { inp.keys[e.code] = false; keyAxis(); if (e.code === 'Space') inp.jumpHeld = false; });
 window.addEventListener('blur', () => { sfx.stopHooves();inp.keys = {}; keyAxis(); inp.jumpHeld = false; store.set('windlover.dist4', P.dist); });
 document.addEventListener('visibilitychange',()=>{if(document.hidden)sfx.stopHooves();});
-window.addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); applyLens(); });
+window.addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); applyLens();if(!$('#tuneSheet').hidden)buildTune(); });
 
 // ---------------------------------------------------------------- loop
 function frame(now) {
@@ -5528,6 +5571,7 @@ function frame(now) {
   if (goalVeil) goalVeil.material.opacity = 0.08 + 0.05 * Math.sin(t * 0.7) + 0.03 * Math.sin(t * 2.3);
   if (window.__wlCam) window.__wlCam(camera, player); // inspection hook for close-ups
   renderer.render(scene, camera);
+  drawTunePreview(now);
 }
 setVehicle(vehKey); applyLens();
 placeHome(0); buildHome(); buildFeaturedVista(); updatePalette(0, true); refreshCards();
