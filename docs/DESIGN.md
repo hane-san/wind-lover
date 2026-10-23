@@ -16,7 +16,7 @@ The later four departure icons, faster horse, contact dust/snow, altitude season
 
 ## Core rules
 
-Per-vehicle FOV, height, pitch and distance can now be explored in a paused, live camera preview. Defaults retain the existing composition, and wall/tunnel protection still takes precedence. See [CAMERA-TUNING.md](CAMERA-TUNING.md) for ranges, saving and checks.
+Per-vehicle FOV, height, pitch, sky/ground framing and distance can be explored in a paused camera preview or a full-screen comparison. The owner's high-follow view and two wider presets provide starting points. Defaults retain the existing composition, and wall/tunnel protection still takes precedence. See [CAMERA-TUNING.md](CAMERA-TUNING.md) for ranges, saving and checks.
 
 The later tall horse proportions and restrained rear-follow camera variations are specified in [TALL-HORSE-AND-CAMERA.md](TALL-HORSE-AND-CAMERA.md). These replace only the horse's visual rig and the optional rear-follow composition; vehicle physics and the melancholy music/palette remain unchanged.
 

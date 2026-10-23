@@ -22,7 +22,7 @@ try:
   def slider(key,value):page.locator('#tune-'+key).evaluate('(el,v)=>{el.value=v;el.dispatchEvent(new Event("input",{bubbles:true}));}',str(value))
   def settle():page.evaluate('()=>{for(let i=0;i<100;i++)__tuneQA.updateVisuals(0);}');page.wait_for_timeout(150)
   def sample():return page.evaluate('''()=>{const q=__tuneQA,dir=q.camera.getWorldDirection(new THREE.Vector3());return {fov:q.camera.fov,height:q.camera.position.y-__wl.P.pos.y,pitch:Math.asin(-dir.y)*180/Math.PI,position:__wl.P.pos.toArray(),clock:q.clock,phase:q.models.horse.motion.phase,light:JSON.stringify(__wl.lakeJourney)};}''')
-  boot();settle();initial=sample();settings=page.evaluate('__wl.S');assert settings['camFov']==0 and settings['camHeight']==4.8 and settings['camTilt']==0 and settings['cruise']==51 and settings['turn']==1.3,settings
+  boot();settle();initial=sample();settings=page.evaluate('__wl.S');assert settings['camFrame']==0 and settings['camFov']==0 and settings['camHeight']==4.8 and settings['camTilt']==0 and settings['cruise']==51 and settings['turn']==1.3,settings
   assert page.locator('#tune-camFov').input_value()=='66'
   preview_before=page.locator('#tunePreview').evaluate('(c)=>c.toDataURL()')
   slider('camFov',84);slider('camHeight',9.6);slider('camTilt',6);slider('camDist',17);settle();changed=sample()
@@ -43,7 +43,7 @@ try:
   page.set_viewport_size({'width':320,'height':568});page.wait_for_timeout(250);settle();assert page.locator('#tune-camFov').input_value()=='84'
   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth && document.querySelector("#tuneSheet").scrollWidth<=innerWidth')
   page.screenshot(path=str(args.out/'small-phone-tuning.png'))
-  page.locator('#cameraReset').click();settle();reset=page.evaluate('__wl.S');assert reset['camFov']==0 and reset['camHeight']==4.8 and reset['camTilt']==0 and reset['camDist']==15 and reset['cruise']==51 and reset['turn']==1.3,reset
+  page.locator('#cameraReset').click();settle();reset=page.evaluate('__wl.S');assert reset['camFrame']==0 and reset['camFov']==0 and reset['camHeight']==4.8 and reset['camTilt']==0 and reset['camDist']==15 and reset['cruise']==51 and reset['turn']==1.3,reset
   # Extremes remain finite, and a high viewpoint still respects the tunnel ceiling.
   slider('camFov',90);slider('camHeight',12);slider('camTilt',12);slider('camDist',18);settle();assert page.evaluate('Number.isFinite(__tuneQA.camera.projectionMatrix.determinant())')
   tunnel=page.evaluate('''()=>{const w=__wl,q=__tuneQA,path=w.tours.paths.find(p=>p.id==='mountain'),seg=path.segments.find(s=>s.a.x>36700),a=w.tours.at(path,seg.s);w.P.pos.set(a.x,a.y+1,a.z);w.rebuildAll();w.placeAt(a.x,a.z,Math.atan2(a.tx,a.tz),64);w.P.inTunnel=w.P.onRoad=w.P.grounded=true;w.P.invuln=0;for(let i=0;i<100;i++)q.updateVisuals(0);const road=w.rideRoute(w.P.pos.x,w.P.pos.z,w.P.pos.y);return {height:q.camera.position.y-road.y,side:(q.camera.position.x-road.cx)*road.nx+(q.camera.position.z-road.cz)*road.nz,half:road.half};}''')
