@@ -1,6 +1,6 @@
 # 疾走と回避の改修
 
-このページは20日の改修記録です。最新の3つの旅路、半径0.32 mの判定、9種類の弾幕は [FEATURED-JOURNEYS.md](FEATURED-JOURNEYS.md) を参照してください。
+最新の敵・実弾・ミサイルと戦闘の緩急は [DEFENCE-RHYTHM.md](DEFENCE-RHYTHM.md) を参照してください。このページは20日の改修記録です。最新の3つの旅路、半径0.32 mの判定、9種類の弾幕は [FEATURED-JOURNEYS.md](FEATURED-JOURNEYS.md) を参照してください。
 
 `e4df6c8` の音楽統合版を起点に、既存の世界と車両の手ざわりを保って追加した改修です。
 

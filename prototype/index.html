@@ -371,6 +371,9 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 <script src="../world/flow-effects.js?v=20261022-voyage"></script>
 <script src="../world/journey-climate.js?v=20261022-voyage"></script>
 <script src="../world/travel-camera.js?v=20261022-network"></script>
+<script src="../world/encounter-director.js?v=20261023-defence"></script>
+<script src="../world/weapon-audio.js?v=20261023-defence"></script>
+<script src="../world/missiles.js?v=20261023-defence"></script>
 <script>
 'use strict';
 (() => {
@@ -4077,6 +4080,7 @@ function collectFinds() {
 
 // ---------------------------------------------------------------- bombardment: the slower you go, the closer the shells land; stop and the guns walk onto you
 let shellsOn = store.get('windlover.shells', true);
+const encounter=WindEncounters.create();let encounterPattern=0;
 const SAFE = 38; // m/s (137 km/h)
 const shells = [], flashes = [];
 const shellRingGeo = new THREE.RingGeometry(0.88, 1, 48).rotateX(-Math.PI / 2);
@@ -4115,7 +4119,7 @@ function startBarrage() {
 }
 function die(cause = '集中砲撃') {
   $('#overCause').textContent = cause; $('#overTitle').textContent = '旅はここで途切れた'; $('#overRetry').textContent = 'もう一度走る';
-  P.dead = true; vignette(1);
+  P.dead = true;sfx.stopWeapons(); vignette(1);
   setTimeout(() => { $('#overText').textContent = `旅した距離 ${(P.dist / 1000).toFixed(1)} km`; openSheet('#overSheet'); }, 1600);
 }
 function arrive() {
@@ -4136,6 +4140,17 @@ let vigLevel = 0;
 function vignette(v) { vigLevel = Math.max(vigLevel, v); }
 // 0 in the mountain belt, 1 out on the lowlands
 const routeHeat = () => biomeMode === 'journey' ? lowlandZone(P.pos.z / funnel(P.pos.x)) * smooth(1500, 5000, P.pos.x) + 0.35 * (1 - smooth(1500, 5000, P.pos.x)) : 0.5;
+function updateEncounters(dt){
+  const road=rideRoute(P.pos.x,P.pos.z,P.pos.y);let bend=0;
+  if(road.path){const dir=P.vel.x*road.tx+P.vel.z*road.tz>=0?1:-1,a=TOURS.at(road.path,road.s+dir*clamp(P.vel.length()*.75,45,110));bend=Math.atan2(road.tx*a.tz-road.tz*a.tx,road.tx*a.tx+road.tz*a.tz);}
+  WindEncounters.advance(encounter,dt,{enabled:shellsOn,dead:P.dead,sheltered:P.inTunnel,region:musicRegion(),hull:P.hull,bend});
+  if(encounter.event==='warning'){
+    toast('無人警戒網、起動','機械だけが、道を見張っている',1900);sfx.weapon('acquire',{gain:.40});
+    if(!forms.some(f=>f.mode==='assault'))spawnFormation('assault');
+  }
+  if(encounter.event==='release'){for(const f of forms)if(!f.peace){f.phase='leave';f.pending=[];f.cue=null;f.seq=0;}}
+  if(encounter.event==='clear'){clearShells();clearDrones(false);P.stopT=0;P.barrage=false;}
+}
 function updateThreat(dt) {
   const v = Math.hypot(P.vel.x, P.vel.z);
   P.brakeHeat = clamp(P.brakeHeat + (P.braking && v > 3 ? dt * 0.75 : -dt * 0.3), 0, 1);
@@ -4143,16 +4158,16 @@ function updateThreat(dt) {
   P.invuln -= dt;
   if (shellsOn && !P.dead) {
     fireT -= dt;
-    if (fireT <= 0 && P.inTunnel) fireT = 0.6; // the guns cannot see under a roof
+    if (P.inTunnel||!encounter.fire||encounter.weapon!=='missile') fireT = Math.max(fireT,.8);
     if (fireT <= 0) {
       const d = P.danger;
       fireShell(lerp(12, 4, d), 1.6, 8);
       if (d > 0.55 && Math.random() < d) fireShell(16, 1.9, 8);
       fireT = (v > SAFE ? 3.5 + Math.random() * 3 : lerp(2.8, 0.42, d * d) * (0.7 + Math.random() * 0.6)) * lerp(1.6, 0.6, routeHeat());
     }
-    if (v < 2.5 && (P.grounded || P.inUpdraft === false)) { P.stopT += dt; if (P.stopT > 2.1 && !P.barrage && !P.inTunnel) startBarrage(); }
+    if (encounter.fire&&v < 2.5 && (P.grounded || P.inUpdraft === false)) { P.stopT += dt; if (P.stopT > 2.1 && !P.barrage && !P.inTunnel) startBarrage(); }
     else { P.stopT = 0; if (v > 8) P.barrage = false; }
-    if (v > SAFE && P.hull < 3) { regenT += dt; if (regenT > 22) { regenT = 0; P.hull++; toast('装甲を叩き直した', `装甲 ${P.hull}`, 1400); } } else regenT = 0;
+    if (v > SAFE && P.hull < 3) { regenT += dt; if (regenT > 22) { regenT = 0; P.hull++; toast(vehKey==='horse'?'呼吸が整った':'装甲を叩き直した', `${vehKey==='horse'?'体力':'装甲'} ${P.hull}`, 1400); } } else regenT = 0;
   }
   for (let i = shells.length - 1; i >= 0; i--) {
     const s = shells[i]; s.t += dt; const k = s.t / s.flight;
@@ -4171,11 +4186,11 @@ function updateThreat(dt) {
   if (P.dead) w = '';
   else if (P.stalled) w = 'エンジン停止 — 再始動中';
   else if (P.stopT > 0) w = '停止中 — 砲撃が来る';
-  else if (shellsOn && P.brakeHeat > 0.55) w = '減速しすぎ';
-  else if (shellsOn && P.danger > 0.72) w = '低速 — 狙われている';
+  else if (shellsOn && encounter.fire && P.brakeHeat > 0.55) w = '減速しすぎ';
+  else if (shellsOn && encounter.fire && P.danger > 0.72) w = '低速 — 狙われている';
   if (w !== warnState) { warnState = w; warnEl.textContent = w; warnEl.hidden = !w; if (w) sfx.alarm(); }
   vigLevel = Math.max(0, vigLevel - dt * 0.8);
-  const pulse = shellsOn ? clamp((P.danger - 0.5) * 1.4, 0, 0.6) * (0.6 + 0.4 * Math.sin(t * 7)) : 0;
+  const pulse = shellsOn&&encounter.fire ? clamp((P.danger - 0.5) * 1.4, 0, 0.6) * (0.6 + 0.4 * Math.sin(t * 7)) : 0;
   vigEl.style.opacity = Math.max(vigLevel, pulse).toFixed(3);
   hullEl.forEach((e, i) => e.classList.toggle('on', i < P.hull));
 }
@@ -4252,7 +4267,7 @@ function updateEngine(dt) {
   smokeGeo.attributes.position.needsUpdate = true;
 }
 
-// ---------------------------------------------------------------- legacy drones: flying formations that can only catch you when you are slow
+// ---------------------------------------------------------------- an abandoned defence network: geometric batteries, gunships and missile carriers
 const DRONE_MAX = 62, BULLET_SPD = 40; // m/s: about 223 km/h and 144 km/h over the ground
 const droneGeo = (() => {
   const m = new Merger(), IRON = 0x4d4a44, RUSTY = 0x7a5034;
@@ -4269,11 +4284,14 @@ const MAXD = 240;
 const droneMesh = new THREE.InstancedMesh(droneGeo, new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 18 }), MAXD);
 const eyeMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), MAXD);
 const EYE_HOSTILE = new THREE.Color(0xffb050), EYE_PEACE = new THREE.Color(0xa8f0e8), EYE_ASSAULT = new THREE.Color(0xff4444), EYE_CLOSE = new THREE.Color(0xff8844);
+const EYE_SHOT=new THREE.Color(0xfff0b4),EYE_LOCK=new THREE.Color(0xffce7d);
 for (let i = 0; i < MAXD; i++) eyeMesh.setColorAt(i, EYE_HOSTILE);
 for (const im of [droneMesh, eyeMesh]) { im.count = 0; im.frustumCulled = false; scene.add(im); }
 const HIT_RADIUS = 0.32, HIT_HEIGHT = 0.45, GRAZE_RADIUS = 3.8;
 const BUL = 4608, bPos = new Float32Array(BUL * 3), bVel = new Float32Array(BUL * 3), bLife = new Float32Array(BUL), bCol = new Float32Array(BUL * 3);
+const bKind=new Float32Array(BUL),bWhizz=new Uint8Array(BUL),slugP=new Float32Array(BUL*6),slugC=new Float32Array(BUL*6);
 const bulGeo = new THREE.BufferGeometry(); bulGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3)); bulGeo.setAttribute('color', new THREE.BufferAttribute(bCol, 3));
+bulGeo.setAttribute('projectileKind',new THREE.BufferAttribute(bKind,1));
 const geometricRoundTex=canvasTex(64,64,(g,w)=>{
   g.fillStyle='#18242f';g.beginPath();g.moveTo(32,2);g.lineTo(62,32);g.lineTo(32,62);g.lineTo(2,32);g.closePath();g.fill();
   g.fillStyle='#ffffff';g.beginPath();g.moveTo(32,9);g.lineTo(55,32);g.lineTo(32,55);g.lineTo(9,32);g.closePath();g.fill();
@@ -4281,8 +4299,22 @@ const geometricRoundTex=canvasTex(64,64,(g,w)=>{
 });
 const bulPts = new THREE.Points(bulGeo, new THREE.PointsMaterial({ size: 2.5, map: geometricRoundTex, alphaTest:.4, vertexColors: true, transparent:false, depthWrite:true, fog:false }));
 // Keep distant rounds legible at reduced resolution, without adding a draw call or a glow.
-bulPts.material.onBeforeCompile=shader=>{shader.vertexShader=shader.vertexShader.replace('gl_PointSize *= ( scale / - mvPosition.z );','gl_PointSize *= ( scale / - mvPosition.z ); gl_PointSize = clamp(gl_PointSize, 3.0, 30.0);');};
+bulPts.material.onBeforeCompile=shader=>{shader.vertexShader='attribute float projectileKind; varying float vProjectileKind;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvProjectileKind=projectileKind;').replace('gl_PointSize *= ( scale / - mvPosition.z );','gl_PointSize *= ( scale / - mvPosition.z ); gl_PointSize *= mix(1.0,.24,step(.5,projectileKind)); gl_PointSize = clamp(gl_PointSize, mix(3.0,4.0,step(.5,projectileKind)), mix(30.0,12.0,step(.5,projectileKind)));');shader.fragmentShader='varying float vProjectileKind;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('void main() {','void main() {\nif(vProjectileKind>.5){vec2 p=gl_PointCoord-vec2(.5);if(abs(p.x)>.16||abs(p.y)>.47)discard;gl_FragColor=vec4(vColor,1.0);return;}');};
 bulPts.frustumCulled = false; scene.add(bulPts);
+slugP.fill(-9999);const slugGeo=new THREE.BufferGeometry();slugGeo.setAttribute('position',new THREE.BufferAttribute(slugP,3));slugGeo.setAttribute('color',new THREE.BufferAttribute(slugC,3));slugGeo.setDrawRange(0,0);
+const slugLines=new THREE.LineSegments(slugGeo,new THREE.LineBasicMaterial({vertexColors:true,fog:false}));slugLines.frustumCulled=false;slugLines.visible=false;scene.add(slugLines);
+function weaponPan(p){const speed=Math.hypot(P.vel.x,P.vel.z)||1;return clamp((-(p.x-P.pos.x)*P.vel.z+(p.z-P.pos.z)*P.vel.x)/speed/80,-.8,.8);}
+const missiles=WindMissiles.create(THREE,scene,{surface:surfaceAt,canHit:()=>P.invuln<=0&&!P.dead&&!P.inTunnel,
+  onHit:()=>takeEnemyHit('ミサイル'),onGraze:p=>graze(p.x,p.y,p.z),onSound:(kind,p)=>sfx.weapon(kind,{pan:weaponPan(p),gain:kind==='launch'?.8:.55}),
+  onBurst:p=>{if(p.distanceTo(P.pos)<280){sparks(p,0,0,12);sfx.weapon('impact',{pan:weaponPan(p),gain:.35});}}});
+function takeEnemyHit(kind){
+  if(P.invuln>0||P.dead||P.inTunnel)return;
+  P.hull--;P.invuln=1.45;P.vel.multiplyScalar(vehKey==='horse'?.94:.92);shake=Math.max(shake,.38);vignette(.55);
+  if(P.hull===1&&encounter.phase==='combat')encounter.duration=Math.min(encounter.duration,encounter.elapsed+4);
+  if(navigator.vibrate)try{navigator.vibrate(28);}catch(_){}
+  if(P.hull<=0)die(kind);else toast('被弾',`${vehKey==='horse'?'体力':'装甲'} 残り${P.hull}`,1000);
+  sfx.weapon('impact',{gain:.9});
+}
 for (let i = 0; i < BUL; i++) bPos[i * 3 + 1] = -9999;
 let bulI = -1, bulDrawCount = 0, bulletColoursDirty = false, droneSpawnT = 3, assaultRest = 5;
 const bGroundT = new Float32Array(BUL), playerPrevious = new V3();
@@ -4327,11 +4359,11 @@ function shapeSlot(type, n, t, i, out) {
   const a = Math.floor(i / 2) * 0.6 + t * 1.1 + (i % 2) * Math.PI; return out.set(Math.cos(a) * 13, Math.sin(a) * 13, -Math.floor(i / 2) * 6); // double helix
 }
 // a formation can slowly breathe from one figure into another and back
-function slotOf(f, i, out) {
-  shapeSlot(f.type, f.n, f.t, i, out);
+function slotOf(f, i, out, clock=f.t) {
+  shapeSlot(f.type, f.n, clock, i, out);
   if (!f.morph) return out;
-  const m = 0.5 - 0.5 * Math.cos(f.t * 0.32); if (m < 0.001) return out;
-  const ax = out.x, ay = out.y, az = out.z; shapeSlot(f.morph, f.n, f.t, i, out);
+  const m = 0.5 - 0.5 * Math.cos(clock * 0.32); if (m < 0.001) return out;
+  const ax = out.x, ay = out.y, az = out.z; shapeSlot(f.morph, f.n, clock, i, out);
   return out.set(lerp(ax, out.x, m), lerp(ay, out.y, m), lerp(az, out.z, m));
 }
 const FORM_TYPES = ['V', 'ring', 'wave', 'helix', 'rose', 'star', 'lattice', 'bloom', 'spiral', 'lotus', 'mandala', 'infinity', 'trefoil', 'lissajous', 'sunburst', 'galaxy', 'chevrons', 'pinwheel', 'diamond'];
@@ -4352,23 +4384,23 @@ function spawnFormation(forceMode) {
   const vel = mode === 'pass' ? new V3(-fx, 0, -fz).multiplyScalar(34) : mode === 'flyby' ? new V3(fz, 0, -fx).multiplyScalar(Math.sign(side) * (28 + Math.random() * 12)) : new V3(fx, 0, fz).multiplyScalar(45);
   const morph = MORPHABLE.includes(type) && Math.random() < 0.55 ? MORPHABLE[Math.random() * MORPHABLE.length | 0] : null;
   if (mode === 'assault') vel.set(-fx * 40, 0, -fz * 40);
-  const f = { mode, type, n, pos, vel, t: Math.random() * 4, age: 0, phase: 'approach', gap: 1.05, pat: 0, fireT: 1.5, volley: 0, turned: false, peace: mode === 'flyby', drones: [], seq: 0, seqT: 0, morph: morph === type ? null : morph, eye: EYE_PEACES[Math.random() * EYE_PEACES.length | 0] };
+  const f = { mode, type, n, pos, vel, t: Math.random() * 4, age: 0, phase: 'approach', gap: 1.15, pat: encounterPattern, fireT: 1.5, volley: 0, weapon:'geometry',cue:null,flash:0,turned: false, peace: mode === 'flyby', drones: [], seq: 0, seqT: 0, morph: morph === type ? null : morph, eye: EYE_PEACES[Math.random() * EYE_PEACES.length | 0] };
   for (let i = 0; i < n; i++) f.drones.push(slotOf(f, i, new V3()).add(pos));
   forms.push(f);
 }
-// The assault: up the road at you, then it turns and holds about 230 m ahead, weaving, and fires patterns
-// built to be read and dodged, not merely survived. Rounds keep pace with you and close at a set speed, so a
-// pattern takes about three seconds to arrive: long enough to read the gap and slide into it.
-const AS_HOLD = 280, AS_REL = 92, AS_TIME = 16;
+// The battery approaches, stabilises, charges and fires from a weapon-specific distance.
+// Geometric rounds close at a fixed relative speed; physical ammunition and briefly guided darts
+// have distinct movement and timing. Each weapon leaves time to read its cue and change lanes.
+const AS_HOLD = 280, AS_REL = 108, AS_TIME = 32;
 const PATTERN_NAMES = ['風の格子','扇の航跡','天の輪','五本の流れ','螺旋','二重の門','二重の菱形','六角の星','折線の織物'];
-const AS_COLS = [[1, 0.42, 0.62], [0.42, 0.78, 1], [1, 0.74, 0.3], [0.7, 1, 0.6], [0.86, 0.6, 1]];
+const AS_COLS = [[1,.68,.3],[.54,.82,.95],[1,.48,.27],[.77,.88,.58],[.78,.69,.93]];
 function assaultMove(f, dt, fx, fz, hs) {
   f.age += dt;
   const ahead = (f.pos.x - P.pos.x) * fx + (f.pos.z - P.pos.z) * fz;
   if (f.phase === 'approach' && ahead < AS_HOLD + 40) { f.phase = 'hold'; f.fireT = 0.8; f.age = 0; toast('編隊、正面', '', 900); }
   if (f.phase === 'hold' && f.age > AS_TIME) f.phase = 'leave';
   if (f.phase === 'hold') {
-    const w = Math.sin(f.t * 0.45) * 46, tx = P.pos.x + fx * AS_HOLD - fz * w, tz = P.pos.z + fz * AS_HOLD + fx * w, ty = surfaceAt(tx, tz) + 26 + Math.sin(f.t * 0.7) * 6;
+    const hold=f.weapon==='missile'?550:f.weapon==='kinetic'?350:AS_HOLD,w=Math.sin(f.t*.45)*(f.weapon==='geometry'?24:45),tx=P.pos.x+fx*hold-fz*w,tz=P.pos.z+fz*hold+fx*w,ty=surfaceAt(tx,tz)+(f.weapon==='missile'?45:26);
     tmp.set((tx - f.pos.x) * 1.6 + P.vel.x, (ty - f.pos.y) * 1.2, (tz - f.pos.z) * 1.6 + P.vel.z);
     f.vel.lerp(tmp, 1 - Math.exp(-2.5 * dt));
   } else if (f.phase === 'leave') { tmp.set(P.vel.x + fx * 50, 26, P.vel.z + fz * 50); f.vel.lerp(tmp, 1 - Math.exp(-1 * dt)); }
@@ -4388,6 +4420,7 @@ function assaultVolley(f) {
     if (delay) { f.pending = f.pending || []; f.pending.push({ p: at.clone(), v: v.clone(), c: col, at: t + delay }); } else shoot(at, v, col);
   };
   const p = f.pat++ % PATTERN_NAMES.length, off = (P.pos.x - f.pos.x) * rx + (P.pos.z - f.pos.z) * rz;
+  encounterPattern=f.pat;
   const route = rideRoute(P.pos.x, P.pos.z, P.pos.y), centre = (route.cx - P.pos.x) * rx + (route.cz - P.pos.z) * rz;
   const gapShift = route.d < route.half ? clamp(centre + (Math.random() < 0.5 ? -8 : 8), centre - route.half + 5, centre + route.half - 5) : (Math.random() < 0.5 ? -8 : 8);
   const gapAt = off + gapShift;
@@ -4432,15 +4465,32 @@ function assaultVolley(f) {
       }
     }
   }
-  sfx.volley();
+  sfx.volley(f.pos);
 }
-function clearDrones() { forms.length = 0; for (let i = 0; i < BUL; i++) { bLife[i] = 0; bPos[i * 3 + 1] = -9999; } droneMesh.count = eyeMesh.count = 0; bulI = -1; bulDrawCount = 0; bulGeo.setDrawRange(0, 0); assaultRest = 5; }
-function shoot(p, v, c) {
+function clearDrones(reset=true) { if(reset)forms.length=0;else for(let i=forms.length-1;i>=0;i--)if(!forms[i].peace)forms.splice(i,1); for (let i = 0; i < BUL; i++) { bLife[i] = 0; bPos[i * 3 + 1] = -9999; } droneMesh.count = eyeMesh.count = 0; bulI = -1; bulDrawCount = 0; bulGeo.setDrawRange(0, 0);slugGeo.setDrawRange(0,0);slugLines.visible=false;missiles.clear();sfx.stopWeapons();assaultRest=5;if(reset)Object.assign(encounter,WindEncounters.create()); }
+function shoot(p, v, c,kind=0) {
   const i = bulI = (bulI + 1) % BUL; bGraze[i] = 0;
+  bKind[i]=kind;bWhizz[i]=0;
   bGroundT[i] = (i % 8) * 0.018; bulletColoursDirty = true;
   bulDrawCount = Math.max(bulDrawCount, i + 1); bulGeo.setDrawRange(0, bulDrawCount);
   bPos[i * 3] = p.x; bPos[i * 3 + 1] = p.y; bPos[i * 3 + 2] = p.z; bVel[i * 3] = v.x; bVel[i * 3 + 1] = v.y; bVel[i * 3 + 2] = v.z; bLife[i] = 5;
   bCol[i * 3] = c[0]; bCol[i * 3 + 1] = c[1]; bCol[i * 3 + 2] = c[2];
+}
+function kineticVolley(f){
+  const hs=Math.hypot(P.vel.x,P.vel.z)||1,fx=P.vel.x/hs,fz=P.vel.z/hs,rx=-fz,rz=fx,relative=210;
+  const muzzle=f.drones?.[Math.floor(f.n/2)]||f.pos;
+  const flight=Math.max(1.1,((muzzle.x-P.pos.x)*fx+(muzzle.z-P.pos.z)*fz)/relative),floor=ground(P.pos.x+P.vel.x*flight,P.pos.z+P.vel.z*flight,P.pos.y+20).h+HOVER+HIT_HEIGHT;
+  const aim=P.pos.clone().addScaledVector(P.vel,flight);aim.y=P.grounded?floor:P.pos.y+HIT_HEIGHT;
+  f.pending=f.pending||[];
+  for(let row=0;row<3;row++)for(const offset of [-12,-8,-4,0,4,8,12]){
+    const delay=row*.075,origin=muzzle.clone().addScaledVector(P.vel,delay),target=aim.clone().addScaledVector(tmp2.set(rx,0,rz),offset),v=target.sub(muzzle).multiplyScalar(1/flight);
+    if(delay)f.pending.push({p:origin,v,c:[1,.85,.58],kind:1,at:t+delay});else shoot(origin,v,[1,.85,.58],1);
+  }
+  const shotTime=sfx.context?.currentTime||0;for(const delay of [0,.075,.15])sfx.weapon('kinetic',{at:shotTime+delay,pan:weaponPan(f.pos),gain:.85});
+}
+function missileVolley(f){
+  const hs=Math.hypot(P.vel.x,P.vel.z)||1,rx=-P.vel.z/hs,rz=P.vel.x/hs;
+  for(const side of [-1,1]){const node=f.drones?.[side>0?Math.floor(f.n/2):0],origin=node?node.clone():f.pos.clone().addScaledVector(tmp2.set(rx,0,rz),side*9),target=P.pos.clone();target.y+=HIT_HEIGHT;missiles.launch(origin,target,P.vel);}
 }
 function volley(f) {
   // every pattern is aimed where you are now and flies at a fixed ground speed: outrun it, or weave through it
@@ -4477,21 +4527,22 @@ function volley(f) {
   } else {
     for (const d of f.drones) { v.subVectors(P.pos, d).normalize().multiplyScalar(BULLET_SPD); v.x += (Math.random() - 0.5) * 6; v.z += (Math.random() - 0.5) * 6; shoot(d, v, col); }
   }
-  if (f.seq === 0 || f.seq === 6) sfx.volley();
+  if (f.seq === 0 || f.seq === 6) sfx.volley(f.pos);
 }
 function updateDrones(dt, previous = P.pos) {
   const hs = Math.hypot(P.vel.x, P.vel.z);
-  droneSpawnT -= dt; assaultRest -= dt;
-  if (!P.dead && droneSpawnT <= 0 && forms.length < 7) {
-    const r = Math.random(), heat = routeHeat(), assaulting = forms.some((f) => f.mode === 'assault');
-    let mode = !shellsOn ? 'flyby' : hs < 30 && r < 0.4 ? 'chase' : r < lerp(0.7, 0.4, heat) ? 'flyby' : 'pass';
-    if (shellsOn && !P.inTunnel && !assaulting && hs > 28 && assaultRest <= 0) { mode = 'assault'; assaultRest = 10; }
-    spawnFormation(mode); droneSpawnT = (hs > 50 ? 2.2 + Math.random() * 2.6 : 2 + Math.random() * 2.4) * lerp(1.2, 0.75, heat);
-  }
+  const canFire=shellsOn&&!P.dead&&!P.inTunnel&&encounter.fire;
+  droneSpawnT-=dt;assaultRest-=dt;
+  if(!P.dead&&droneSpawnT<=0&&forms.filter(f=>f.peace).length<4){spawnFormation('flyby');droneSpawnT=5+Math.random()*5;}
+  if(canFire&&!forms.some(f=>f.mode==='assault'&&f.phase!=='leave')&&assaultRest<=0){spawnFormation('assault');assaultRest=2;}
   let nearest = Infinity, k = 0;
   const fx = hs > 1 ? P.vel.x / hs : fwd.x, fz = hs > 1 ? P.vel.z / hs : fwd.z;
   for (let i = forms.length - 1; i >= 0; i--) {
-    const f = forms[i]; f.t += dt;
+    const f = forms[i];f.t+=dt;f.flash=Math.max(0,(f.flash||0)-dt);
+    if(f.mode==='assault'&&encounter.weapon&&f.weapon!==encounter.weapon){f.weapon=encounter.weapon;f.cue=null;f.pending?.splice(0);f.fireT=.55;}
+    if(!canFire){f.cue=null;if(f.pending?.length)f.pending.length=0;f.seq=0;}
+    if(!f.peace&&['scenic','release'].includes(encounter.phase)){f.phase='leave';}
+
     if (!f.peace && f.mode === 'pass' && !f.turned && (P.pos.x - f.pos.x) * f.vel.x + (P.pos.z - f.pos.z) * f.vel.z < 0) f.turned = true;
     if (f.mode === 'chase' || f.turned) {
       // try to get ahead of the rider and hang there, as fast as old rotors allow
@@ -4512,38 +4563,38 @@ function updateDrones(dt, previous = P.pos) {
     const gh = surfaceAt(f.pos.x, f.pos.z) + 16; if (f.pos.y < gh) f.pos.y = gh;
     const d = f.pos.distanceTo(P.pos); nearest = Math.min(nearest, d);
     f.fireT -= dt;
-    if (f.seq > 0 && (f.seqT -= dt) <= 0 && !P.dead && shellsOn && !P.inTunnel) volley(f);
-    if (f.pending && f.pending.length) for (let q = f.pending.length - 1; q >= 0; q--) { const pr = f.pending[q]; if (t >= pr.at) { pr.p.addScaledVector(pr.v, t - pr.at); if (shellsOn && !P.dead && !P.inTunnel) shoot(pr.p, pr.v, pr.c); f.pending.splice(q, 1); } }
-    if (f.mode === 'assault') { 
-      if (f.phase === 'hold' && f.fireT <= 0 && !P.dead && shellsOn && !P.inTunnel) { 
-        assaultVolley(f); 
-        f.fireT = f.gap * (0.8 + Math.random() * 0.4); // More varied firing rate
+    if(f.seq>0&&(f.seqT-=dt)<=0&&canFire)volley(f);
+    if(f.pending?.length)for(let q=f.pending.length-1;q>=0;q--){const pr=f.pending[q];if(t>=pr.at){pr.p.addScaledVector(pr.v,t-pr.at);if(canFire)shoot(pr.p,pr.v,pr.c,pr.kind||0);f.pending.splice(q,1);}}
+    if(f.mode==='assault'&&f.phase==='hold'&&canFire){
+      if(!f.cue&&f.fireT<=0){
+        f.cue={weapon:f.weapon,remaining:f.weapon==='missile'?.85:f.weapon==='kinetic'?.55:.38,clock:f.t};
+        if(f.weapon==='missile'||f.lastCueWeapon!==f.weapon){sfx.weapon('acquire',{gain:.28,pan:weaponPan(f.pos)});f.lastCueWeapon=f.weapon;}
       }
-    }
-    else if (!f.peace && d < 260 && f.fireT <= 0 && !P.dead && shellsOn && !P.inTunnel) {
-      volley(f); 
-      f.fireT = 0.8 + Math.random() * 0.6;
-      // Add sound feedback for firing
-      if (d < 100) sfx.volley();
+      if(f.cue&&(f.cue.remaining-=dt)<=0){
+        if(f.weapon==='kinetic')kineticVolley(f);else if(f.weapon==='missile')missileVolley(f);else assaultVolley(f);
+        f.cue=null;f.flash=.09;f.fireT=(f.weapon==='missile'?2.8:f.weapon==='kinetic'?1.1:.85)*(P.hull<2?1.35:1);
+      }
     }
     if ((d > 1700 && f.t > 20 && f.mode !== 'assault') || (f.mode === 'assault' && f.phase === 'leave' && d > 650) || f.t > 90 || (!shellsOn && !f.peace)) { forms.splice(i, 1); continue; }
     // drones ease into their slots; the formation faces where it flies
     _f.copy(f.vel).normalize(); _r.crossVectors(_f, UP).normalize(); _u.crossVectors(_r, _f);
     for (let j = 0; j < f.n && k < MAXD; j++, k++) {
-      slotOf(f, j, tmp2); const tx = f.pos.x + _r.x * tmp2.x + _u.x * tmp2.y + _f.x * tmp2.z, ty = f.pos.y + _r.y * tmp2.x + _u.y * tmp2.y + _f.y * tmp2.z, tz = f.pos.z + _r.z * tmp2.x + _u.z * tmp2.y + _f.z * tmp2.z;
-      const dp = f.drones[j], kk = 1 - Math.exp(-5 * dt); dp.x += (tx - dp.x) * kk; dp.y += (ty - dp.y) * kk; dp.z += (tz - dp.z) * kk;
+      slotOf(f,j,tmp2,f.cue?.clock??f.t); const tx = f.pos.x + _r.x * tmp2.x + _u.x * tmp2.y + _f.x * tmp2.z, ty = f.pos.y + _r.y * tmp2.x + _u.y * tmp2.y + _f.y * tmp2.z, tz = f.pos.z + _r.z * tmp2.x + _u.z * tmp2.y + _f.z * tmp2.z;
+      const dp=f.drones[j],kk=1-Math.exp(-(f.cue?18:8)*dt);dp.addScaledVector(f.vel,dt);dp.x += (tx - dp.x) * kk; dp.y += (ty - dp.y) * kk; dp.z += (tz - dp.z) * kk;
       // More dynamic drone animations
       _dm.position.copy(dp); 
-      _dm.rotation.set(Math.sin(t * 3 + j * 0.5) * 0.25, Math.atan2(_f.x, _f.z), Math.cos(t * 2.6 + j * 0.3) * 0.25); 
-      _dm.scale.setScalar(2.6 + Math.sin(t * 2 + j) * 0.1); 
+      _dm.rotation.set(Math.sin(t * 3 + j * 0.5) * 0.07, Math.atan2(_f.x, _f.z), Math.cos(t * 2.6 + j * 0.3) * 0.07);
+      _dm.scale.setScalar(2.6);
       _dm.updateMatrix();
       droneMesh.setMatrixAt(k, _dm.matrix);
       _dm.position.addScaledVector(_f, 1.2); _dm.position.y -= 1.0; 
-      _dm.scale.setScalar(2.4 + 2.6 * Math.max(0, Math.sin(t * 3.2 - j * 0.45))); 
+      _dm.scale.setScalar(f.flash>0?5.8:f.cue?3.2+Math.sin(f.t*24)*.5:2.0);
       _dm.updateMatrix(); 
       eyeMesh.setMatrixAt(k, _dm.matrix); 
       // Eye color changes based on formation mode and state
       if (f.peace) eyeMesh.setColorAt(k, f.eye);
+      else if(f.flash>0)eyeMesh.setColorAt(k,EYE_SHOT);
+      else if(f.cue)eyeMesh.setColorAt(k,EYE_LOCK);
       else if (f.mode === 'assault') eyeMesh.setColorAt(k, EYE_ASSAULT); // Red for assault
       else if (d < 200) eyeMesh.setColorAt(k, EYE_CLOSE); // Orange when close
       else eyeMesh.setColorAt(k, EYE_HOSTILE);
@@ -4552,10 +4603,12 @@ function updateDrones(dt, previous = P.pos) {
   droneMesh.count = eyeMesh.count = k; droneMesh.instanceMatrix.needsUpdate = eyeMesh.instanceMatrix.needsUpdate = true; if (eyeMesh.instanceColor) eyeMesh.instanceColor.needsUpdate = true;
   sfx.hum(nearest < 400 ? 1 - nearest / 400 : 0);
   updateBullets(dt, previous);
+  missiles.update(dt,{position:P.pos,previous,velocity:P.vel,enabled:shellsOn,sheltered:P.inTunnel,dead:P.dead});
 }
 function updateBullets(dt, previous = P.pos) {
   const cx = P.pos.x, cy = P.pos.y + HIT_HEIGHT, cz = P.pos.z, py = previous.y + HIT_HEIGHT;
   const vulnerable = P.invuln <= 0 && !P.dead && !P.inTunnel;
+  let slugCount=0;
   for (let i = 0; i < bulDrawCount; i++) {
     if (bLife[i] <= 0) continue;
     const o = i * 3, ax = bPos[o] - previous.x, ay = bPos[o + 1] - py, az = bPos[o + 2] - previous.z;
@@ -4565,14 +4618,19 @@ function updateBullets(dt, previous = P.pos) {
     const length2 = dx * dx + dy * dy + dz * dz, u = length2 > 1e-9 ? clamp(-(ax * dx + ay * dy + az * dz) / length2, 0, 1) : 0;
     const nx = ax + dx * u, ny = ay + dy * u, nz = az + dz * u, d2 = nx * nx + ny * ny + nz * nz;
     // Sweep both the round and rider, so a fast crossing cannot jump over the smaller hit area.
-    if (bLife[i] > 0 && d2 < HIT_RADIUS * HIT_RADIUS && vulnerable && P.invuln <= 0) { bLife[i] = 0; hitByShell(); }
+    if (bLife[i] > 0 && d2 < HIT_RADIUS * HIT_RADIUS && vulnerable && P.invuln <= 0) { bLife[i] = 0; takeEnemyHit(bKind[i]?'実弾':'幾何学弾幕'); }
     else if (bLife[i] > 0 && d2 >= HIT_RADIUS * HIT_RADIUS && d2 < GRAZE_RADIUS * GRAZE_RADIUS && !bGraze[i] && !P.dead && !P.inTunnel) { bGraze[i] = 1; graze(bPos[o], bPos[o + 1], bPos[o + 2]); }
+    if(bLife[i]>0&&d2<10*10&&!bWhizz[i]&&!P.dead&&!P.inTunnel){bWhizz[i]=1;sfx.weapon('flyby',{pan:clamp(nz/8,-.8,.8),gain:bKind[i]?.7:.35});}
     // Ground is visual culling, independent of hit testing. Spread expensive terrain queries across frames.
     if (bLife[i] > 0 && (bGroundT[i] -= dt) <= 0) { bGroundT[i] = 0.14; if (bPos[o + 1] < surfaceAt(bPos[o], bPos[o + 2])) bLife[i] = 0; }
     if (bLife[i] <= 0) { bPos[o + 1] = -9999; bGraze[i] = 0; }
+    // Only live kinetic rounds enter the compact tracer draw range.
+    if(bLife[i]>0&&bKind[i]){const k=slugCount++*6,speed=Math.hypot(bVel[o],bVel[o+1],bVel[o+2])||1,length=4.2;
+      for(let j=0;j<3;j++){slugP[k+j]=bPos[o+j];slugP[k+3+j]=bPos[o+j]-bVel[o+j]/speed*length;slugC[k+j]=bCol[o+j];slugC[k+3+j]=bCol[o+j]*.35;}}
   }
+  slugLines.visible=slugCount>0;slugGeo.setDrawRange(0,slugCount*2);if(slugCount)slugGeo.attributes.position.needsUpdate=slugGeo.attributes.color.needsUpdate=true;
   bulGeo.attributes.position.needsUpdate = true;
-  if (bulletColoursDirty) { bulGeo.attributes.color.needsUpdate = true; bulletColoursDirty = false; }
+  if (bulletColoursDirty) {bulGeo.attributes.projectileKind.needsUpdate=true; bulGeo.attributes.color.needsUpdate = true; bulletColoursDirty = false; }
 }
 
 // ---------------------------------------------------------------- the turret: an old steam-age gun that unfolds out of the chair
@@ -5133,7 +5191,7 @@ const UPC = new THREE.Color(0xffffff), ROADDUST = new THREE.Color(0x8f8e8a);
 
 // ---------------------------------------------------------------- audio
 const sfx = (() => {
-  let ctx = null, master, mix, windGain, bp, grindGain, noiseBuf, eng, carveF, carveG, humG = null, on = true, hoofPlayer=null;
+  let ctx = null, master, mix, windGain, bp, grindGain, noiseBuf, eng, carveF, carveG, humG = null, on = true, hoofPlayer=null,weaponPlayer=null;
   function init() {
     if (ctx) return;
     try {
@@ -5144,7 +5202,7 @@ const sfx = (() => {
       for(let i=0;i<curve.length;i++)curve[i]=Math.tanh(i/(curve.length-1)*2-1);
       soft.curve=curve;soft.oversample='2x';mix.connect(limiter);limiter.connect(soft);soft.connect(ctx.destination);
       master = ctx.createGain(); master.gain.value = on ? 0.7 : 0; master.connect(mix);
-      hoofPlayer=WindHorseSound.create(ctx,master);
+      hoofPlayer=WindHorseSound.create(ctx,master);weaponPlayer=WindWeaponAudio.create(ctx,master);weaponPlayer.warm();
       noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
       const d = noiseBuf.getChannelData(0); let last = 0;
       for (let i = 0; i < d.length; i++) { const w = Math.random() * 2 - 1; last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; }
@@ -5184,7 +5242,7 @@ const sfx = (() => {
     get context() { return ctx; },
     get on() { return on; },
     get output() { return mix; },
-    toggle() { on = !on; if (master) master.gain.setTargetAtTime(on ? 0.7 : 0, ctx.currentTime, .025); return on; },
+    toggle() { on = !on;if(!on)weaponPlayer?.stop(); if (master) master.gain.setTargetAtTime(on ? 0.7 : 0, ctx.currentTime, .025); return on; },
     resume() { if (ctx && ctx.state === 'suspended') ctx.resume(); },
     carve(k, water) {
       if (!ctx) return; const now = ctx.currentTime;
@@ -5206,21 +5264,10 @@ const sfx = (() => {
       burst(90, 1.2, 0.3, 0.25);
     },
     start() { burst(140, 1.0, 0.5, 0.5); burst(220, 1.2, 0.3, 0.3); },
-    volley() {
-      if (!ctx) return; const now = ctx.currentTime;
-      [0, 0.05, 0.1].forEach((dl, i) => { 
-        const o = ctx.createOscillator(), g = ctx.createGain(); 
-        o.type = 'triangle'; 
-        o.frequency.setValueAtTime(1600 - i * 240, now + dl); 
-        o.frequency.exponentialRampToValueAtTime(700, now + dl + 0.2);
-        g.gain.setValueAtTime(0, now + dl); 
-        g.gain.linearRampToValueAtTime(0.03, now + dl + 0.01); 
-        g.gain.exponentialRampToValueAtTime(0.001, now + dl + 0.25); 
-        o.connect(g); g.connect(master); o.start(now + dl); o.stop(now + dl + 0.3); 
-      });
-      // Add whoosh sound for incoming volley
-      burst(2000, 1.2, 0.12, 0.15, 1500);
-    },
+    volley(p){if(ctx&&on&&!document.hidden)weaponPlayer.play('geometry',{gain:.72,pan:p?weaponPan(p):0});},
+    weapon(kind,options={}){if(ctx&&on&&!document.hidden)weaponPlayer.play(kind,options);},
+    stopWeapons(){weaponPlayer?.stop();},
+    get weapons(){return weaponPlayer;},
     hum(k) {
       if (!ctx) return;
       if (!humG) { const o = ctx.createOscillator(), o2 = ctx.createOscillator(), f = ctx.createBiquadFilter(); o.type = 'sawtooth'; o.frequency.value = 148; o2.type = 'sawtooth'; o2.frequency.value = 151.5; f.type = 'lowpass'; f.frequency.value = 900; humG = ctx.createGain(); humG.gain.value = 0; o.connect(f); o2.connect(f); f.connect(humG); humG.connect(master); o.start(); o2.start(); }
@@ -5434,7 +5481,7 @@ function setVehicle(k) {
 }
 
 let last = performance.now();
-function openSheet(sel) { $(sel).hidden = false; paused = true;sfx.stopHooves(); }
+function openSheet(sel) { $(sel).hidden = false; paused = true;sfx.stopHooves();sfx.stopWeapons(); }
 function closeSheet(sel) { $(sel).hidden = true;if(sel==='#tuneSheet')$('#tuneSheet').classList.remove('previewing'); paused = false; last = performance.now();if(started){renderer.domElement.tabIndex=0;renderer.domElement.focus({preventScroll:true});} }
 
 const TUNE = [
@@ -5613,8 +5660,8 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Enter' && !started) $('#btnGo').click();
 });
 window.addEventListener('keyup', (e) => { inp.keys[e.code] = false; keyAxis(); if (e.code === 'Space') inp.jumpHeld = false; });
-window.addEventListener('blur', () => { sfx.stopHooves();inp.keys = {}; keyAxis(); inp.jumpHeld = false; store.set('windlover.dist4', P.dist); });
-document.addEventListener('visibilitychange',()=>{if(document.hidden)sfx.stopHooves();});
+window.addEventListener('blur', () => { sfx.stopHooves();sfx.stopWeapons();inp.keys = {}; keyAxis(); inp.jumpHeld = false; store.set('windlover.dist4', P.dist); });
+document.addEventListener('visibilitychange',()=>{if(document.hidden){sfx.stopHooves();sfx.stopWeapons();}});
 window.addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); applyLens();if(!$('#tuneSheet').hidden)buildTune(); });
 
 // ---------------------------------------------------------------- loop
@@ -5629,7 +5676,7 @@ function frame(now) {
     WindJourneyClimate.advance(lakeJourney,dt,tourAt(P.pos.x,P.pos.z),P.vel.x,Math.hypot(P.vel.x,P.vel.z));
     updateWind(); updateChunks(false); updatePalette(dt, false);
     sfx.update(P.vel.length(), !!P.grind, P.inStream, P.stalled ? 'board' : vehKey); sfx.carve(P.grounded&&vehKey!=='horse' ? P.carve : 0, P.onWater);
-    updateHud(); updateEngine(dt); updateThreat(dt); updateDrones(dt, playerPrevious); updateTurret(dt);
+    updateHud(); updateEngine(dt); updateEncounters(dt); updateThreat(dt); updateDrones(dt, playerPrevious); updateTurret(dt);
   }
   if (window.__turretHold) window.__turretHold(paused ? 0 : dt);
   updateSparks(paused ? 0 : dt); updateVisuals(paused ? 0 : dt); updateCompass(paused ? 0 : dt);
@@ -5641,7 +5688,7 @@ function frame(now) {
 setVehicle(vehKey); applyLens();
 placeHome(0); buildHome(); buildFeaturedVista(); updatePalette(0, true); refreshCards();
 requestAnimationFrame(frame);
-window.__wl = { climate:WindJourneyClimate,get lakeJourney(){return lakeJourney;},flowEffects,riding: WindHorseRiding, musicRegion, setVehicle, get vehicle(){return vehKey;}, tours: TOURS, tourAt, travelFeatured, get featured() { return featured; }, performance: { streaming: streamStats, quality }, combat: { hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, patternNames: PATTERN_NAMES, relativeSpeed: AS_REL, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
+window.__wl = { climate:WindJourneyClimate,get lakeJourney(){return lakeJourney;},flowEffects,riding: WindHorseRiding, musicRegion, setVehicle, get vehicle(){return vehKey;}, tours: TOURS, tourAt, travelFeatured, get featured() { return featured; }, performance: { streaming: streamStats, quality }, combat: { encounter,missiles,hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, patternNames: PATTERN_NAMES, relativeSpeed: AS_REL, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
 // A lazy connection lets the menu's independent BGM bus reuse the game's audio clock.
 window.__wlAudio = { getContext() { sfx.init(); return sfx.context; }, getDestination() { sfx.init(); return sfx.output; }, get soundOn() { return sfx.on; } };
 })();
