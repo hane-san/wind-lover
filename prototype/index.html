@@ -372,9 +372,9 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 <script src="../world/flow-effects.js?v=20261024-bow"></script>
 <script src="../world/journey-climate.js?v=20261022-voyage"></script>
 <script src="../world/travel-camera.js?v=20261022-network"></script>
-<script src="../world/horse-archery.js?v=20261024-recurve"></script>
+<script src="../world/horse-archery.js?v=20261024-weight"></script>
 <script src="../world/encounter-director.js?v=20261024-bow"></script>
-<script src="../world/weapon-audio.js?v=20261024-recurve"></script>
+<script src="../world/weapon-audio.js?v=20261024-weight"></script>
 <script src="../world/missiles.js?v=20261023-defence"></script>
 <script>
 'use strict';
@@ -4881,6 +4881,23 @@ const arrowWakeMat=new THREE.LineBasicMaterial({color:0xffedcf,transparent:true,
 arrowWakeMat.onBeforeCompile=s=>{s.vertexShader='attribute float arrowFade; varying float vArrowFade;\n'+s.vertexShader;s.vertexShader=s.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvArrowFade=arrowFade;');s.fragmentShader='varying float vArrowFade;\n'+s.fragmentShader;s.fragmentShader=s.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.a *= vArrowFade;');};
 const arrowWakeLines=new THREE.LineSegments(arrowWakeGeo,arrowWakeMat);arrowWakeLines.frustumCulled=false;scene.add(arrowWakeLines);
 const arrowBefore=new V3();
+// Broken arms and shell plates carry the hit beyond the flash, in one bounded draw.
+const BOW_SHARD_N=48,bowShards=Array.from({length:BOW_SHARD_N},()=>({p:new V3(),v:new V3(),r:new V3(),spin:new V3(),life:0,max:1,size:1,colour:0}));let bowShardI=0;
+const bowShardMesh=new THREE.InstancedMesh(new THREE.BoxGeometry(1,.28,.65),new THREE.MeshPhongMaterial({color:0xffffff,emissive:0x17110c,flatShading:true,shininess:18}),BOW_SHARD_N);
+bowShardMesh.count=0;bowShardMesh.frustumCulled=false;scene.add(bowShardMesh);const bowShardPose=new THREE.Object3D(),bowShardColours=[new THREE.Color(0x454944),new THREE.Color(0x897760),new THREE.Color(0xc5bda8)];
+function breakBowTarget(position,velocity,direction){
+  for(let i=0;i<6;i++){const q=bowShards[bowShardI++%BOW_SHARD_N],a=i*TAU/6;
+    q.p.copy(position);q.v.copy(velocity).multiplyScalar(.4).addScaledVector(direction,5);q.v.x+=Math.cos(a)*(12+i);q.v.z+=Math.sin(a)*(12+i);q.v.y+=4+(i%3)*4;
+    q.r.set(a,a*.7,a*.4);q.spin.set(4+i,-3+i*.4,2-i*.6);q.life=q.max=.48+(i%3)*.12;q.size=.8+(i%3)*.28;q.colour=i%3;
+  }
+}
+function updateBowShards(dt){let count=0;
+  for(const q of bowShards){if(q.life<=0)continue;q.life=Math.max(0,q.life-dt);if(!q.life)continue;
+    q.v.y-=16*dt;q.p.addScaledVector(q.v,dt);q.r.addScaledVector(q.spin,dt);
+    bowShardPose.position.copy(q.p);bowShardPose.rotation.set(q.r.x,q.r.y,q.r.z);bowShardPose.scale.setScalar(q.size*Math.min(1,q.life/.16));bowShardPose.updateMatrix();
+    bowShardMesh.setMatrixAt(count,bowShardPose.matrix);bowShardMesh.setColorAt(count,bowShardColours[q.colour]);count++;
+  }bowShardMesh.count=count;if(count){bowShardMesh.instanceMatrix.needsUpdate=true;bowShardMesh.instanceColor.needsUpdate=true;}
+}
 function markArrowWake(a,b){const slot=arrowWake[arrowWakeI++%ARROW_WAKE_N];slot.a.copy(a);slot.b.copy(b);slot.life=.16;}
 function updateArrowWake(dt){let count=0;
   for(const slot of arrowWake){slot.life=Math.max(0,slot.life-dt);if(!slot.life)continue;
@@ -4905,20 +4922,22 @@ function bowTargets(){
 }
 function clearArrows(){
   for(const a of arrows){if(a.target)a.target.d.bowIncoming=Math.max(0,(a.target.d.bowIncoming||0)-1);a.target=null;a.life=0;}
-  arrowGeo.setDrawRange(0,0);for(const slot of arrowWake)slot.life=0;arrowWakeGeo.setDrawRange(0,0);bow.flash=0;bow.recoil=0;
+  arrowGeo.setDrawRange(0,0);for(const slot of arrowWake)slot.life=0;arrowWakeGeo.setDrawRange(0,0);bow.flash=0;bow.recoil=0;bow.releaseScale=0;
+  for(const q of bowShards)q.life=0;bowShardMesh.count=0;
 }
 function releaseBow(){
   if(vehKey!=='horse'||paused||P.dead)return;
   const a=arrows.find(a=>a.life<=0);if(!a)return;
   // Re-evaluate at release, so an already destroyed target never steals another arrow.
   bow.target=WindArchery.lock(bow,bowTargets());a.target=bow.target;
-  bow.releaseX=bow.target?.x??bow.x;bow.releaseY=bow.target?.y??bow.y;
-  const horse=saddleScreen();bow.releaseAngle=Math.atan2(horse.y-bow.releaseY,horse.x-bow.releaseX)-Math.PI/2;
+  const placement=WindArchery.layout(bow.target||{x:bow.x,y:bow.y},saddleScreen(),innerWidth,innerHeight,bow.span);
+  bow.releaseX=placement?.x??bow.x;bow.releaseY=placement?.y??bow.y;bow.releaseAngle=placement?.angle??0;bow.releaseScale=placement?.scale??0;
   a.p.copy(P.pos);a.p.y+=2.8;a.p.addScaledVector(fwd,.9);a.life=.85;
   if(a.target){a.target.d.bowIncoming=(a.target.d.bowIncoming||0)+1;a.dir.subVectors(a.target.d,a.p).normalize();}
   else {bowScreen.set(bow.x/innerWidth*2-1,1-bow.y/innerHeight*2,.5).unproject(camera);a.dir.subVectors(bowScreen,camera.position).normalize();}
   sfx.weapon('bow',{gain:.95});
-  if(navigator.vibrate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)try{navigator.vibrate(9);}catch(_){}
+  shake=Math.max(shake,.035);
+  if(navigator.vibrate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)try{navigator.vibrate(12);}catch(_){}
 }
 function updateArchery(dt){
   WindArchery.advance(bow,dt);if(vehKey!=='horse'||P.dead){clearArrows();return;}
@@ -4928,7 +4947,7 @@ function updateArchery(dt){
     if(alive){bowScreen.subVectors(target.d,a.p);const distance=bowScreen.length();
       if(distance<760*dt+2){
         markArrowWake(a.p,target.d);
-        target.d.bowIncoming=Math.max(0,(target.d.bowIncoming||0)-1);bowHit.copy(target.d);killDrone(target.f,target.d,'bow');
+        target.d.bowIncoming=Math.max(0,(target.d.bowIncoming||0)-1);bowHit.copy(target.d);breakBowTarget(target.d,target.f.vel,a.dir);killDrone(target.f,target.d,'bow');
         bow.hits++;bow.flash=.3;sfx.weapon('bowhit',{gain:1,pan:weaponPan(bowHit)});shake=Math.max(shake,.19);dashPunch=Math.max(dashPunch,.18);P.flow=Math.min(1,P.flow+.035);
         if(navigator.vibrate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)try{navigator.vibrate([15,12,20]);}catch(_){}
         a.target=null;a.life=0;continue;
@@ -4943,7 +4962,7 @@ function updateArchery(dt){
       a.p.x,a.p.y,a.p.z,a.p.x-a.dir.x*.8+sideX,a.p.y-a.dir.y*.8,a.p.z-a.dir.z*.8+sideZ,
       tail.x,tail.y,tail.z,tail.x+a.dir.x*.8+sideX,tail.y+a.dir.y*.8,tail.z+a.dir.z*.8+sideZ,
       tail.x,tail.y,tail.z,tail.x+a.dir.x*.8-sideX,tail.y+a.dir.y*.8,tail.z+a.dir.z*.8-sideZ],k);
-  }arrowGeo.setDrawRange(0,count*8);if(count)arrowGeo.attributes.position.needsUpdate=true;updateArrowWake(dt);
+  }arrowGeo.setDrawRange(0,count*8);if(count)arrowGeo.attributes.position.needsUpdate=true;updateArrowWake(dt);updateBowShards(dt);
 }
 function drawBowSight(dt,refresh=true){
   const w=innerWidth,h=innerHeight;
@@ -4953,13 +4972,14 @@ function drawBowSight(dt,refresh=true){
   const holding=bow.id!==null,releasing=!holding&&bow.recoil>0;
   if(holding||releasing){
     if(holding&&refresh)bow.target=WindArchery.lock(bow,bowTargets());
-    const q=holding?bow.target:null,cx=holding?(q?.x??bow.x):bow.releaseX,cy=holding?(q?.y??bow.y):bow.releaseY;
-    const horse=holding?saddleScreen():null,angle=holding?Math.atan2(horse.y-cy,horse.x-cx)-Math.PI/2:bow.releaseAngle;
+    const q=holding?bow.target:null,placement=holding?WindArchery.layout(q||{x:bow.x,y:bow.y},saddleScreen(),w,h,bow.span):null;
+    const cx=holding?(placement?.x??bow.x):bow.releaseX,cy=holding?(placement?.y??bow.y):bow.releaseY,angle=holding?(placement?.angle??0):bow.releaseAngle;
+    const scale=holding?(placement?.scale??0):bow.releaseScale;
     const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches,u=1-bow.recoil;
-    const pull=holding?bow.pull:reduced?0:bow.releasePull*Math.cos(u*Math.PI*3.4)*Math.exp(-u*5);
-    const ready=holding&&pull>=WindArchery.minPull,load=Math.pow(Math.max(0,pull),1.35),half=bow.span*(1-load*.12);
+    const pull=holding?bow.pull:reduced?0:bow.releasePull*Math.cos(u*Math.PI*2.2)*Math.exp(-u*5);
+    const ready=holding&&pull>=WindArchery.minPull&&bow.cooldown<=0,load=Math.pow(Math.max(0,pull),1.6),half=bow.span*(1-load*.12);
     const tipY=-2+load*17,kneeY=13+load*17,nockY=tipY+pull*70;
-    g.save();g.translate(cx,cy);g.rotate(angle);g.globalAlpha=holding?1:bow.recoil;
+    g.save();g.translate(cx,cy);g.rotate(angle);g.scale(scale||1,scale||1);g.globalAlpha=scale?(holding?1:bow.recoil):0;
     g.lineCap='round';g.lineJoin='round';g.shadowColor='rgba(20,28,32,.65)';g.shadowBlur=2;
     // Flexible limbs, a firm central grip and short, forward-turned rigid ears: a composite horsebow.
     g.strokeStyle=ready?'rgba(255,255,250,.98)':'rgba(255,255,255,.78)';g.lineWidth=ready?2.8:2.2;
@@ -4979,12 +4999,12 @@ function drawBowSight(dt,refresh=true){
       for(const side of [-1,1]){g.beginPath();g.moveTo(0,nockY-4);g.lineTo(side*4,nockY-10);g.stroke();}
     }
     // One short forward whip joins the release to the physical arrow's persistent world-space wake.
-    if(releasing&&!reduced){g.lineWidth=1.5;g.beginPath();g.moveTo(0,-12-u*100);g.lineTo(0,-36-u*110);g.stroke();}
+    if(releasing&&!reduced){g.lineWidth=1.5;g.beginPath();g.moveTo(0,-20-u*8);g.lineTo(0,-30-u*8);g.stroke();}
     g.restore();
     if(q){
       g.save();g.strokeStyle=ready?'rgba(255,255,245,1)':'rgba(255,250,225,.76)';g.lineWidth=ready?2.3:1.6;
-      g.beginPath();g.arc(q.x,q.y,18,0,TAU);g.stroke();
-      const r=ready?21:25;for(let i=0;i<4;i++){const a=i*TAU/4;g.beginPath();g.moveTo(q.x+Math.cos(a)*r,q.y+Math.sin(a)*r);g.lineTo(q.x+Math.cos(a)*(r+5),q.y+Math.sin(a)*(r+5));g.stroke();}g.restore();
+      const r=ready?12:16;
+      for(const side of [-1,1]){g.beginPath();g.moveTo(q.x+side*(r-6),q.y-9);g.lineTo(q.x+side*r,q.y);g.lineTo(q.x+side*(r-6),q.y+9);g.stroke();}g.restore();
     }
   }
   if(bow.flash>0){bowScreen.copy(bowHit).project(camera);const x=(bowScreen.x*.5+.5)*w,y=(.5-bowScreen.y*.5)*h,u=1-bow.flash/.3;
@@ -5780,21 +5800,21 @@ renderer.domElement.addEventListener('pointerdown',e=>{
   if(!started||paused||P.dead||e.button>0)return;e.preventDefault();sfx.resume();
   try{renderer.domElement.setPointerCapture(e.pointerId);}catch(_){}
   if(vehKey==='horse'&&e.clientY<saddleScreen().y){
-    if(WindArchery.begin(bow,e.pointerId,e.clientX,e.clientY,saddleScreen(),innerWidth,innerHeight)){bow.target=WindArchery.lock(bow,bowTargets());drawBowSight(0,false);sfx.weapon('bowdraw',{gain:.28});}return;
+    if(WindArchery.begin(bow,e.pointerId,e.clientX,e.clientY,saddleScreen(),innerWidth,innerHeight)){bow.target=WindArchery.lock(bow,bowTargets());drawBowSight(0,false);sfx.weapon('bowdraw',{gain:.34});}return;
   }
   if(stickId===null){stickId=e.pointerId;sx0=e.clientX;sy0=e.clientY;stickBase.style.left=sx0+'px';stickBase.style.top=sy0+'px';stickBase.classList.add('on');stickKnob.style.transform='translate(0,0)';}
 });
 window.addEventListener('pointermove',e=>{
   if(paused||P.dead)return;
   if(bow.id===e.pointerId){WindArchery.move(bow,e.pointerId,e.clientX,e.clientY,saddleScreen());
-    if(bow.pull>=WindArchery.minPull&&!bow.readyCue){bow.readyCue=true;if(navigator.vibrate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)try{navigator.vibrate(5);}catch(_){} }
+    if(bow.pull>=WindArchery.minPull&&bow.cooldown<=0&&!bow.readyCue){bow.readyCue=true;sfx.weapon('bowdraw',{gain:.16});if(navigator.vibrate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)try{navigator.vibrate(7);}catch(_){} }
     drawBowSight(0,false);return;}
   if(e.pointerId!==stickId)return;
   let dx=e.clientX-sx0,dy=e.clientY-sy0;const R=56,l=Math.hypot(dx,dy);if(l>R){dx*=R/l;dy*=R/l;}
   inp.jx=dx/R;inp.jy=-dy/R;stickKnob.style.transform=`translate(${dx}px, ${dy}px)`;
 });
 function endRidingPointer(e){
-  if(bow.id===e.pointerId){if(WindArchery.end(bow,e.pointerId,e.type!=='pointerup'||paused||P.dead))releaseBow();bow.target=null;}
+  if(bow.id===e.pointerId){if(WindArchery.end(bow,e.pointerId,e.type!=='pointerup'||paused||P.dead))releaseBow();bow.target=null;drawBowSight(0,false);}
   if(e.pointerId===stickId){stickId=null;inp.jx=inp.jy=0;stickBase.classList.remove('on');}
 }
 for(const event of ['pointerup','pointercancel','lostpointercapture'])window.addEventListener(event,endRidingPointer);
