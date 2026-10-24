@@ -31,20 +31,20 @@ try:
    }
    check(q.vista.children.some(o=>o.userData.astana?.towers>30),'No immense city skyline');
    return results;}''');print('Geometry:',json.dumps(report['geometry']),flush=True)
-  report['acceleration']=page.evaluate('''()=>{const w=__wl,q=__voyageQA;w.travelFeatured('desert');q.paused=true;w.placeAt(75100,w.railZ(75100),Math.atan2(1,w.railZd(75100)),30);w.P.invuln=1000;w.P.flow=.25;
-   let t80=null,t100=null;const trace=[];for(let i=0;i<120*22;i++){w.stepPhysics(1/120);if(i%12===0)w.loadStep();const v=w.P.vel.length();if(t80===null&&v>=80)t80=i/120;if(t100===null&&v>=100)t100=i/120;if(i%120===0)trace.push(v);}
-   if(!(w.S.maxSpeed>=116&&t100<12&&w.P.vel.length()>125&&w.P.hull===3))throw Error('Faster horse failed '+JSON.stringify({t80,t100,speed:w.P.vel.length(),hull:w.P.hull}));
-   return {maxSpeed:w.S.maxSpeed,cruise:w.S.cruise,t80,t100,exitSpeed:w.P.vel.length(),trace};}''');print('Acceleration:',json.dumps(report['acceleration']),flush=True)
+  report['acceleration']=page.evaluate('''()=>{const w=__wl,q=__voyageQA;w.travelFeatured('desert');q.paused=true;w.placeAt(75100,w.railZ(75100),Math.atan2(1,w.railZd(75100)),8);w.P.invuln=1000;w.P.flow=.25;
+   let t24=null,t34=null;const trace=[];for(let i=0;i<120*22;i++){w.stepPhysics(1/120);if(i%12===0)w.loadStep();const v=w.P.vel.length();if(t24===null&&v>=24)t24=i/120;if(t34===null&&v>=34)t34=i/120;if(i%120===0)trace.push(v);}
+   if(!(w.S.maxSpeed===34&&t24<4&&t34<9&&w.P.vel.length()>32&&w.P.vel.length()<48&&w.P.hull===3))throw Error('Mounted gallop failed '+JSON.stringify({t24,t34,speed:w.P.vel.length(),hull:w.P.hull}));
+   return {maxSpeed:w.S.maxSpeed,cruise:w.S.cruise,t24,t34,exitSpeed:w.P.vel.length(),trace};}''');print('Acceleration:',json.dumps(report['acceleration']),flush=True)
   report['drives']=[]
   for route in ['silk','astana']:
    drive=page.evaluate('''id=>{const w=__wl,q=__voyageQA,path=w.tours.paths.find(p=>p.id===id),p=w.tours.at(path,500);w.P.pos.set(p.x,p.y+1,p.z);w.rebuildAll();w.placeAt(p.x,p.z,Math.atan2(p.tx,p.tz),68);q.paused=true;w.P.hull=3;w.P.dead=false;w.P.invuln=0;w.P.flow=.3;w.inp.jx=w.inp.kx=w.inp.jy=w.inp.ky=0;
     let distance=0,previous=500,maxOff=0,done=false;const trace=[];
-    for(let i=0;i<65000;i++){w.stepPhysics(1/120);if(i%16===0){w.loadStep();const r=w.tourAt(w.P.pos.x,w.P.pos.z);if(r?.path.id===id){const d=r.s-previous;if(d>0&&d<200)distance+=d;previous=r.s;maxOff=Math.max(maxOff,r.d);if(r.s>path.length-140){done=true;break;}}
+    for(let i=0;i<130000;i++){w.stepPhysics(1/120);if(i%16===0){w.loadStep();const r=w.tourAt(w.P.pos.x,w.P.pos.z);if(r?.path.id===id){const d=r.s-previous;if(d>0&&d<200)distance+=d;previous=r.s;maxOff=Math.max(maxOff,r.d);if(r.s>path.length-140){done=true;break;}}
       trace.push({pos:w.P.pos.toArray(),route:r?.path.id,off:r?.d,hull:w.P.hull,speed:w.P.vel.length()});if(trace.length>8)trace.shift();
       if(!r||r.d>r.half+5||w.P.hull<3)throw Error('New scenic road is blocked '+JSON.stringify({id,distance,trace}));
     }}if(!done)throw Error('Could not finish '+JSON.stringify({id,distance,trace}));return {id,distance,maxOff,hull:w.P.hull};}''',route)
    report['drives'].append(drive);print('Drive:',json.dumps(drive),flush=True)
-  report['flow']=page.evaluate('''()=>{const w=__wl,q=__voyageQA,fx=w.flowEffects,velocity=new THREE.Vector3(130,0,0),position=w.P.pos;
+  report['flow']=page.evaluate('''()=>{const w=__wl,q=__voyageQA,fx=w.flowEffects,velocity=new THREE.Vector3(36,0,0),position=w.P.pos;
    fx.clear();for(let i=0;i<120;i++)fx.update(1/60,{position,velocity,active:true});
    if(!(fx.strength>.75&&fx.lines.visible))throw Error('High speed has no wind');const positions=fx.lines.geometry.attributes.position.array;let closest=Infinity;
    for(let i=0;i<positions.length;i+=6)closest=Math.min(closest,Math.abs(positions[i+2]-position.z));
@@ -54,7 +54,7 @@ try:
    return {capacity:positions.length/6,clearCentre:closest,reducedMotionRespected:true};}''')
   # The lake clock follows the actual loop, not elapsed wall time or a twitch of the reins.
   report['lake']=page.evaluate('''()=>{const w=__wl,q=__voyageQA;w.travelFeatured('lake');q.paused=true;w.P.invuln=0;let previous=w.tourAt(w.P.pos.x,w.P.pos.z).s,distance=0,westStart=null;
-   const path=w.tours.paths.find(p=>p.id==='lake');for(let i=0;i<65000&&distance<path.length;i++){
+   const path=w.tours.paths.find(p=>p.id==='lake');for(let i=0;i<130000&&distance<path.length;i++){
     w.stepPhysics(1/120);const r=w.tourAt(w.P.pos.x,w.P.pos.z);w.climate.advance(w.lakeJourney,1/120,r,w.P.vel.x,w.P.vel.length());
     if(i%16===0){w.loadStep();let d=r.s-previous;if(d<-path.length*.5)d+=path.length;if(d>0&&d<200)distance+=d;previous=r.s;}
     if(westStart===null&&w.lakeJourney.eveningStart!==null)westStart={distance,vx:w.P.vel.x};

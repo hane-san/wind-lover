@@ -38,7 +38,8 @@ def main():
                 page.route('**/three.min.js', lambda route: route.fulfill(
                     path=str(args.three.resolve()), content_type='application/javascript'))
             page.route('https://fonts.googleapis.com/**', lambda route: route.abort())
-            page.add_init_script("localStorage.setItem('windlover.shells', 'false')")
+            # Keep the original motorbike road/engine audit; mounted riding has its own slower-pace harness.
+            page.add_init_script("localStorage.setItem('windlover.shells', 'false');localStorage.setItem('windlover.vehicle4', JSON.stringify('sidecar'))")
             page.goto(f'http://127.0.0.1:{server.server_port}/', wait_until='load', timeout=120000)
             page.wait_for_function('window.__wl', timeout=120000)
             assert page.url.endswith('/prototype/'), 'Pages entry must lead to the game'

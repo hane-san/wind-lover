@@ -258,6 +258,7 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
     <ellipse cx="38" cy="31" rx="23" ry="11" fill="#fff" opacity="0.14" transform="rotate(-32 38 31)"/>
   </svg>
 </div>
+<canvas id="bowSight" aria-hidden="true" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5"></canvas>
 <div id="stickBase"><div id="stickKnob"></div></div>
 <div id="hint" hidden></div>
 <div id="pad" hidden>
@@ -364,15 +365,16 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="../world/featured-routes.js?v=20261022-voyage"></script>
-<script src="../world/horse-riding.js?v=20261022-reins"></script>
+<script src="../world/horse-riding.js?v=20261024-bow"></script>
 <script src="../world/horse-gait.js?v=20261022-reins"></script>
 <script src="../world/horse-sound.js?v=20261022-reins"></script>
 <script src="../world/horse-wake.js?v=20261022-voyage"></script>
-<script src="../world/flow-effects.js?v=20261022-voyage"></script>
+<script src="../world/flow-effects.js?v=20261024-bow"></script>
 <script src="../world/journey-climate.js?v=20261022-voyage"></script>
 <script src="../world/travel-camera.js?v=20261022-network"></script>
-<script src="../world/encounter-director.js?v=20261023-defence"></script>
-<script src="../world/weapon-audio.js?v=20261023-defence"></script>
+<script src="../world/horse-archery.js?v=20261024-bow"></script>
+<script src="../world/encounter-director.js?v=20261024-bow"></script>
+<script src="../world/weapon-audio.js?v=20261024-bow"></script>
 <script src="../world/missiles.js?v=20261023-defence"></script>
 <script>
 'use strict';
@@ -397,20 +399,33 @@ const VEHICLES = {
   bike: { name: 'チョッパー', hover: 1.0, grip: 5.4, accel: 18, lean: 0.55, resp: 7, roll: 5.0, defaults: { maxSpeed: 95, cruise: 38, minSpeed: 0, inertia: 1.4, tailwind: 7, gravity: 30, glide: 0.68, turn: 1.0, jump: 14, camDist: 14, fovKick: 1.1, auto: true } },
   board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 10, roll: 5, defaults: { maxSpeed: 80, cruise: 30, minSpeed: 0, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 12, fovKick: 1.1, auto: true } },
 };
-// A quicker travelling gallop keeps the independent rein response and lead changes.
-VEHICLES.horse = { ...VEHICLES.sidecar, grip: 8.8, accel:24, name: 'キルギスの馬', defaults: { ...VEHICLES.sidecar.defaults,maxSpeed:116,cruise:48 } };
-// Neutral FOV, pitch and framing offsets preserve the existing compositions.
-for(const vehicle of Object.values(VEHICLES))Object.assign(vehicle.defaults,{camFov:0,camHeight:4.8,camTilt:0,camFrame:0});
+// A mounted bow needs a readable gallop; independent rein response and lead changes remain.
+VEHICLES.horse = { ...VEHICLES.sidecar, grip: 8.8, accel:18, name: 'キルギスの馬', defaults: { ...VEHICLES.sidecar.defaults,maxSpeed:34,cruise:20,tailwind:1.5 } };
+// The broadest rear panorama is the starting view; per-vehicle custom compositions remain available.
+for(const vehicle of Object.values(VEHICLES))Object.assign(vehicle.defaults,{camFov:46,camHeight:20,camTilt:-5,camFrame:.08,camDist:14});
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
 };
-let vehKey = store.get('windlover.vehicle4', 'sidecar'); if (!VEHICLES[vehKey]) vehKey = 'sidecar';
+let vehKey = store.get('windlover.vehicle4', 'horse'); if (!VEHICLES[vehKey]) vehKey = 'horse';
 const allS = store.get('windlover.settings.v11', {}) || {};
-// Carry old untouched horse speed defaults forward, preserving other saved tuning and music.
-if(!store.get('windlover.horse-flow.v1',false)){
-  if(allS.horse){if(allS.horse.maxSpeed===98)allS.horse.maxSpeed=116;if(allS.horse.cruise===40)allS.horse.cruise=48;store.set('windlover.settings.v11',allS);}
-  store.set('windlover.horse-flow.v1',true);
+// Migrate only untouched old defaults; deliberate camera and handling adjustments survive.
+if(!store.get('windlover.mounted-bow.v1',false)){
+  for(const [key,value]of Object.entries(allS)){
+    if(!value||typeof value!=='object')continue;
+    if(key==='horse'){
+      if([98,116].includes(value.maxSpeed))value.maxSpeed=34;
+      if([40,48].includes(value.cruise))value.cruise=20;
+      if(value.tailwind===8)value.tailwind=1.5;
+    }
+    const oldDistance={sidecar:15,bike:14,board:12,horse:15}[key];
+    if((value.camFov??0)===0&&(value.camHeight??4.8)===4.8&&(value.camTilt??0)===0&&(value.camFrame??0)===0&&(value.camDist===undefined||value.camDist===oldDistance)){
+      Object.assign(value,{camFov:46,camHeight:20,camTilt:-5,camFrame:.08,camDist:14});
+    }else{
+      for(const [field,fallback]of Object.entries({camFov:0,camHeight:4.8,camTilt:0,camFrame:0,camDist:oldDistance}))if(value[field]===undefined)value[field]=fallback;
+    }
+  }
+  store.set('windlover.settings.v11',allS);store.set('windlover.mounted-bow.v1',true);
 }
 const loadS = () => ({ ...VEHICLES[vehKey].defaults, ...(allS[vehKey] || {}) });
 let S = loadS();
@@ -2405,7 +2420,7 @@ function travelFeatured(id) {
   let x,z,yaw;
   if(definition.rail){x=definition.x;z=railZ(x);yaw=Math.atan2(1,railZd(x));}
   else {const path=TOURS.paths.find(p=>p.id===id),p=TOURS.at(path,path.length*(id==='lake'?.53:.025));x=p.x;z=p.z;yaw=Math.atan2(p.tx,p.tz);}
-  P.pos.set(x,0,z);rebuildAll();placeAt(x,z,yaw,Math.max(52,S.cruise*1.2));
+  P.pos.set(x,0,z);rebuildAll();placeAt(x,z,yaw,vehKey==='horse'?Math.max(8,S.cruise*.9):Math.max(52,S.cruise*1.2));
   Object.assign(P,{dead:false,hull:3,stalled:false,reached:false,flow:.25,routeTrack:null,routeOffset:0,invuln:4,lean:0,leanV:0,sway:0,hold:0,stopT:0,barrage:false});
   inp.jx=inp.jy=inp.kx=inp.ky=0;inp.keys={};steerSm=0;camBaseY=P.pos.y;suspY=suspV=0;updatePalette(0,true);refreshCards();toast(definition.name,'道の先へ',2200);
   window.dispatchEvent(new CustomEvent('wl:music-region',{detail:{region:musicRegion(),visit:true}}));
@@ -3394,15 +3409,16 @@ function limb(parent, a, b, r, mat) {
   add(new THREE.BoxGeometry(.57,.065,.86),red,0,1.95,-.12);
   oval(0,2.055,-.08,.265,.10,.37,dark);
   for(const z of [-.40,.24])add(new THREE.BoxGeometry(.46,.12,.09),dark,0,2.16,z);
+  const bowArms=[];
   for(const side of [-1,1]) {
     limb(rider,[side*.16,1.98,-.06],[side*.44,1.54,.23],.12,cloth);
     limb(rider,[side*.44,1.54,.23],[side*.45,1.05,.18],.085,dark);
     add(new THREE.BoxGeometry(.16,.15,.3),dark,side*.45,1,.26,rider);
     limb(body,[side*.38,1.96,-.02],[side*.49,1.30,.18],.016,dark);
     add(new THREE.TorusGeometry(.105,.018,4,10),gold,side*.49,1.30,.18,body,0,Math.PI/2);
-    limb(rider,[side*.21,2.53,-.05],[side*.31,2.21,.35],.09,cloth);
-    limb(rider,[side*.31,2.21,.35],[side*.19,2.15,.64],.075,cloth);
-    oval(side*.18,2.15,.65,.07,.065,.08,pale,rider);
+    const upper=limb(rider,[side*.21,2.53,-.05],[side*.31,2.21,.35],.09,cloth);
+    const lower=limb(rider,[side*.31,2.21,.35],[side*.19,2.15,.64],.075,cloth);
+    const hand=oval(side*.18,2.15,.65,.07,.065,.08,pale,rider);bowArms.push({side,upper,lower,hand});
   }
   add(new THREE.CylinderGeometry(.25,.34,.73,10),cloth,0,2.28,-.07,rider);
   add(new THREE.BoxGeometry(.5,.09,.4),red,0,2.03,-.07,rider);
@@ -3416,10 +3432,18 @@ function limb(parent, a, b, r, mat) {
   const scarfA=new THREE.Object3D();scarfA.position.set(0,2.67,-.16);rider.add(scarfA);
   // Move the rider's own geometry, keeping its group pivot available for saddle absorption.
   for(const child of rider.children)child.position.y+=.32;
+  const ridingBow=new THREE.Group();rider.add(ridingBow);ridingBow.visible=false;
+  const bowPath=new THREE.CatmullRomCurve3([new V3(0,-.65,.14),new V3(0,-.38,-.02),new V3(0,0,0),new V3(0,.38,-.02),new V3(0,.65,.14)]);
+  ridingBow.add(new THREE.Mesh(new THREE.TubeGeometry(bowPath,16,.026,6,false),gold));
+  const bowStringGeo=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(9),3));
+  ridingBow.add(new THREE.Line(bowStringGeo,new THREE.LineBasicMaterial({color:0xe6ddc8})));
+  // A small leather quiver rests behind the shoulder rather than replacing the traditional clothes.
+  const quiver=add(new THREE.CylinderGeometry(.12,.1,.75,7),dark,.26,2.8,-.27,rider,0,0,-.3);
+  for(let i=0;i<3;i++)limb(rider,[.17+i*.055,2.8,-.28],[.08+i*.055,3.37,-.28],.008,gold);
   const reins=[];
   for(const side of [-1,1]){const geo=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(27),3));const line=new THREE.Line(geo,new THREE.LineBasicMaterial({color:0x3a3026}));line.frustumCulled=false;body.add(line);reins.push({geo,hand:new V3(side*.18,2.47,.65),bit:new V3(side*.16,.69,1.12),a:new V3(),b:new V3()});}
   const trailA=new THREE.Object3D();trailA.position.set(0,.05,-1.15);g.add(trailA);
-  models.horse={group:g,rider,scarf:scarfA,trail:trailA,arms:null,body,neck,tail,legs,reins,rig,torso,motion:WindHorseGait.create()};boardPivot.add(g);
+  models.horse={group:g,rider,scarf:scarfA,trail:trailA,arms:null,body,neck,tail,legs,reins,rig,torso,bowArms,ridingBow,bowStringGeo,bowBlend:0,motion:WindHorseGait.create()};boardPivot.add(g);
 })();
 const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
 scene.add(shadow);
@@ -3502,6 +3526,7 @@ const homeX = () => biomeMode === 'journey' ? BASE_X - BASE_LEN / 2 + 14 : 0;
 function startPose() { return Math.atan2(1, hwZd(0, homeX())); }
 function placeHome(speed) { const x = homeX(); P.pos.set(x, 0, hwZ(0, x)); updateChunks(true); placeAt(x, hwZ(0, x), startPose(), speed); P.stalled = false; P.reached = false; }
 function placeAt(x, z, yaw, speed) {
+  resetRidingInput();clearArrows();
   P.horse=WindHorseRiding.create();P.hopping=false;P.jumpBuf=0;P.sway=0;P.routeTrack=null;
   sfx.stopHooves();
   horseWake.clear();flowEffects.clear();
@@ -3586,7 +3611,7 @@ function stepPhysics(dt) {
       const grip = (P.drifting ? 1.3 : V.grip * lerp(1, 0.78, sf) * (P.onRoad || P.onWater ? 1 : 0.68) * (1 + 0.45 * roadPull)) / S.inertia;
       const nvs = vs * Math.exp(-grip * dt);
       if (vf >= 0) vf += (Math.abs(vs) - Math.abs(nvs)) * (P.drifting ? 0.9 : 0.86); else vf *= Math.exp(-3 * dt);
-      const cruiseNow = S.cruise * (1 + P.flow * 0.5), maxNow = S.maxSpeed * (1 + P.flow * 0.3);
+      const cruiseNow = S.cruise * (1 + P.flow * (horse?.3:.5)), maxNow = S.maxSpeed * (1 + P.flow * (horse?.12:.3));
       let target = S.auto && !braking && !P.dead && !P.stalled ? cruiseNow : 0, acc = V.accel * (vf < 12 ? 0.45 : 1); // heavy to get rolling again
       if (P.tuck && target > 0) { target = cruiseNow * 1.35; acc *= 1.6; }
       if (vf < target) vf += acc * dt * (1 - clamp(vf / Math.max(target, 1), 0, 1) * 0.5);
@@ -3594,12 +3619,12 @@ function stepPhysics(dt) {
       vf += S.tailwind * Math.max(0, fPl.x * windDir.x + fPl.z * windDir.z) * dt;
       const route = rideRoute(P.pos.x, P.pos.z, P.pos.y);
       P.onRoad = roadDist(P.pos.x, P.pos.z) < 5 || route.d < route.half;
-      if (P.onRoad) vf += (horse?6.2:5) * dt;
+      if (P.onRoad) vf += (horse?1.8:5) * dt;
       if (vf > cruiseNow) vf -= (vf - cruiseNow) * (P.onWater ? 0.02 : P.onRoad ? 0.003 : 0.007) * dt;
       // the long pull: held straight, the old engine keeps winding up toward the top end, slowly;
       // laid over in a bend, the speed bleeds back toward a cornering pace
       const straight = 1 - smooth(0.3, 0.7, Math.abs(P.lean)), bend = smooth(0.62, 0.95, Math.abs(P.lean)); // light direction changes keep the pull; only a hard bend bleeds speed
-      if (S.auto && !braking && !P.stalled && !P.dead) { const top = maxNow * 0.96; if (vf > cruiseNow * 0.85 && vf < top) vf += (horse?6.4:3.7) * straight * (1 - vf / top) * (P.onRoad ? 1.3 : 1) * dt; }
+      if (S.auto && !braking && !P.stalled && !P.dead) { const top = maxNow * 0.96; if (vf > cruiseNow * 0.85 && vf < top) vf += (horse?2.8:3.7) * straight * (1 - vf / top) * (P.onRoad ? 1.3 : 1) * dt; }
       if (vf > S.cruise * 1.3) vf -= (vf - S.cruise * 1.3) * 0.55 * bend * dt;
       if (vf > maxNow) vf -= (vf - maxNow) * 1.5 * dt;
       if (vf < S.minSpeed) vf = lerp(vf, S.minSpeed, 1 - Math.exp(-3 * dt));
@@ -3881,7 +3906,7 @@ function crash() {
   P.hull--; if (P.hull <= 0) { die('激突'); return; }
   // the engine dies on impact; the hunters close in while it cranks
   P.stalled = vehKey!=='horse'; P.crankT = P.stalled?.9:0; if(P.stalled)sfx.stall(); toast('激突', `${horse?'体力':'装甲'} 残り${P.hull}`, 1400);
-  if (shellsOn) { spawnFormation('chase'); const f = forms[forms.length - 1]; f.pos.set(P.pos.x - fwd.x * 260, P.pos.y + 40, P.pos.z - fwd.z * 260); for (const d of f.drones) d.copy(f.pos); }
+  if (shellsOn && vehKey!=='horse') { spawnFormation('chase'); const f = forms[forms.length - 1]; f.pos.set(P.pos.x - fwd.x * 260, P.pos.y + 40, P.pos.z - fwd.z * 260); for (const d of f.drones) d.copy(f.pos); }
 }
 function collide() {
   for (const c of colliders) {
@@ -4118,6 +4143,7 @@ function startBarrage() {
   for (let i = 0; i < 9; i++) fireShell(i < 3 ? 2 : 7, 1.0 + i * 0.22, 10);
 }
 function die(cause = '集中砲撃') {
+  resetRidingInput();clearArrows();
   $('#overCause').textContent = cause; $('#overTitle').textContent = '旅はここで途切れた'; $('#overRetry').textContent = 'もう一度走る';
   P.dead = true;sfx.stopWeapons(); vignette(1);
   setTimeout(() => { $('#overText').textContent = `旅した距離 ${(P.dist / 1000).toFixed(1)} km`; openSheet('#overSheet'); }, 1600);
@@ -4143,7 +4169,7 @@ const routeHeat = () => biomeMode === 'journey' ? lowlandZone(P.pos.z / funnel(P
 function updateEncounters(dt){
   const road=rideRoute(P.pos.x,P.pos.z,P.pos.y);let bend=0;
   if(road.path){const dir=P.vel.x*road.tx+P.vel.z*road.tz>=0?1:-1,a=TOURS.at(road.path,road.s+dir*clamp(P.vel.length()*.75,45,110));bend=Math.atan2(road.tx*a.tz-road.tz*a.tx,road.tx*a.tx+road.tz*a.tz);}
-  WindEncounters.advance(encounter,dt,{enabled:shellsOn,dead:P.dead,sheltered:P.inTunnel,region:musicRegion(),hull:P.hull,bend});
+  WindEncounters.advance(encounter,dt,{enabled:shellsOn,dead:P.dead,sheltered:P.inTunnel,region:musicRegion(),hull:P.hull,bend,cleared:encounter.phase==='combat'&&!forms.some(f=>!f.peace&&f.phase!=='leave')});
   if(encounter.event==='warning'){
     toast('無人警戒網、起動','機械だけが、道を見張っている',1900);sfx.weapon('acquire',{gain:.40});
     if(!forms.some(f=>f.mode==='assault'))spawnFormation('assault');
@@ -4159,15 +4185,15 @@ function updateThreat(dt) {
   if (shellsOn && !P.dead) {
     fireT -= dt;
     if (P.inTunnel||!encounter.fire||encounter.weapon!=='missile') fireT = Math.max(fireT,.8);
-    if (fireT <= 0) {
+    if (fireT <= 0 && vehKey!=='horse') {
       const d = P.danger;
       fireShell(lerp(12, 4, d), 1.6, 8);
       if (d > 0.55 && Math.random() < d) fireShell(16, 1.9, 8);
       fireT = (v > SAFE ? 3.5 + Math.random() * 3 : lerp(2.8, 0.42, d * d) * (0.7 + Math.random() * 0.6)) * lerp(1.6, 0.6, routeHeat());
     }
-    if (encounter.fire&&v < 2.5 && (P.grounded || P.inUpdraft === false)) { P.stopT += dt; if (P.stopT > 2.1 && !P.barrage && !P.inTunnel) startBarrage(); }
+    if (vehKey!=='horse'&&encounter.fire&&v < 2.5 && (P.grounded || P.inUpdraft === false)) { P.stopT += dt; if (P.stopT > 2.1 && !P.barrage && !P.inTunnel) startBarrage(); }
     else { P.stopT = 0; if (v > 8) P.barrage = false; }
-    if (v > SAFE && P.hull < 3) { regenT += dt; if (regenT > 22) { regenT = 0; P.hull++; toast(vehKey==='horse'?'呼吸が整った':'装甲を叩き直した', `${vehKey==='horse'?'体力':'装甲'} ${P.hull}`, 1400); } } else regenT = 0;
+    if (v > (vehKey==='horse'?16:SAFE) && P.hull < 3) { regenT += dt; if (regenT > 22) { regenT = 0; P.hull++; toast(vehKey==='horse'?'呼吸が整った':'装甲を叩き直した', `${vehKey==='horse'?'体力':'装甲'} ${P.hull}`, 1400); } } else regenT = 0;
   }
   for (let i = shells.length - 1; i >= 0; i--) {
     const s = shells[i]; s.t += dt; const k = s.t / s.flight;
@@ -4186,11 +4212,11 @@ function updateThreat(dt) {
   if (P.dead) w = '';
   else if (P.stalled) w = 'エンジン停止 — 再始動中';
   else if (P.stopT > 0) w = '停止中 — 砲撃が来る';
-  else if (shellsOn && encounter.fire && P.brakeHeat > 0.55) w = '減速しすぎ';
-  else if (shellsOn && encounter.fire && P.danger > 0.72) w = '低速 — 狙われている';
+  else if (vehKey!=='horse' && shellsOn && encounter.fire && P.brakeHeat > 0.55) w = '減速しすぎ';
+  else if (vehKey!=='horse' && shellsOn && encounter.fire && P.danger > 0.72) w = '低速 — 狙われている';
   if (w !== warnState) { warnState = w; warnEl.textContent = w; warnEl.hidden = !w; if (w) sfx.alarm(); }
   vigLevel = Math.max(0, vigLevel - dt * 0.8);
-  const pulse = shellsOn&&encounter.fire ? clamp((P.danger - 0.5) * 1.4, 0, 0.6) * (0.6 + 0.4 * Math.sin(t * 7)) : 0;
+  const pulse = vehKey!=='horse'&&shellsOn&&encounter.fire ? clamp((P.danger - 0.5) * 1.4, 0, 0.6) * (0.6 + 0.4 * Math.sin(t * 7)) : 0;
   vigEl.style.opacity = Math.max(vigLevel, pulse).toFixed(3);
   hullEl.forEach((e, i) => e.classList.toggle('on', i < P.hull));
 }
@@ -4299,10 +4325,16 @@ const geometricRoundTex=canvasTex(64,64,(g,w)=>{
 });
 const bulPts = new THREE.Points(bulGeo, new THREE.PointsMaterial({ size: 2.5, map: geometricRoundTex, alphaTest:.4, vertexColors: true, transparent:false, depthWrite:true, fog:false }));
 // Keep distant rounds legible at reduced resolution, without adding a draw call or a glow.
-bulPts.material.onBeforeCompile=shader=>{shader.vertexShader='attribute float projectileKind; varying float vProjectileKind;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvProjectileKind=projectileKind;').replace('gl_PointSize *= ( scale / - mvPosition.z );','gl_PointSize *= ( scale / - mvPosition.z ); gl_PointSize *= mix(1.0,.24,step(.5,projectileKind)); gl_PointSize = clamp(gl_PointSize, mix(3.0,4.0,step(.5,projectileKind)), mix(30.0,12.0,step(.5,projectileKind)));');shader.fragmentShader='varying float vProjectileKind;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('void main() {','void main() {\nif(vProjectileKind>.5){vec2 p=gl_PointCoord-vec2(.5);if(abs(p.x)>.16||abs(p.y)>.47)discard;gl_FragColor=vec4(vColor,1.0);return;}');};
+bulPts.material.onBeforeCompile=shader=>{shader.vertexShader='attribute float projectileKind; varying float vProjectileKind;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvProjectileKind=projectileKind;').replace('gl_PointSize *= ( scale / - mvPosition.z );','gl_PointSize *= ( scale / - mvPosition.z ); gl_PointSize *= mix(1.0,.24,step(.5,projectileKind)); gl_PointSize = clamp(gl_PointSize, mix(3.0,4.0,step(.5,projectileKind)), mix(30.0,12.0,step(.5,projectileKind)));');shader.fragmentShader='varying float vProjectileKind;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('void main() {','void main() {\nif(vProjectileKind>1.5)discard;\nif(vProjectileKind>.5){vec2 p=gl_PointCoord-vec2(.5);if(abs(p.x)>.16||abs(p.y)>.47)discard;gl_FragColor=vec4(vColor,1.0);return;}');};
 bulPts.frustumCulled = false; scene.add(bulPts);
 slugP.fill(-9999);const slugGeo=new THREE.BufferGeometry();slugGeo.setAttribute('position',new THREE.BufferAttribute(slugP,3));slugGeo.setAttribute('color',new THREE.BufferAttribute(slugC,3));slugGeo.setDrawRange(0,0);
 const slugLines=new THREE.LineSegments(slugGeo,new THREE.LineBasicMaterial({vertexColors:true,fog:false}));slugLines.frustumCulled=false;slugLines.visible=false;scene.add(slugLines);
+const BARRAGE_CAP=256;let barrageLive=0;
+const barrageGeo=(()=>{const m=new Merger();
+  for(const geo of [new THREE.CylinderGeometry(.16,.21,2.4,6),new THREE.ConeGeometry(.16,.7,6).translate(0,1.55,0),new THREE.BoxGeometry(1.65,.65,.12).translate(0,-.8,0),new THREE.BoxGeometry(.12,.65,1.65).translate(0,-.8,0)]){m.add(geo,new THREE.Matrix4(),0x41484b);geo.dispose();}return m.build();})();
+const barrageBodies=new THREE.InstancedMesh(barrageGeo,new THREE.MeshLambertMaterial({vertexColors:true,fog:false}),BARRAGE_CAP);
+const barrageExhaust=new THREE.InstancedMesh(new THREE.SphereGeometry(.45,6,4),new THREE.MeshBasicMaterial({color:0xffba77,fog:false}),BARRAGE_CAP);
+for(const mesh of [barrageBodies,barrageExhaust]){mesh.count=0;mesh.frustumCulled=false;scene.add(mesh);}
 function weaponPan(p){const speed=Math.hypot(P.vel.x,P.vel.z)||1;return clamp((-(p.x-P.pos.x)*P.vel.z+(p.z-P.pos.z)*P.vel.x)/speed/80,-.8,.8);}
 const missiles=WindMissiles.create(THREE,scene,{surface:surfaceAt,canHit:()=>P.invuln<=0&&!P.dead&&!P.inTunnel,
   onHit:()=>takeEnemyHit('ミサイル'),onGraze:p=>graze(p.x,p.y,p.z),onSound:(kind,p)=>sfx.weapon(kind,{pan:weaponPan(p),gain:kind==='launch'?.8:.55}),
@@ -4331,6 +4363,7 @@ function graze(x, y, z) {
 const forms = [], _dm = new THREE.Object3D(), _f = new V3(), _r = new V3(), _u = new V3();
 const VOLLEY_COLS = [[1, 0.5, 0.16], [0.95, 0.36, 0.58], [0.3, 0.68, 1], [1, 0.78, 0.22]];
 function shapeSlot(type, n, t, i, out) {
+  if(type==='patrol')return out.set((i-(n-1)/2)*18,Math.sin(i*1.8)*2,-Math.abs(i-(n-1)/2)*13);
   if (type === 'V') { const sd = i % 2 ? 1 : -1, k = Math.ceil(i / 2); return out.set(sd * k * 9, Math.sin(t * 1.2 + k * 0.5) * 1.5 - k * 0.8, -k * 8); }
   if (type === 'ring') { const a = i / n * TAU + t * 0.6; return out.set(Math.cos(a) * 26, Math.sin(a) * 26, Math.sin(a * 2 + t) * 3); }
   if (type === 'wave') { const x = (i - (n - 1) / 2) * 7.5; return out.set(x, Math.sin(t * 1.5 - i * 0.42) * 6, Math.cos(t * 1.1 - i * 0.3) * 4 - Math.abs(x) * 0.25); }
@@ -4372,104 +4405,72 @@ const FORM_N = { V: 19, ring: 20, wave: 21, helix: 20, rose: 25, star: 30, latti
 const MORPHABLE = ['ring', 'rose', 'star', 'bloom', 'spiral', 'lotus', 'mandala', 'infinity', 'trefoil', 'lissajous', 'galaxy', 'pinwheel'];
 const EYE_PEACES = [0xa8f0e8, 0xf4e2a8, 0xd6c4ff, 0xc8f0b0, 0xffd0dc].map((h) => new THREE.Color(h));
 function spawnFormation(forceMode) {
-  const hs = Math.hypot(P.vel.x, P.vel.z) || 1, fx = P.vel.x / hs, fz = P.vel.z / hs;
+  const hs = Math.hypot(P.vel.x, P.vel.z) || 1, fx = hs>1?P.vel.x / hs:fwd.x, fz = hs>1?P.vel.z / hs:fwd.z;
   const mode = forceMode || 'pass';
-  const type = FORM_TYPES[Math.random() * FORM_TYPES.length | 0], n = FORM_N[type];
+  const type = mode==='assault'?'patrol':FORM_TYPES[Math.random() * FORM_TYPES.length | 0], n = mode==='assault'?3+encounter.cycle%2:FORM_N[type];
   // scenic approach: rise over the horizon far ahead, slightly off your line, and come on slowly
-  const side = mode === 'flyby' ? (Math.random() < 0.5 ? -1 : 1) * (700 + Math.random() * 300) : (Math.random() - 0.5) * 320;
-  const dist = mode === 'assault' ? 760 : mode === 'pass' ? 1400 : mode === 'flyby' ? 450 + Math.random() * 700 : -420;
+  const side = mode === 'flyby' ? (Math.random() < 0.5 ? -1 : 1) * (700 + Math.random() * 300) : (Math.random() - 0.5) * 24;
+  const dist = mode === 'assault' ? 690 : mode === 'pass' ? 1400 : mode === 'flyby' ? 450 + Math.random() * 700 : -420;
   const pos = new V3(P.pos.x + fx * dist - fz * side, 0, P.pos.z + fz * dist + fx * side);
   pos.y = surfaceAt(pos.x, pos.z) + (mode === 'assault' ? 34 : mode === 'pass' ? 70 + Math.random() * 30 : mode === 'flyby' ? 60 + Math.random() * 90 : 34 + Math.random() * 20);
   // flybys cross your path far off, slowly, like birds; they never fire
   const vel = mode === 'pass' ? new V3(-fx, 0, -fz).multiplyScalar(34) : mode === 'flyby' ? new V3(fz, 0, -fx).multiplyScalar(Math.sign(side) * (28 + Math.random() * 12)) : new V3(fx, 0, fz).multiplyScalar(45);
   const morph = MORPHABLE.includes(type) && Math.random() < 0.55 ? MORPHABLE[Math.random() * MORPHABLE.length | 0] : null;
   if (mode === 'assault') vel.set(-fx * 40, 0, -fz * 40);
-  const f = { mode, type, n, pos, vel, t: Math.random() * 4, age: 0, phase: 'approach', gap: 1.15, pat: encounterPattern, fireT: 1.5, volley: 0, weapon:'geometry',cue:null,flash:0,turned: false, peace: mode === 'flyby', drones: [], seq: 0, seqT: 0, morph: morph === type ? null : morph, eye: EYE_PEACES[Math.random() * EYE_PEACES.length | 0] };
+  const f = { mode, type, n, pos, vel, t: Math.random() * 4, age: 0, phase: 'approach', gap: 1.15, pat: encounterPattern, fireT: 1.5, volley: 0, weapon:'missile',cue:null,flash:0,turned: false, peace: mode === 'flyby', drones: [], seq: 0, seqT: 0, morph: morph === type ? null : morph, eye: EYE_PEACES[Math.random() * EYE_PEACES.length | 0] };
   for (let i = 0; i < n; i++) f.drones.push(slotOf(f, i, new V3()).add(pos));
   forms.push(f);
 }
-// The battery approaches, stabilises, charges and fires from a weapon-specific distance.
-// Geometric rounds close at a fixed relative speed; physical ammunition and briefly guided darts
-// have distinct movement and timing. Each weapon leaves time to read its cue and change lanes.
-const AS_HOLD = 280, AS_REL = 108, AS_TIME = 32;
+// One patrol closes from ahead: geometric missile salvos, a bow window, then short close-range bursts.
+const AS_HOLD = 510, AS_REL = 124, AS_TIME = 36;
 const PATTERN_NAMES = ['風の格子','扇の航跡','天の輪','五本の流れ','螺旋','二重の門','二重の菱形','六角の星','折線の織物'];
 const AS_COLS = [[1,.68,.3],[.54,.82,.95],[1,.48,.27],[.77,.88,.58],[.78,.69,.93]];
-function assaultMove(f, dt, fx, fz, hs) {
-  f.age += dt;
-  const ahead = (f.pos.x - P.pos.x) * fx + (f.pos.z - P.pos.z) * fz;
-  if (f.phase === 'approach' && ahead < AS_HOLD + 40) { f.phase = 'hold'; f.fireT = 0.8; f.age = 0; toast('編隊、正面', '', 900); }
-  if (f.phase === 'hold' && f.age > AS_TIME) f.phase = 'leave';
-  if (f.phase === 'hold') {
-    const hold=f.weapon==='missile'?550:f.weapon==='kinetic'?350:AS_HOLD,w=Math.sin(f.t*.45)*(f.weapon==='geometry'?24:45),tx=P.pos.x+fx*hold-fz*w,tz=P.pos.z+fz*hold+fx*w,ty=surfaceAt(tx,tz)+(f.weapon==='missile'?45:26);
-    tmp.set((tx - f.pos.x) * 1.6 + P.vel.x, (ty - f.pos.y) * 1.2, (tz - f.pos.z) * 1.6 + P.vel.z);
-    f.vel.lerp(tmp, 1 - Math.exp(-2.5 * dt));
-  } else if (f.phase === 'leave') { tmp.set(P.vel.x + fx * 50, 26, P.vel.z + fz * 50); f.vel.lerp(tmp, 1 - Math.exp(-1 * dt)); }
-  else { tmp.set(-fx * 40, 0, -fz * 40); f.vel.lerp(tmp, 1 - Math.exp(-1 * dt)); const ty = surfaceAt(f.pos.x, f.pos.z) + 30; f.pos.y += (ty - f.pos.y) * (1 - Math.exp(-0.8 * dt)); }
+function assaultMove(f,dt,fx,fz,hs){
+  f.age+=dt;
+  f.ahead=(f.pos.x-P.pos.x)*fx+(f.pos.z-P.pos.z)*fz;
+  if(f.phase==='approach'&&f.ahead<AS_HOLD){f.phase='hold';f.fireT=.35;}
+  if(f.phase==='hold'&&(f.ahead<55||f.age>AS_TIME))f.phase='leave';
+  if(f.phase==='leave'){tmp.set(P.vel.x+fx*60,28,P.vel.z+fz*60);f.vel.lerp(tmp,1-Math.exp(-2*dt));return;}
+  // Close along the road, including its curves; never orbit or fire from the rider's rear.
+  const road=rideRoute(P.pos.x,P.pos.z,P.pos.y);let tx=P.pos.x+fx*Math.max(55,f.ahead),tz=P.pos.z+fz*Math.max(55,f.ahead);
+  if(road.path&&road.d<road.half+8){const dir=P.vel.x*road.tx+P.vel.z*road.tz>=0?1:-1,a=TOURS.at(road.path,road.s+dir*Math.max(55,f.ahead));tx=a.x;tz=a.z;}
+  const closing=vehKey==='horse'?23:48,forward=Math.max(0,hs-closing);
+  tmp.set(fx*forward+(tx-f.pos.x)*2,(surfaceAt(tx,tz)+22-f.pos.y)*2,fz*forward+(tz-f.pos.z)*2);
+  f.vel.lerp(tmp,1-Math.exp(-3*dt));
 }
-function assaultVolley(f) {
-  const col = AS_COLS[f.pat % AS_COLS.length], hs = Math.hypot(P.vel.x, P.vel.z) || 1, fx = P.vel.x / hs, fz = P.vel.z / hs;
-  const rx = -fz, rz = fx, base = new V3(P.vel.x, 0, P.vel.z), v = new V3(), at = new V3();
-  const tArr = Math.max(0.8, ((f.pos.x - P.pos.x) * fx + (f.pos.z - P.pos.z) * fz) / AS_REL);
-  const targetY = P.grounded ? ground(P.pos.x + P.vel.x * tArr, P.pos.z + P.vel.z * tArr, P.pos.y + 16).h + HOVER + HIT_HEIGHT : P.pos.y + HIT_HEIGHT;
-  // Snapshot the aim once. Delayed rows travel with the formation until release; they never home in.
-  const fire = (lat, delay, latSpd, upOff = 0, relativeSpeed = AS_REL) => {
-    const flight = Math.max(0.8, ((f.pos.x - P.pos.x) * fx + (f.pos.z - P.pos.z) * fz) / relativeSpeed);
-    at.copy(f.pos).addScaledVector(tmp2.set(rx, 0, rz), lat).addScaledVector(base, delay);
-    v.copy(base).addScaledVector(tmp2.set(fx, 0, fz), -relativeSpeed).addScaledVector(tmp2.set(rx, 0, rz), latSpd);
-    v.y = (targetY + upOff - at.y) / flight;
-    if (delay) { f.pending = f.pending || []; f.pending.push({ p: at.clone(), v: v.clone(), c: col, at: t + delay }); } else shoot(at, v, col);
-  };
-  const p = f.pat++ % PATTERN_NAMES.length, off = (P.pos.x - f.pos.x) * rx + (P.pos.z - f.pos.z) * rz;
-  encounterPattern=f.pat;
-  const route = rideRoute(P.pos.x, P.pos.z, P.pos.y), centre = (route.cx - P.pos.x) * rx + (route.cz - P.pos.z) * rz;
-  const gapShift = route.d < route.half ? clamp(centre + (Math.random() < 0.5 ? -8 : 8), centre - route.half + 5, centre + route.half - 5) : (Math.random() < 0.5 ? -8 : 8);
-  const gapAt = off + gapShift;
-  if (p === 0) { // dense curtain, with a clearly open corridor that stays on the road
-    for (let k = -24; k <= 24; k++) { const lat = off + k * 2.8; if (Math.abs(lat - gapAt) < 5) continue; fire(lat, 0, 0); }
-  } else if (p === 1) { // opening fan; adjacent rays leave room for the small rider core
-    for (let k = -20; k <= 20; k++) fire(0, 0, k * 1.55 + off / tArr);
-  } else if (p === 2) { // a moment of open sky inside a widening ring
-    for (let k = 0; k < 40; k++) { const a = k / 40 * TAU; fire(off + Math.cos(a) * 4, 0, Math.cos(a) * 5.5, Math.sin(a) * 12); }
-  } else if (p === 3) { // five fixed streams: move once, then ride the space between them
-    for (let k = 0; k < 8; k++) for (const side of [-10, -5, 0, 5, 10]) fire(off + side, k * 0.065, 0);
-  } else if (p === 4) { // a visible sweep, spread over time rather than an instant wall
-    for (let k = 0; k < 36; k++) { const a = k * 0.36; fire(Math.cos(a) * 32 + off, k * 0.025, -Math.sin(a) * 5); }
-  } else if (p === 5) { // both staggered rows share a corridor; their gaps never close each other
-    for (let row = 0; row < 2; row++) for (let k = -22; k <= 22; k++) { const lat = off + k * 2.8 + row * 1.4; if (Math.abs(lat - gapAt) < 5.8) continue; fire(lat, row * 0.32, 0); }
-  }
-  if (p >= 6) {
-    // Patterns are drawn in the plane facing the rider. Leave the same readable corridor in every layer.
-    const shape = (lat, height, delay, speed, expansion = 0.25) => {
-      if (Math.abs(lat - gapAt) < 4.2 && Math.abs(height) < 2.2) return;
-      const flight = Math.max(.8, ((f.pos.x-P.pos.x)*fx+(f.pos.z-P.pos.z)*fz)/speed);
-      fire(lat * (1-expansion), delay, lat * expansion / flight, height, speed);
-    };
-    if (p === 6 || p === 7) {
-      shape(off,0,.12,AS_REL);
-      for(let arm=0;arm<6;arm++)for(let k=1;k<=4;k++){const a=arm/6*TAU;shape(off+Math.cos(a)*k*3,Math.sin(a)*k*1.05,.12,AS_REL);}
-    }
-    if (p === 6) { // two offset diamonds: long, straight edges, without petal outlines
-      for(let layer=0;layer<2;layer++)for(let side=0;side<4;side++)for(let k=0;k<18;k++) {
-        const a=side/4*TAU,b=(side+1)/4*TAU,u=k/18,r=layer?23:34;
-        shape(off+lerp(Math.cos(a),Math.cos(b),u)*r,1+lerp(Math.sin(a),Math.sin(b),u)*r*.32,layer*.23,AS_REL*(layer?1.1:.88));
-      }
-    } else if (p === 7) { // two hexagons and their spokes: recognisable straight edges
-      for(let layer=0;layer<2;layer++) for(let side=0;side<6;side++) for(let k=0;k<10;k++) {
-        const a=side/6*TAU+layer*Math.PI/6,b=(side+1)/6*TAU+layer*Math.PI/6,u=k/10,r=layer?24:34;
-        shape(off+lerp(Math.cos(a),Math.cos(b),u)*r,1+lerp(Math.sin(a),Math.sin(b),u)*r*.31,layer*.26,AS_REL*(layer?1.12:.92));
-      }
-    } else { // angular interlaced zigzags, symmetrical across the route
-      for(let layer=0;layer<2;layer++)for(let k=0;k<80;k++) {
-        const u=k/79,triangle=1-4*Math.abs(((u*3+layer*.25)%1)-.5);
-        shape(off+(u-.5)*64,1+triangle*8,k*.006+layer*.18,AS_REL*(layer?1.08:.9));
-      }
-    }
-  }
-  sfx.volley(f.pos);
+function assaultVolley(f){
+  const hs=Math.hypot(P.vel.x,P.vel.z)||1,fx=hs>1?P.vel.x/hs:fwd.x,fz=hs>1?P.vel.z/hs:fwd.z,rx=-fz,rz=fx;
+  const ahead=(f.pos.x-P.pos.x)*fx+(f.pos.z-P.pos.z)*fz,flight=Math.max(.8,ahead/AS_REL),col=AS_COLS[f.pat%AS_COLS.length];
+  const aim=P.pos.clone().addScaledVector(P.vel,flight);aim.y=P.grounded?ground(aim.x,aim.z,P.pos.y+20).h+HOVER+HIT_HEIGHT:P.pos.y+HIT_HEIGHT;
+  const pat=f.pat++%PATTERN_NAMES.length;encounterPattern=f.pat;
+  // Every motor lights up on a visible geometric edge. Aim is frozen at launch, never homing.
+  const points=[],add=(x,y,delay=0)=>points.push({x,y,delay});
+  if(pat===0||pat===5){for(let row=0;row<(pat===5?2:1);row++)for(let k=-9;k<=9;k++)if(Math.abs(k*5.4-8)>5.5)add(k*5.4,0,row*.48);}
+  else if(pat===1){for(let k=-9;k<=9;k++)add(k*5.8,Math.abs(k)*.22);}
+  else if(pat===3){for(let row=0;row<4;row++)for(const x of [-14,-7,0,7,14])add(x,0,row*.18);}
+  else if(pat===4){for(let k=0;k<28;k++)add(Math.cos(k*.45)*30,Math.sin(k*.45)*7,k*.045);}
+  else if(pat===8){for(let k=0;k<32;k++){const u=k/31;add((u-.5)*84,1+(1-4*Math.abs((u*3%1)-.5))*9,k*.012);}}
+  else{const sides=pat===6?4:pat===7?6:0,n=sides?sides*6:30;
+    for(let k=0;k<n;k++){const a=k/n*TAU;let x=Math.cos(a)*32,y=Math.sin(a)*11+1;
+      if(sides){const edge=k/6|0,u=(k%6)/6,A=edge/sides*TAU,B=(edge+1)/sides*TAU;x=lerp(Math.cos(A),Math.cos(B),u)*34;y=1+lerp(Math.sin(A),Math.sin(B),u)*12;}
+      if(Math.abs(x-8)>5.5||Math.abs(y)>2.5)add(x,y);}}
+  if(pat===6||pat===7){for(const a of [...points]){const x=a.x*.68,y=a.y*.68;if(Math.abs(x-8)>5.5||Math.abs(y)>2.5)add(x,y,.48);}}
+  const density=(f.n??3)/(3+encounter.cycle%2);f.pending=f.pending||[];
+  points.forEach((a,i)=>{
+    // Destroying launchers thins subsequent salvos, but missiles already in flight remain real.
+    if((i%4)/4>density)return;
+    const node=f.drones?.length?f.drones.reduce((best,d)=>Math.abs((d.x-f.pos.x)*rx+(d.z-f.pos.z)*rz-a.x*.48)<Math.abs((best.x-f.pos.x)*rx+(best.z-f.pos.z)*rz-a.x*.48)?d:best):null;
+    const origin=node?node.clone():f.pos.clone().addScaledVector(new V3(rx,0,rz),a.x*.48);if(!node)origin.y+=a.y*.55;
+    const target=aim.clone().addScaledVector(new V3(rx,0,rz),a.x);target.y+=a.y;
+    const v=target.sub(origin).multiplyScalar(1/flight);origin.addScaledVector(f.vel||P.vel,a.delay);
+    if(a.delay)f.pending.push({p:origin,v,c:col,kind:2,at:t+a.delay});else shoot(origin,v,col,2);
+  });sfx.weapon('launch',{gain:.6,pan:weaponPan(f.pos)});
 }
-function clearDrones(reset=true) { if(reset)forms.length=0;else for(let i=forms.length-1;i>=0;i--)if(!forms[i].peace)forms.splice(i,1); for (let i = 0; i < BUL; i++) { bLife[i] = 0; bPos[i * 3 + 1] = -9999; } droneMesh.count = eyeMesh.count = 0; bulI = -1; bulDrawCount = 0; bulGeo.setDrawRange(0, 0);slugGeo.setDrawRange(0,0);slugLines.visible=false;missiles.clear();sfx.stopWeapons();assaultRest=5;if(reset)Object.assign(encounter,WindEncounters.create()); }
+function clearDrones(reset=true) { if(reset)forms.length=0;else for(let i=forms.length-1;i>=0;i--)if(!forms[i].peace)forms.splice(i,1); for (let i = 0; i < BUL; i++) { bLife[i] = 0; bPos[i * 3 + 1] = -9999; } droneMesh.count = eyeMesh.count = 0; bulI = -1; bulDrawCount = 0; bulGeo.setDrawRange(0, 0);slugGeo.setDrawRange(0,0);slugLines.visible=false;barrageBodies.count=barrageExhaust.count=0;barrageLive=0;missiles.clear();sfx.stopWeapons();assaultRest=5;if(reset)Object.assign(encounter,WindEncounters.create()); }
 function shoot(p, v, c,kind=0) {
+  if(kind===2&&barrageLive>=BARRAGE_CAP)return;
   const i = bulI = (bulI + 1) % BUL; bGraze[i] = 0;
+  if(bLife[i]>0&&bKind[i]===2)barrageLive--;if(kind===2)barrageLive++;
   bKind[i]=kind;bWhizz[i]=0;
   bGroundT[i] = (i % 8) * 0.018; bulletColoursDirty = true;
   bulDrawCount = Math.max(bulDrawCount, i + 1); bulGeo.setDrawRange(0, bulDrawCount);
@@ -4477,12 +4478,12 @@ function shoot(p, v, c,kind=0) {
   bCol[i * 3] = c[0]; bCol[i * 3 + 1] = c[1]; bCol[i * 3 + 2] = c[2];
 }
 function kineticVolley(f){
-  const hs=Math.hypot(P.vel.x,P.vel.z)||1,fx=P.vel.x/hs,fz=P.vel.z/hs,rx=-fz,rz=fx,relative=210;
+  const hs=Math.hypot(P.vel.x,P.vel.z)||1,fx=hs>1?P.vel.x/hs:fwd.x,fz=hs>1?P.vel.z/hs:fwd.z,rx=-fz,rz=fx,relative=230;
   const muzzle=f.drones?.[Math.floor(f.n/2)]||f.pos;
-  const flight=Math.max(1.1,((muzzle.x-P.pos.x)*fx+(muzzle.z-P.pos.z)*fz)/relative),floor=ground(P.pos.x+P.vel.x*flight,P.pos.z+P.vel.z*flight,P.pos.y+20).h+HOVER+HIT_HEIGHT;
+  const flight=Math.max(.42,((muzzle.x-P.pos.x)*fx+(muzzle.z-P.pos.z)*fz)/relative),floor=ground(P.pos.x+P.vel.x*flight,P.pos.z+P.vel.z*flight,P.pos.y+20).h+HOVER+HIT_HEIGHT;
   const aim=P.pos.clone().addScaledVector(P.vel,flight);aim.y=P.grounded?floor:P.pos.y+HIT_HEIGHT;
   f.pending=f.pending||[];
-  for(let row=0;row<3;row++)for(const offset of [-12,-8,-4,0,4,8,12]){
+  for(let row=0;row<3;row++)for(const offset of [-12,-6,0,6,12]){
     const delay=row*.075,origin=muzzle.clone().addScaledVector(P.vel,delay),target=aim.clone().addScaledVector(tmp2.set(rx,0,rz),offset),v=target.sub(muzzle).multiplyScalar(1/flight);
     if(delay)f.pending.push({p:origin,v,c:[1,.85,.58],kind:1,at:t+delay});else shoot(origin,v,[1,.85,.58],1);
   }
@@ -4534,12 +4535,18 @@ function updateDrones(dt, previous = P.pos) {
   const canFire=shellsOn&&!P.dead&&!P.inTunnel&&encounter.fire;
   droneSpawnT-=dt;assaultRest-=dt;
   if(!P.dead&&droneSpawnT<=0&&forms.filter(f=>f.peace).length<4){spawnFormation('flyby');droneSpawnT=5+Math.random()*5;}
-  if(canFire&&!forms.some(f=>f.mode==='assault'&&f.phase!=='leave')&&assaultRest<=0){spawnFormation('assault');assaultRest=2;}
+  if(encounter.event==='engage'&&!forms.some(f=>f.mode==='assault'&&f.phase!=='leave')&&assaultRest<=0){spawnFormation('assault');assaultRest=2;}
   let nearest = Infinity, k = 0;
   const fx = hs > 1 ? P.vel.x / hs : fwd.x, fz = hs > 1 ? P.vel.z / hs : fwd.z;
   for (let i = forms.length - 1; i >= 0; i--) {
     const f = forms[i];f.t+=dt;f.flash=Math.max(0,(f.flash||0)-dt);
-    if(f.mode==='assault'&&encounter.weapon&&f.weapon!==encounter.weapon){f.weapon=encounter.weapon;f.cue=null;f.pending?.splice(0);f.fireT=.55;}
+    if(f.mode==='assault'){
+      const ahead=(f.pos.x-P.pos.x)*fx+(f.pos.z-P.pos.z)*fz;
+      const weapon=ahead<155?'kinetic':'missile';
+      if(f.weapon!==weapon){f.weapon=weapon;f.cue=null;f.pending?.splice(0);f.fireT=.65;}
+      if(weapon==='missile'&&ahead<380)f.cue=null;
+      if(ahead<35)f.phase='leave';
+    }
     if(!canFire){f.cue=null;if(f.pending?.length)f.pending.length=0;f.seq=0;}
     if(!f.peace&&['scenic','release'].includes(encounter.phase)){f.phase='leave';}
 
@@ -4553,6 +4560,7 @@ function updateDrones(dt, previous = P.pos) {
       if (f.mode === 'chase') f.pos.y += Math.sin(f.t * 3) * dt * 8;
     }
     if (f.mode === 'assault') assaultMove(f, dt, fx, fz, hs);
+    if(f.phase==='leave'){f.cue=null;if(f.pending)f.pending.length=0;f.seq=0;}
     if (f.mode === 'pass' && !f.turned) {
       const dd = Math.hypot(f.pos.x - P.pos.x, f.pos.z - P.pos.z), ty = surfaceAt(f.pos.x, f.pos.z) + 26 + 50 * clamp(dd / 1500, 0, 1);
       f.pos.y += (ty - f.pos.y) * (1 - Math.exp(-0.6 * dt));
@@ -4565,30 +4573,30 @@ function updateDrones(dt, previous = P.pos) {
     f.fireT -= dt;
     if(f.seq>0&&(f.seqT-=dt)<=0&&canFire)volley(f);
     if(f.pending?.length)for(let q=f.pending.length-1;q>=0;q--){const pr=f.pending[q];if(t>=pr.at){pr.p.addScaledVector(pr.v,t-pr.at);if(canFire)shoot(pr.p,pr.v,pr.c,pr.kind||0);f.pending.splice(q,1);}}
-    if(f.mode==='assault'&&f.phase==='hold'&&canFire){
+    if(f.mode==='assault'&&f.phase==='hold'&&canFire&&f.ahead>55&&(f.weapon==='kinetic'||f.ahead>380)){
       if(!f.cue&&f.fireT<=0){
-        f.cue={weapon:f.weapon,remaining:f.weapon==='missile'?.85:f.weapon==='kinetic'?.55:.38,clock:f.t};
+        f.cue={weapon:f.weapon,remaining:f.weapon==='kinetic'?.65:.7,clock:f.t};
         if(f.weapon==='missile'||f.lastCueWeapon!==f.weapon){sfx.weapon('acquire',{gain:.28,pan:weaponPan(f.pos)});f.lastCueWeapon=f.weapon;}
       }
       if(f.cue&&(f.cue.remaining-=dt)<=0){
-        if(f.weapon==='kinetic')kineticVolley(f);else if(f.weapon==='missile')missileVolley(f);else assaultVolley(f);
-        f.cue=null;f.flash=.09;f.fireT=(f.weapon==='missile'?2.8:f.weapon==='kinetic'?1.1:.85)*(P.hull<2?1.35:1);
+        if(f.weapon==='kinetic')kineticVolley(f);else assaultVolley(f);
+        f.cue=null;f.flash=.09;f.fireT=(f.weapon==='kinetic'?1.35:2.6)*(P.hull<2?1.35:1);
       }
     }
     if ((d > 1700 && f.t > 20 && f.mode !== 'assault') || (f.mode === 'assault' && f.phase === 'leave' && d > 650) || f.t > 90 || (!shellsOn && !f.peace)) { forms.splice(i, 1); continue; }
     // drones ease into their slots; the formation faces where it flies
-    _f.copy(f.vel).normalize(); _r.crossVectors(_f, UP).normalize(); _u.crossVectors(_r, _f);
+    _f.copy(f.mode==='assault'?fwd:f.vel).normalize(); _r.crossVectors(_f, UP).normalize(); _u.crossVectors(_r, _f);
     for (let j = 0; j < f.n && k < MAXD; j++, k++) {
       slotOf(f,j,tmp2,f.cue?.clock??f.t); const tx = f.pos.x + _r.x * tmp2.x + _u.x * tmp2.y + _f.x * tmp2.z, ty = f.pos.y + _r.y * tmp2.x + _u.y * tmp2.y + _f.y * tmp2.z, tz = f.pos.z + _r.z * tmp2.x + _u.z * tmp2.y + _f.z * tmp2.z;
       const dp=f.drones[j],kk=1-Math.exp(-(f.cue?18:8)*dt);dp.addScaledVector(f.vel,dt);dp.x += (tx - dp.x) * kk; dp.y += (ty - dp.y) * kk; dp.z += (tz - dp.z) * kk;
       // More dynamic drone animations
       _dm.position.copy(dp); 
       _dm.rotation.set(Math.sin(t * 3 + j * 0.5) * 0.07, Math.atan2(_f.x, _f.z), Math.cos(t * 2.6 + j * 0.3) * 0.07);
-      _dm.scale.setScalar(2.6);
+      _dm.scale.setScalar(f.mode==='assault'?3.8:2.6);
       _dm.updateMatrix();
       droneMesh.setMatrixAt(k, _dm.matrix);
       _dm.position.addScaledVector(_f, 1.2); _dm.position.y -= 1.0; 
-      _dm.scale.setScalar(f.flash>0?5.8:f.cue?3.2+Math.sin(f.t*24)*.5:2.0);
+      _dm.scale.setScalar(f.flash>0?5.8:f.cue?4.2+Math.sin(f.t*24)*.5:f.mode==='assault'?3.0:2.0);
       _dm.updateMatrix(); 
       eyeMesh.setMatrixAt(k, _dm.matrix); 
       // Eye color changes based on formation mode and state
@@ -4608,7 +4616,7 @@ function updateDrones(dt, previous = P.pos) {
 function updateBullets(dt, previous = P.pos) {
   const cx = P.pos.x, cy = P.pos.y + HIT_HEIGHT, cz = P.pos.z, py = previous.y + HIT_HEIGHT;
   const vulnerable = P.invuln <= 0 && !P.dead && !P.inTunnel;
-  let slugCount=0;
+  let slugCount=0,missileCount=0;
   for (let i = 0; i < bulDrawCount; i++) {
     if (bLife[i] <= 0) continue;
     const o = i * 3, ax = bPos[o] - previous.x, ay = bPos[o + 1] - py, az = bPos[o + 2] - previous.z;
@@ -4618,16 +4626,21 @@ function updateBullets(dt, previous = P.pos) {
     const length2 = dx * dx + dy * dy + dz * dz, u = length2 > 1e-9 ? clamp(-(ax * dx + ay * dy + az * dz) / length2, 0, 1) : 0;
     const nx = ax + dx * u, ny = ay + dy * u, nz = az + dz * u, d2 = nx * nx + ny * ny + nz * nz;
     // Sweep both the round and rider, so a fast crossing cannot jump over the smaller hit area.
-    if (bLife[i] > 0 && d2 < HIT_RADIUS * HIT_RADIUS && vulnerable && P.invuln <= 0) { bLife[i] = 0; takeEnemyHit(bKind[i]?'実弾':'幾何学弾幕'); }
+    if (bLife[i] > 0 && d2 < HIT_RADIUS * HIT_RADIUS && vulnerable && P.invuln <= 0) { bLife[i] = 0; takeEnemyHit(bKind[i]===2?'ミサイル':bKind[i]?'実弾':'幾何学弾幕'); }
     else if (bLife[i] > 0 && d2 >= HIT_RADIUS * HIT_RADIUS && d2 < GRAZE_RADIUS * GRAZE_RADIUS && !bGraze[i] && !P.dead && !P.inTunnel) { bGraze[i] = 1; graze(bPos[o], bPos[o + 1], bPos[o + 2]); }
     if(bLife[i]>0&&d2<10*10&&!bWhizz[i]&&!P.dead&&!P.inTunnel){bWhizz[i]=1;sfx.weapon('flyby',{pan:clamp(nz/8,-.8,.8),gain:bKind[i]?.7:.35});}
     // Ground is visual culling, independent of hit testing. Spread expensive terrain queries across frames.
     if (bLife[i] > 0 && (bGroundT[i] -= dt) <= 0) { bGroundT[i] = 0.14; if (bPos[o + 1] < surfaceAt(bPos[o], bPos[o + 2])) bLife[i] = 0; }
     if (bLife[i] <= 0) { bPos[o + 1] = -9999; bGraze[i] = 0; }
-    // Only live kinetic rounds enter the compact tracer draw range.
-    if(bLife[i]>0&&bKind[i]){const k=slugCount++*6,speed=Math.hypot(bVel[o],bVel[o+1],bVel[o+2])||1,length=4.2;
-      for(let j=0;j<3;j++){slugP[k+j]=bPos[o+j];slugP[k+3+j]=bPos[o+j]-bVel[o+j]/speed*length;slugC[k+j]=bCol[o+j];slugC[k+3+j]=bCol[o+j]*.35;}}
+    if(bLife[i]>0&&bKind[i]){
+      const k=slugCount++*6,speed=Math.hypot(bVel[o],bVel[o+1],bVel[o+2])||1,isMissile=bKind[i]===2,length=isMissile?12:4.2;
+      for(let j=0;j<3;j++){slugP[k+j]=bPos[o+j];slugP[k+3+j]=bPos[o+j]-bVel[o+j]/speed*length;slugC[k+j]=isMissile?bCol[o+j]*.6+.18:bCol[o+j];slugC[k+3+j]=isMissile?.22:bCol[o+j]*.35;}
+      if(isMissile){_dm.position.set(bPos[o],bPos[o+1],bPos[o+2]);tmp.set(bVel[o],bVel[o+1],bVel[o+2]).normalize();_dm.quaternion.setFromUnitVectors(UP,tmp);_dm.scale.setScalar(clamp(_dm.position.distanceTo(P.pos)/95,1.15,3.5));_dm.updateMatrix();barrageBodies.setMatrixAt(missileCount,_dm.matrix);
+        _dm.position.addScaledVector(tmp,-1.75*_dm.scale.x);_dm.scale.multiplyScalar(.6);_dm.updateMatrix();barrageExhaust.setMatrixAt(missileCount++,_dm.matrix);}
+    }
   }
+  barrageLive=missileCount;
+  for(const mesh of [barrageBodies,barrageExhaust]){mesh.count=missileCount;mesh.instanceMatrix.needsUpdate=true;}
   slugLines.visible=slugCount>0;slugGeo.setDrawRange(0,slugCount*2);if(slugCount)slugGeo.attributes.position.needsUpdate=slugGeo.attributes.color.needsUpdate=true;
   bulGeo.attributes.position.needsUpdate = true;
   if (bulletColoursDirty) {bulGeo.attributes.projectileKind.needsUpdate=true; bulGeo.attributes.color.needsUpdate = true; bulletColoursDirty = false; }
@@ -4730,11 +4743,11 @@ function killDrone(f, d, chained) {
   const i = f.drones.indexOf(d); if (i < 0) return;
   f.drones.splice(i, 1); f.n = f.drones.length;
   const T = TURRET; T.combo = t - T.lastKill < 0.6 ? Math.min(T.combo + 1, 14) : 0; T.lastKill = t;
-  boomFx(d, f.vel, T.combo >= 6);
-  sfx.kill(T.combo); T.kills++;
+  boomFx(d, f.vel, chained==='bow'||T.combo >= 6);
+  if(chained!=='bow')sfx.kill(T.combo); T.kills++;
   shake = Math.max(shake, 0.12 + Math.min(0.25, T.combo * 0.02)); dashPunch = Math.max(dashPunch, Math.min(0.35, 0.08 + T.combo * 0.02));
   // sympathetic detonation: neighbours caught in the blast go up a beat later
-  for (const o of f.drones) if (o.distanceToSquared(d) < 11 * 11 && Math.random() < 0.5 && !o.doomed) { o.doomed = true; chainQ.push({ f, d: o, at: t + 0.08 + Math.random() * 0.1 }); }
+  for (const o of f.drones) if (chained!=='bow' && o.distanceToSquared(d) < 11 * 11 && Math.random() < 0.5 && !o.doomed) { o.doomed = true; chainQ.push({ f, d: o, at: t + 0.08 + Math.random() * 0.1 }); }
   if (!f.n) { const k = forms.indexOf(f); if (k >= 0) forms.splice(k, 1); }
 }
 function hitDrone(f, d, dir) {
@@ -4851,6 +4864,84 @@ function updateTurret(dt) {
     }
   };
   window.addEventListener('keydown', (e) => { if (e.code === 'KeyT' && !e.repeat) setTurret(!(TURRET.state === 1 || TURRET.state === 2)); });
+}
+
+// ---------------------------------------------------------------- mounted archery: generous sight, independent reins, decisive single hits
+const bow=WindArchery.create(),bowCanvas=$('#bowSight'),bowInk=bowCanvas.getContext('2d'),bowScreen=new V3(),bowHit=new V3();
+const arrowCount=12,arrows=Array.from({length:arrowCount},()=>({p:new V3(),dir:new V3(),life:0,target:null}));
+const arrowP=new Float32Array(arrowCount*24),arrowGeo=new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(arrowP,3));
+const arrowLines=new THREE.LineSegments(arrowGeo,new THREE.LineBasicMaterial({color:0xffe8b5,transparent:true,opacity:.94,fog:false}));arrowLines.frustumCulled=false;scene.add(arrowLines);arrowGeo.setDrawRange(0,0);
+function saddleScreen(){
+  camera.updateMatrixWorld();bowScreen.copy(P.pos);bowScreen.y+=1.8;bowScreen.project(camera);
+  return {x:clamp((bowScreen.x*.5+.5)*innerWidth,innerWidth*.2,innerWidth*.8),y:clamp((.5-bowScreen.y*.5)*innerHeight,innerHeight*.46,innerHeight*.88)};
+}
+function bowTargets(){
+  const targets=[];camera.updateMatrixWorld();
+  for(const f of forms){if(f.peace||f.phase==='leave')continue;
+    for(const d of f.drones){const distance=d.distanceTo(P.pos);bowScreen.copy(d).project(camera);
+      if(distance>WindArchery.range)continue;
+      const eye={x:P.pos.x,y:P.pos.y+2.8,z:P.pos.z};let hidden=WindTravelCamera.boomFraction(eye,d,colliders)<.98;
+      for(const u of [.25,.5,.75])if(!hidden&&surfaceAt(lerp(eye.x,d.x,u),lerp(eye.z,d.z,u))>lerp(eye.y,d.y,u)-.2)hidden=true;
+      targets.push({f,d,distance,ahead:((d.x-P.pos.x)*fwd.x+(d.z-P.pos.z)*fwd.z)/Math.max(1,distance),x:(bowScreen.x*.5+.5)*innerWidth,y:(.5-bowScreen.y*.5)*innerHeight,z:bowScreen.z,hidden,reserved:(d.bowIncoming||0)>0});
+    }
+  }return targets;
+}
+function clearArrows(){
+  for(const a of arrows){if(a.target)a.target.d.bowIncoming=Math.max(0,(a.target.d.bowIncoming||0)-1);a.target=null;a.life=0;}
+  arrowGeo.setDrawRange(0,0);bow.flash=0;bow.recoil=0;
+}
+function releaseBow(){
+  if(vehKey!=='horse'||paused||P.dead)return;
+  const a=arrows.find(a=>a.life<=0);if(!a)return;
+  // Re-evaluate at release, so an already destroyed target never steals another arrow.
+  bow.target=WindArchery.pick(bow,bowTargets());a.target=bow.target;
+  a.p.copy(P.pos);a.p.y+=2.8;a.p.addScaledVector(fwd,.9);a.life=.85;
+  if(a.target){a.target.d.bowIncoming=(a.target.d.bowIncoming||0)+1;a.dir.subVectors(a.target.d,a.p).normalize();}
+  else {bowScreen.set(bow.x/innerWidth*2-1,1-bow.y/innerHeight*2,.5).unproject(camera);a.dir.subVectors(bowScreen,camera.position).normalize();}
+  sfx.weapon('bow',{gain:.95});
+  if(navigator.vibrate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)try{navigator.vibrate(9);}catch(_){}
+}
+function updateArchery(dt){
+  WindArchery.advance(bow,dt);if(vehKey!=='horse'||P.dead){clearArrows();return;}
+  let count=0;
+  for(const a of arrows){if(a.life<=0)continue;a.life-=dt;
+    const target=a.target,alive=target&&target.f.drones.includes(target.d);
+    if(alive){bowScreen.subVectors(target.d,a.p);const distance=bowScreen.length();
+      if(distance<760*dt+2){
+        target.d.bowIncoming=Math.max(0,(target.d.bowIncoming||0)-1);bowHit.copy(target.d);killDrone(target.f,target.d,'bow');
+        bow.hits++;bow.flash=.3;sfx.weapon('bowhit',{gain:1,pan:weaponPan(bowHit)});shake=Math.max(shake,.19);dashPunch=Math.max(dashPunch,.18);P.flow=Math.min(1,P.flow+.035);
+        if(navigator.vibrate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)try{navigator.vibrate([15,12,20]);}catch(_){}
+        a.target=null;a.life=0;continue;
+      }a.dir.copy(bowScreen).multiplyScalar(1/distance);
+    }
+    a.p.addScaledVector(a.dir,760*dt);
+    if(a.life<=0){if(a.target)a.target.d.bowIncoming=Math.max(0,(a.target.d.bowIncoming||0)-1);a.target=null;continue;}
+    // Shaft, bright tip and two feather strokes: one fixed buffer for all arrows.
+    const k=count++*24,sideX=a.dir.z*.3,sideZ=-a.dir.x*.3;
+    const tail=a.p.clone().addScaledVector(a.dir,-4.5);
+    arrowP.set([a.p.x,a.p.y,a.p.z,tail.x,tail.y,tail.z,
+      a.p.x,a.p.y,a.p.z,a.p.x-a.dir.x*.8+sideX,a.p.y-a.dir.y*.8,a.p.z-a.dir.z*.8+sideZ,
+      tail.x,tail.y,tail.z,tail.x+a.dir.x*.8+sideX,tail.y+a.dir.y*.8,tail.z+a.dir.z*.8+sideZ,
+      tail.x,tail.y,tail.z,tail.x+a.dir.x*.8-sideX,tail.y+a.dir.y*.8,tail.z+a.dir.z*.8-sideZ],k);
+  }arrowGeo.setDrawRange(0,count*8);if(count)arrowGeo.attributes.position.needsUpdate=true;
+}
+function drawBowSight(dt){
+  const w=innerWidth,h=innerHeight;
+  if(bowCanvas.width!==w||bowCanvas.height!==h){bowCanvas.width=w;bowCanvas.height=h;}
+  const g=bowInk;g.clearRect(0,0,w,h);
+  if(!started||paused||P.dead||vehKey!=='horse')return;
+  if(bow.id!==null){
+    bow.target=WindArchery.pick(bow,bowTargets());const r=bow.radius;
+    g.strokeStyle='rgba(255,255,255,.23)';g.lineWidth=15;g.beginPath();g.arc(bow.x,bow.y,r,0,TAU);g.stroke();
+    g.strokeStyle='rgba(255,255,255,.85)';g.lineWidth=1.5;g.beginPath();g.arc(bow.x,bow.y,r-8,0,TAU);g.stroke();
+    g.strokeStyle='rgba(255,255,255,.6)';g.lineWidth=2;g.beginPath();g.moveTo(bow.x-r*.65,bow.y);g.lineTo(bow.x+bow.dx,bow.y+bow.dy);g.lineTo(bow.x+r*.65,bow.y);g.stroke();
+    g.lineWidth=4;g.strokeStyle=`rgba(255,255,255,${.25+bow.pull*.7})`;g.beginPath();g.arc(bow.x,bow.y,r+10,-Math.PI/2,-Math.PI/2+TAU*bow.pull);g.stroke();
+    if(bow.target){const q=bow.target;g.strokeStyle='rgba(255,250,225,.95)';g.lineWidth=2.5;g.beginPath();g.arc(q.x,q.y,18,0,TAU);g.stroke();
+      for(let i=0;i<4;i++){const a=i*TAU/4;g.beginPath();g.moveTo(q.x+Math.cos(a)*23,q.y+Math.sin(a)*23);g.lineTo(q.x+Math.cos(a)*30,q.y+Math.sin(a)*30);g.stroke();}}
+  }
+  if(bow.flash>0){bowScreen.copy(bowHit).project(camera);const x=(bowScreen.x*.5+.5)*w,y=(.5-bowScreen.y*.5)*h,u=1-bow.flash/.3;
+    g.globalAlpha=1-u;g.strokeStyle='#fff8e7';g.lineWidth=3;for(let i=0;i<4;i++){const a=(i+.5)*TAU/4;g.beginPath();g.moveTo(x+Math.cos(a)*(10+u*10),y+Math.sin(a)*(10+u*10));g.lineTo(x+Math.cos(a)*(25+u*20),y+Math.sin(a)*(25+u*20));g.stroke();}g.globalAlpha=1;
+  }
 }
 
 // ---------------------------------------------------------------- camera & visuals
@@ -5018,6 +5109,18 @@ function updateVisuals(dt) {
     MD.rider.position.y=pose.riderY+MD.rig.saddleY*(1-Math.cos(pose.riderPitch));MD.rider.position.z=-MD.rig.saddleY*Math.sin(pose.riderPitch);
     MD.neck.rotation.set(pose.neck,action.neckYaw,action.neckRoll);MD.tail.rotation.set(pose.tailX,action.load*.13,pose.tailZ);
     MD.body.rotation.y=-action.load*.035;
+    const drawing=bow.id!==null?1:bow.recoil*.65;
+    MD.bowBlend+=(drawing-MD.bowBlend)*(1-Math.exp(-16*dt));const k=MD.bowBlend,pull=bow.pull;
+    const setLimb=(mesh,a,b)=>{tmp.subVectors(b,a);mesh.position.copy(a).add(b).multiplyScalar(.5);mesh.scale.y=tmp.length()/mesh.geometry.parameters.height;mesh.quaternion.setFromUnitVectors(UP,tmp.normalize());};
+    for(const arm of MD.bowArms){const side=arm.side;
+      const a=new V3(side*.21,2.85,-.05),elbow=new V3(side*.31,2.53,.35),hand=new V3(side*.18,2.47,.65);
+      elbow.lerp(new V3(side<0?-.34:.55,2.88,side<0?.65:.32-pull*.25),k);
+      hand.lerp(new V3(side<0?-.32:.16,side<0?3.02:3.04,side<0?1.02:.85-pull*.74),k);
+      setLimb(arm.upper,a,elbow);setLimb(arm.lower,elbow,hand);arm.hand.position.copy(hand);
+      MD.reins[side<0?0:1].hand.copy(hand);
+    }
+    MD.ridingBow.visible=k>.02;MD.ridingBow.position.copy(MD.bowArms[0].hand.position);MD.ridingBow.rotation.y=-.14;
+    const string=MD.bowStringGeo.attributes.position;string.setXYZ(0,0,-.65,.14);string.setXYZ(1,.18*pull,0,-.62*pull);string.setXYZ(2,0,.65,.14);string.needsUpdate=true;
     MD.rider.updateMatrix();MD.neck.updateMatrix();
     sfx.horseRhythm(gait,{active:started&&!paused&&!P.dead,grounded:P.grounded,speed,
       surface:P.onWater?'water':WindJourneyClimate.mountain(P.pos.x,P.pos.z,P.pos.y).snow>.45?'snow':P.onRoad?(String(P.routeTrack).startsWith('rail')?'gravel':'road'):musicRegion()==='mountain'?'snow':'earth',load:Math.abs(action.load)});
@@ -5276,7 +5379,7 @@ const sfx = (() => {
     update(speed, grinding, stream, kind) {
       const bike = kind !== 'board' && kind !== 'horse', low = kind === 'sidecar' ? 0.72 : 1;
       if (!ctx) return; const now = ctx.currentTime;
-      windGain.gain.setTargetAtTime((0.035 + clamp(speed / 80, 0, 1) * 0.25 + (stream ? 0.045 : 0))*(kind==='horse'?.72:1), now, 0.15);
+      windGain.gain.setTargetAtTime((0.035 + clamp(speed / (kind==='horse'?38:80), 0, 1) * 0.25 + (stream ? 0.045 : 0))*(kind==='horse'?.72:1), now, 0.15);
       bp.frequency.setTargetAtTime(180 + speed * 11, now, 0.15);
       grindGain.gain.setTargetAtTime(grinding ? 0.045 : 0, now, 0.05);
       eng.a.frequency.setTargetAtTime((30 + speed * 0.75) * low, now, 0.1); eng.b.frequency.setTargetAtTime((15 + speed * 0.38) * low, now, 0.1);
@@ -5457,6 +5560,7 @@ function pickWorld(k) {
 }
 function setVehicle(k) {
   if (!VEHICLES[k]) return;
+  resetRidingInput();clearArrows();
   P.horse=WindHorseRiding.create();sfx.stopHooves();P.sway=0;P.hopping=false;P.jumpBuf=0;
   horseWake.clear();
   WindTravelCamera.reset(travelCam);
@@ -5481,12 +5585,12 @@ function setVehicle(k) {
 }
 
 let last = performance.now();
-function openSheet(sel) { $(sel).hidden = false; paused = true;sfx.stopHooves();sfx.stopWeapons(); }
+function openSheet(sel) { resetRidingInput();$(sel).hidden = false; paused = true;sfx.stopHooves();sfx.stopWeapons(); }
 function closeSheet(sel) { $(sel).hidden = true;if(sel==='#tuneSheet')$('#tuneSheet').classList.remove('previewing'); paused = false; last = performance.now();if(started){renderer.domElement.tabIndex=0;renderer.domElement.focus({preventScroll:true});} }
 
 const TUNE = [
-  ['maxSpeed', '最高速度', 50, 180, 1, (v) => Math.round(v * 3.6) + 'km/h'],
-  ['cruise', '巡航速度', 20, 100, 1, (v) => Math.round(v * 3.6) + 'km/h'],
+  ['maxSpeed', '最高速度', 20, 180, 1, (v) => Math.round(v * 3.6) + 'km/h'],
+  ['cruise', '巡航速度', 10, 100, 1, (v) => Math.round(v * 3.6) + 'km/h'],
   ['minSpeed', '止まれなさ（最低速度）', 0, 60, 1, (v) => Math.round(v * 3.6) + 'km/h'],
   ['inertia', '慣性の強さ', 0.5, 2.5, 0.05, (v) => v.toFixed(2)],
   ['tailwind', '追い風の強さ', 0, 15, 0.5, (v) => v],
@@ -5600,7 +5704,7 @@ function begin(randomStart) {
   else placeHome(S.cruise * 0.45);
   last = performance.now();
   const hint = $('#hint'); hint.hidden = false;
-  hint.innerHTML = vehKey==='horse'?(isTouch?'ドラッグで左右へ　上で前傾・下でブレーキ<br>強い切り返しで、低く跳んで脚を踏み替える':'A・D 左右へ　W 前傾　S ブレーキ　Space 跳躍<br>強い切り返しで、低く跳んで脚を踏み替える'):
+  hint.innerHTML = vehKey==='horse'?(isTouch?'馬より下で左右移動<br>馬より上を触り、馬へ引いて離すと弓。一発で射抜く':'A・D 左右へ　W 前傾　S ブレーキ　Space 跳躍<br>馬より上をクリックし、馬へ引いて離すと弓'):
     (isTouch ? 'ドラッグで操作　上で前傾・下でブレーキ・下＋左右でドリフト' : 'A・D 曲がる　W 前傾　S ブレーキ　S＋A・D ドリフト　R 立て直す') + '<br>段差は最高速で滑空、越えられる障害物は自動で跳ぶ';
   renderer.domElement.tabIndex=0;renderer.domElement.focus({preventScroll:true});
   setTimeout(() => { hint.style.opacity = 0; }, 7000);
@@ -5618,23 +5722,32 @@ const stickBase = $('#stickBase'), stickKnob = $('#stickKnob'), flashEl = $('#fl
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setInterval(() => { el.style.transform = `translate(${(Math.random() * 20 | 0) - 10}px, ${(Math.random() * 20 | 0) - 10}px)`; }, 90);
 })();
 let stickId = null, sx0 = 0, sy0 = 0;
-renderer.domElement.addEventListener('pointerdown', (e) => {
-  if (!started || paused) return;
-  if (stickId === null) {
-    stickId = e.pointerId; sx0 = e.clientX; sy0 = e.clientY;
-    stickBase.style.left = sx0 + 'px'; stickBase.style.top = sy0 + 'px'; stickBase.classList.add('on');
-    stickKnob.style.transform = 'translate(0,0)';
+function resetRidingInput(){
+  WindArchery.cancel(bow);inp.jx=inp.jy=inp.kx=inp.ky=0;inp.keys={};inp.jumpHeld=inp.jumpPressed=false;
+  stickId=null;stickBase.classList.remove('on');bowInk.clearRect(0,0,bowCanvas.width,bowCanvas.height);
+}
+renderer.domElement.addEventListener('pointerdown',e=>{
+  if(!started||paused||P.dead||e.button>0)return;e.preventDefault();sfx.resume();
+  try{renderer.domElement.setPointerCapture(e.pointerId);}catch(_){}
+  if(vehKey==='horse'&&e.clientY<saddleScreen().y){
+    if(WindArchery.begin(bow,e.pointerId,e.clientX,e.clientY,saddleScreen(),innerWidth,innerHeight))sfx.weapon('bowdraw',{gain:.45});return;
   }
+  if(stickId===null){stickId=e.pointerId;sx0=e.clientX;sy0=e.clientY;stickBase.style.left=sx0+'px';stickBase.style.top=sy0+'px';stickBase.classList.add('on');stickKnob.style.transform='translate(0,0)';}
 });
-window.addEventListener('pointermove', (e) => {
-  if (e.pointerId !== stickId) return;
-  let dx = e.clientX - sx0, dy = e.clientY - sy0; const R = 56, l = Math.hypot(dx, dy);
-  if (l > R) { dx *= R / l; dy *= R / l; }
-  inp.jx = dx / R; inp.jy = -dy / R;
-  stickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+window.addEventListener('pointermove',e=>{
+  if(paused||P.dead)return;
+  if(bow.id===e.pointerId){WindArchery.move(bow,e.pointerId,e.clientX,e.clientY,saddleScreen());return;}
+  if(e.pointerId!==stickId)return;
+  let dx=e.clientX-sx0,dy=e.clientY-sy0;const R=56,l=Math.hypot(dx,dy);if(l>R){dx*=R/l;dy*=R/l;}
+  inp.jx=dx/R;inp.jy=-dy/R;stickKnob.style.transform=`translate(${dx}px, ${dy}px)`;
 });
-const endStick = (e) => { if (e.pointerId !== stickId) return; stickId = null; inp.jx = 0; inp.jy = 0; stickBase.classList.remove('on'); };
-window.addEventListener('pointerup', endStick); window.addEventListener('pointercancel', endStick);
+function endRidingPointer(e){
+  if(bow.id===e.pointerId){if(WindArchery.end(bow,e.pointerId,e.type!=='pointerup'||paused||P.dead))releaseBow();bow.target=null;}
+  if(e.pointerId===stickId){stickId=null;inp.jx=inp.jy=0;stickBase.classList.remove('on');}
+}
+for(const event of ['pointerup','pointercancel','lostpointercapture'])window.addEventListener(event,endRidingPointer);
+renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
+
 function holdButton(el, down, up) {
   const ids = new Set();
   el.addEventListener('pointerdown', (e) => { e.preventDefault(); ids.add(e.pointerId); el.classList.add('down'); try { el.setPointerCapture(e.pointerId); } catch (_) {} down(); });
@@ -5660,9 +5773,9 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Enter' && !started) $('#btnGo').click();
 });
 window.addEventListener('keyup', (e) => { inp.keys[e.code] = false; keyAxis(); if (e.code === 'Space') inp.jumpHeld = false; });
-window.addEventListener('blur', () => { sfx.stopHooves();sfx.stopWeapons();inp.keys = {}; keyAxis(); inp.jumpHeld = false; store.set('windlover.dist4', P.dist); });
-document.addEventListener('visibilitychange',()=>{if(document.hidden){sfx.stopHooves();sfx.stopWeapons();}});
-window.addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); applyLens();if(!$('#tuneSheet').hidden)buildTune(); });
+window.addEventListener('blur', () => { resetRidingInput();sfx.stopHooves();sfx.stopWeapons();inp.keys = {}; keyAxis(); inp.jumpHeld = false; store.set('windlover.dist4', P.dist); });
+document.addEventListener('visibilitychange',()=>{if(document.hidden){resetRidingInput();sfx.stopHooves();sfx.stopWeapons();}});
+window.addEventListener('resize', () => { resetRidingInput();renderer.setSize(innerWidth, innerHeight); applyLens();if(!$('#tuneSheet').hidden)buildTune(); });
 
 // ---------------------------------------------------------------- loop
 function frame(now) {
@@ -5676,11 +5789,12 @@ function frame(now) {
     WindJourneyClimate.advance(lakeJourney,dt,tourAt(P.pos.x,P.pos.z),P.vel.x,Math.hypot(P.vel.x,P.vel.z));
     updateWind(); updateChunks(false); updatePalette(dt, false);
     sfx.update(P.vel.length(), !!P.grind, P.inStream, P.stalled ? 'board' : vehKey); sfx.carve(P.grounded&&vehKey!=='horse' ? P.carve : 0, P.onWater);
-    updateHud(); updateEngine(dt); updateEncounters(dt); updateThreat(dt); updateDrones(dt, playerPrevious); updateTurret(dt);
+    updateHud(); updateEngine(dt); updateEncounters(dt); updateThreat(dt); updateDrones(dt, playerPrevious); updateArchery(dt); updateTurret(dt);
   }
   if (window.__turretHold) window.__turretHold(paused ? 0 : dt);
   updateSparks(paused ? 0 : dt); updateVisuals(paused ? 0 : dt); updateCompass(paused ? 0 : dt);
   if (goalVeil) goalVeil.material.opacity = 0.08 + 0.05 * Math.sin(t * 0.7) + 0.03 * Math.sin(t * 2.3);
+  drawBowSight(paused?0:dt);
   if (window.__wlCam) window.__wlCam(camera, player); // inspection hook for close-ups
   renderer.render(scene, camera);
   drawTunePreview(now);
@@ -5688,7 +5802,7 @@ function frame(now) {
 setVehicle(vehKey); applyLens();
 placeHome(0); buildHome(); buildFeaturedVista(); updatePalette(0, true); refreshCards();
 requestAnimationFrame(frame);
-window.__wl = { climate:WindJourneyClimate,get lakeJourney(){return lakeJourney;},flowEffects,riding: WindHorseRiding, musicRegion, setVehicle, get vehicle(){return vehKey;}, tours: TOURS, tourAt, travelFeatured, get featured() { return featured; }, performance: { streaming: streamStats, quality }, combat: { encounter,missiles,hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, patternNames: PATTERN_NAMES, relativeSpeed: AS_REL, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
+window.__wl = { climate:WindJourneyClimate,get lakeJourney(){return lakeJourney;},flowEffects,riding: WindHorseRiding, musicRegion, setVehicle, get vehicle(){return vehKey;}, tours: TOURS, tourAt, travelFeatured, get featured() { return featured; }, performance: { streaming: streamStats, quality }, archery:bow, combat: { encounter,missiles,hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, patternNames: PATTERN_NAMES, relativeSpeed: AS_REL, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
 // A lazy connection lets the menu's independent BGM bus reuse the game's audio clock.
 window.__wlAudio = { getContext() { sfx.init(); return sfx.context; }, getDestination() { sfx.init(); return sfx.output; }, get soundOn() { return sfx.on; } };
 })();

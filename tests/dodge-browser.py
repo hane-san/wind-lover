@@ -72,7 +72,7 @@ try:
             reset();const x=17000;P.pos.set(x,w.railY(x)+1,w.railZ(x));
             const f={pos:P.pos.clone().add(new THREE.Vector3(230,26,0)),pat,pending:[]};q.assaultVolley(f);
             const rounds=q.rounds.map(b=>({p:b.p,v:b.v,delay:0})).concat(f.pending.map(b=>({p:b.p.toArray(),v:b.v.toArray(),delay:b.at-q.time})));
-            check(rounds.length >= [44,41,40,40,36,80,120,100,140][pat],'Insufficient density in pattern '+pat);
+            check(rounds.length >= [16,19,24,20,28,32,20,28,32][pat],'Insufficient density in pattern '+pat);
             const targets=rounds.map(b=>{const flight=230/(60-b.v[0]);return {z:b.p[2]+b.v[2]*flight-P.pos.z,y:b.p[1]+b.v[1]*flight-P.pos.y-.45};}).filter(p=>Math.abs(p.y)<w.combat.hitRadius+.35).map(p=>p.z);
             const safe=[];let run=0,longest=0;for(let z=-12;z<=12;z+=.2){if(targets.every(a=>Math.abs(a-z)>w.combat.hitRadius+.3)){safe.push(z);run++;longest=Math.max(longest,run);}else run=0;}
             if(pat===0||pat===5||pat>=6)check(longest*.2>5,'A curtain closed every route through the road');

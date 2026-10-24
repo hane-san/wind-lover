@@ -67,7 +67,7 @@ try:
      for(const id of ['mountain','lake']) {
        w.travelFeatured(id);q.paused=true;w.P.invuln=0;const path=w.tours.paths.find(p=>p.id===id);let previous=w.tourAt(w.P.pos.x,w.P.pos.z).s,travelled=0,maxOff=0;
        const target=id==='lake'?path.length+80:path.length-previous-120;
-       const trace=[];let steps=0;for(;steps<90000&&travelled<target;steps++) {
+       const trace=[];let steps=0;for(;steps<(w.vehicle==='horse'?180000:90000)&&travelled<target;steps++) {
          w.stepPhysics(1/120);if(steps%16===0) {
            w.loadStep();const r=w.tourAt(w.P.pos.x,w.P.pos.z);if(!r||r.d>r.half+6)throw Error('Left scenic road '+id+' '+JSON.stringify({p:w.P.pos.toArray(),travelled,trace}));
            trace.push({x:w.P.pos.x,y:w.P.pos.y,z:w.P.pos.z,off:r.d,expected:r.y,grounded:w.P.grounded,air:w.P.air,speed:w.P.vel.length(),yaw:w.P.yaw});if(trace.length>12)trace.shift();let delta=r.s-previous;if(path.closed&&delta<-path.length*.5)delta+=path.length;if(delta>0&&delta<200)travelled+=delta;previous=r.s;maxOff=Math.max(maxOff,r.d);

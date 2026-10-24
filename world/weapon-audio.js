@@ -1,6 +1,6 @@
 /* Short cached weapon transients: sharp attacks, smooth edges and bounded audio-clock voices. */
 (() => {
-  const lengths={geometry:.18,kinetic:.13,launch:.55,flyby:.16,impact:.32,acquire:.24};
+  const lengths={geometry:.18,kinetic:.13,launch:.55,flyby:.16,impact:.32,acquire:.24,bowdraw:.24,bow:.22,bowhit:.38};
   function create(context,destination){
     const cache=new Map(),voices=new Set();let serial=0,lastFly=-10;
     function buffer(kind,variant){
@@ -11,7 +11,10 @@
         seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;const n=(seed>>>0)/2147483648-1,t=i/context.sampleRate;
         lo+=.12*(n-lo);const hi=n-lo,attack=Math.min(1,t/.0018),release=Math.min(1,(length-t)/.009);
         let v=0;
-        if(kind==='kinetic')v=hi*.54*Math.exp(-t*75)+lo*.80*Math.exp(-t*32)+Math.sin(t*650)*.20*Math.exp(-t*48);
+        if(kind==='bowdraw')v=lo*.3*Math.sin(Math.PI*t/length)**2+Math.sin(t*(1750+t*3000))*.12*Math.exp(-t*8);
+        else if(kind==='bow')v=hi*.6*Math.exp(-t*45)+Math.sin(t*(1180-t*1500))*.36*Math.exp(-t*24)+lo*.35*Math.exp(-t*20);
+        else if(kind==='bowhit')v=lo*1.3*Math.exp(-t*15)+hi*.55*Math.exp(-t*48)+Math.sin(t*460)*.38*Math.exp(-t*22);
+        else if(kind==='kinetic')v=hi*.54*Math.exp(-t*75)+lo*.80*Math.exp(-t*32)+Math.sin(t*650)*.20*Math.exp(-t*48);
         else if(kind==='geometry')v=hi*.40*Math.exp(-t*49)+Math.sin(t*1740)*.19*Math.exp(-t*36)+lo*.65*Math.exp(-t*28);
         else if(kind==='launch')v=lo*1.1*Math.exp(-t*7)+hi*.23*Math.exp(-t*18);
         else if(kind==='impact')v=lo*1.15*Math.exp(-t*16)+hi*.37*Math.exp(-t*42)+Math.sin(t*380)*.22*Math.exp(-t*23);

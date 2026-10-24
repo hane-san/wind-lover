@@ -16,6 +16,8 @@ The later four departure icons, faster horse, contact dust/snow, altitude season
 
 The later enemy behaviour and firing rhythm are specified in [DEFENCE-RHYTHM.md](DEFENCE-RHYTHM.md). This supersedes continuous attack pressure: scenic rests alternate with telegraphed engagements, using geometric batteries, kinetic bursts and briefly guided missiles. Horse handling, landscape and the current camera controls remain the reference.
 
+The latest mounted-bow game loop, lower horse pace and default panorama are specified in [BOW-RIDING.md](BOW-RIDING.md). This supersedes the older speed/weapon rotation and default composition values below; custom settings, the connected world and quiet soundtrack remain.
+
 ## Core rules
 
 Per-vehicle FOV, height, pitch, sky/ground framing and distance can be explored in a paused camera preview or a full-screen comparison. The owner's high-follow view and two wider presets provide starting points. Defaults retain the existing composition, and wall/tunnel protection still takes precedence. See [CAMERA-TUNING.md](CAMERA-TUNING.md) for ranges, saving and checks.

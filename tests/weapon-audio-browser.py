@@ -10,11 +10,11 @@ try:
  with sync_playwright() as p:
   b=p.chromium.launch(executable_path=args.browser,headless=True,args=['--no-sandbox']);page=b.new_page();page.goto(f'http://127.0.0.1:{server.server_port}/world/')
   result=page.evaluate('''async()=>{await import('./weapon-audio.js');const reports=[];
-   for(const kind of ['geometry','kinetic','launch','flyby','impact','acquire']){
+   for(const kind of ['geometry','kinetic','launch','flyby','impact','acquire','bowdraw','bow','bowhit']){
     const context=new OfflineAudioContext(1,48000,48000),s=WindWeaponAudio.create(context,context.destination);s.play(kind,{at:.05});const buffer=await context.startRendering(),d=buffer.getChannelData(0);
     let peak=0,energy=0,tail=0,step=0;for(let i=1;i<d.length;i++){peak=Math.max(peak,Math.abs(d[i]));energy+=d[i]*d[i];step=Math.max(step,Math.abs(d[i]-d[i-1]));if(i>.8*48000)tail=Math.max(tail,Math.abs(d[i]));}
     if(peak<.02||peak>.85||tail>1e-6||Math.abs(d[2400])>1e-6||s.voices)throw Error('Broken weapon envelope '+JSON.stringify({kind,peak,tail,voices:s.voices}));reports.push({kind,peak,rms:Math.sqrt(energy/d.length),maximumSampleStep:step});
    }
-   const context=new OfflineAudioContext(1,48000,48000),s=WindWeaponAudio.create(context,context.destination);s.warm();if(s.cached!==18)throw Error('Weapon cache did not warm');for(let i=0;i<80;i++)s.play('kinetic',{at:.10+i*.01});if(s.voices>24)throw Error('Unbounded weapon voices');s.stop();const d=(await context.startRendering()).getChannelData(0);if(d.some(v=>Math.abs(v)>1e-6)||s.voices)throw Error('Cancelled shots fired after stop');
-   return {sounds:reports,voiceCap:24,cached:18,cancelledScheduledShots:true};}''');print(json.dumps(result),flush=True);b.close()
+   const context=new OfflineAudioContext(1,48000,48000),s=WindWeaponAudio.create(context,context.destination);s.warm();if(s.cached!==27)throw Error('Weapon cache did not warm');for(let i=0;i<80;i++)s.play('kinetic',{at:.10+i*.01});if(s.voices>24)throw Error('Unbounded weapon voices');s.stop();const d=(await context.startRendering()).getChannelData(0);if(d.some(v=>Math.abs(v)>1e-6)||s.voices)throw Error('Cancelled shots fired after stop');
+   return {sounds:reports,voiceCap:24,cached:27,cancelledScheduledShots:true};}''');print(json.dumps(result),flush=True);b.close()
 finally:server.shutdown();server.server_close()

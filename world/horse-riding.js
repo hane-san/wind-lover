@@ -15,7 +15,7 @@
     const sign=Math.abs(steer)>.52?Math.sign(steer):0;
     // A real held bend followed by the opposite rein; stick noise cannot produce jumps.
     if(active&&sign&&sign!==s.sign){
-      if(s.sign&&s.held>.18&&grounded&&onRoad&&speed>24&&canHop)request(s,'bound');
+      if(s.sign&&s.held>.18&&grounded&&onRoad&&speed>18&&canHop)request(s,'bound');
       s.sign=sign;s.held=0;
     }
     if(sign&&active)s.held+=dt;else{s.held=Math.max(0,s.held-dt*3);if(s.held===0)s.sign=0;}
@@ -23,7 +23,7 @@
       if(!grounded||!active||!canHop){s.pending=0;s.kind=null;}
       else{s.pending=Math.max(0,s.pending-dt);if(!s.pending){s.launch=s.kind;s.lead=s.sign||-s.lead;s.flight=0;}}
     }
-    const target=active&&(grounded||s.kind)?steer*8.6*clamp((speed-6)/32,0,1):0;
+    const target=active&&(grounded||s.kind)?steer*8.6*clamp((speed-6)/14,0,1):0;
     const reversing=target*s.lateral<0;
     s.lateral=follow(s.lateral,target,reversing?15:Math.abs(target)>Math.abs(s.lateral)?10:12,dt);
     s.load=follow(s.load,active?clamp(steer*.72-yawRate*speed/140,-1,1):0,8,dt);

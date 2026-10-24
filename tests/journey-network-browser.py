@@ -37,7 +37,7 @@ try:
     w.P.pos.set(start.x,start.y+1,start.z);w.rebuildAll();w.placeAt(start.x,start.z,Math.atan2(start.tx*direction,start.tz*direction),64);
     w.P.hull=3;w.P.invuln=0;w.P.dead=false;w.P.stalled=false;w.inp.jx=w.inp.kx=w.inp.jy=w.inp.ky=0;w.P.flow=.25;
     const visited=new Set(),trace=[];let distance=0,maxOff=0,done=false;
-    for(let i=0;i<65000;i++){
+    for(let i=0;i<180000;i++){
       const before=w.P.pos.clone();w.stepPhysics(1/120);distance+=w.P.pos.distanceTo(before);
       if(i%16===0){w.loadStep();const r=w.rideRoute(w.P.pos.x,w.P.pos.z,w.P.pos.y);if(r.path)visited.add(r.path.id);
         maxOff=Math.max(maxOff,r.d);trace.push({x:w.P.pos.x,z:w.P.pos.z,y:w.P.pos.y,route:r.path?.id,off:r.d,speed:w.P.vel.length(),hull:w.P.hull});if(trace.length>8)trace.shift();

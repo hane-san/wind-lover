@@ -12,8 +12,8 @@ try:
   browser=p.chromium.launch(executable_path=args.browser,headless=True,args=['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-webgl','--ignore-gpu-blocklist']);page=browser.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);errors=[]
   page.on('pageerror',lambda e:errors.append(str(e)));page.on('console',lambda m:errors.append(m.text) if m.type=='error' and 'Shader' in m.text else None)
   page.route('**/three.min.js*',lambda r:r.fulfill(path=str(args.three),content_type='application/javascript'));page.route('https://fonts.googleapis.com/**',lambda r:r.abort())
-  # An old save has no new camera keys; preserve its custom riding settings.
-  page.add_init_script("if(!localStorage.getItem('camera-test-seeded')){localStorage.setItem('windlover.settings.v11',JSON.stringify({horse:{cruise:51,turn:1.3},sidecar:{camDist:12}}));localStorage.setItem('windlover.vehicle4',JSON.stringify('horse'));localStorage.setItem('windlover.shells','false');localStorage.setItem('windlover.journey-music.v1.enabled','false');localStorage.setItem('camera-test-seeded','true');}")
+  # Preserve explicit camera/handling adjustments and an older partial camera save.
+  page.add_init_script("if(!localStorage.getItem('camera-test-seeded')){localStorage.setItem('windlover.settings.v11',JSON.stringify({horse:{cruise:51,turn:1.3,camFov:2,camHeight:5,camTilt:1,camDist:16,camFrame:0},sidecar:{camDist:12}}));localStorage.setItem('windlover.vehicle4',JSON.stringify('horse'));localStorage.setItem('windlover.shells','false');localStorage.setItem('windlover.journey-music.v1.enabled','false');localStorage.setItem('camera-test-seeded','true');}")
   def probe(r):
    src=(root/'prototype/index.html').read_text().replace('window.__wl = {','window.__tuneQA={camera,models,travelCam,updateVisuals,get paused(){return paused},get clock(){return t}};\nwindow.__wl = {');r.fulfill(body=src,content_type='text/html')
   page.route('**/prototype/',probe)
@@ -22,11 +22,11 @@ try:
   def slider(key,value):page.locator('#tune-'+key).evaluate('(el,v)=>{el.value=v;el.dispatchEvent(new Event("input",{bubbles:true}));}',str(value))
   def settle():page.evaluate('()=>{for(let i=0;i<100;i++)__tuneQA.updateVisuals(0);}');page.wait_for_timeout(150)
   def sample():return page.evaluate('''()=>{const q=__tuneQA,dir=q.camera.getWorldDirection(new THREE.Vector3());return {fov:q.camera.fov,height:q.camera.position.y-__wl.P.pos.y,pitch:Math.asin(-dir.y)*180/Math.PI,position:__wl.P.pos.toArray(),clock:q.clock,phase:q.models.horse.motion.phase,light:JSON.stringify(__wl.lakeJourney)};}''')
-  boot();settle();initial=sample();settings=page.evaluate('__wl.S');assert settings['camFrame']==0 and settings['camFov']==0 and settings['camHeight']==4.8 and settings['camTilt']==0 and settings['cruise']==51 and settings['turn']==1.3,settings
-  assert page.locator('#tune-camFov').input_value()=='66'
+  boot();settle();initial=sample();settings=page.evaluate('__wl.S');assert settings['camFrame']==0 and settings['camFov']==2 and settings['camHeight']==5 and settings['camTilt']==1 and settings['cruise']==51 and settings['turn']==1.3,settings
+  assert page.locator('#tune-camFov').input_value()=='68'
   preview_before=page.locator('#tunePreview').evaluate('(c)=>c.toDataURL()')
   slider('camFov',84);slider('camHeight',9.6);slider('camTilt',6);slider('camDist',17);settle();changed=sample()
-  assert abs(changed['fov']-initial['fov']-18)<.12,(initial,changed)
+  assert abs(changed['fov']-initial['fov']-16)<.12,(initial,changed)
   assert changed['height']>initial['height']+3,(initial,changed)
   assert changed['pitch']>initial['pitch']+5,(initial,changed)
   for key in ['position','clock','phase','light']:assert changed[key]==initial[key],(key,initial[key],changed[key])
@@ -38,12 +38,12 @@ try:
   page.evaluate('__wl.setVehicle("sidecar")');assert page.evaluate('__wl.S.camFov===0 && __wl.S.camHeight===4.8 && __wl.S.camDist===12')
   page.evaluate('__wl.setVehicle("horse")');assert page.evaluate('__wl.S.camFov===18 && __wl.S.camHeight===9.6')
   page.locator('#featuredTrips [data-journey-route="lake"]').click(timeout=120000);page.locator('#btnMenu').click();page.locator('#menuTune').click();settle()
-  page.set_viewport_size({'width':844,'height':390});page.wait_for_timeout(250);settle();assert page.locator('#tune-camFov').input_value()=='70';assert abs(sample()['fov']-(70+page.evaluate('__wl.P.vel.length()/__wl.S.maxSpeed*3.2*__wl.S.fovKick')))<.2
+  page.set_viewport_size({'width':844,'height':390});page.wait_for_function("document.querySelector('#tune-camFov').value==='70'");settle();assert page.locator('#tune-camFov').input_value()=='70';assert abs(sample()['fov']-(70+page.evaluate('Math.min(1,__wl.P.vel.length()/__wl.S.maxSpeed)*3.2*__wl.S.fovKick')))<.2
   page.screenshot(path=str(args.out/'landscape-tuning.png'))
-  page.set_viewport_size({'width':320,'height':568});page.wait_for_timeout(250);settle();assert page.locator('#tune-camFov').input_value()=='84'
+  page.set_viewport_size({'width':320,'height':568});page.wait_for_function("document.querySelector('#tune-camFov').value==='84'");settle();assert page.locator('#tune-camFov').input_value()=='84',page.evaluate('({width:innerWidth,height:innerHeight,documentWidth:document.documentElement.scrollWidth,value:document.querySelector("#tune-camFov").value,settings:__wl.S})')
   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth && document.querySelector("#tuneSheet").scrollWidth<=innerWidth')
   page.screenshot(path=str(args.out/'small-phone-tuning.png'))
-  page.locator('#cameraReset').click();settle();reset=page.evaluate('__wl.S');assert reset['camFrame']==0 and reset['camFov']==0 and reset['camHeight']==4.8 and reset['camTilt']==0 and reset['camDist']==15 and reset['cruise']==51 and reset['turn']==1.3,reset
+  page.locator('#cameraReset').click();settle();reset=page.evaluate('__wl.S');assert reset['camFrame']==.08 and reset['camFov']==46 and reset['camHeight']==20 and reset['camTilt']==-5 and reset['camDist']==14 and reset['cruise']==51 and reset['turn']==1.3,reset
   # Extremes remain finite, and a high viewpoint still respects the tunnel ceiling.
   slider('camFov',90);slider('camHeight',12);slider('camTilt',12);slider('camDist',18);settle();assert page.evaluate('Number.isFinite(__tuneQA.camera.projectionMatrix.determinant())')
   tunnel=page.evaluate('''()=>{const w=__wl,q=__tuneQA,path=w.tours.paths.find(p=>p.id==='mountain'),seg=path.segments.find(s=>s.a.x>36700),a=w.tours.at(path,seg.s);w.P.pos.set(a.x,a.y+1,a.z);w.rebuildAll();w.placeAt(a.x,a.z,Math.atan2(a.tx,a.tz),64);w.P.inTunnel=w.P.onRoad=w.P.grounded=true;w.P.invuln=0;for(let i=0;i<100;i++)q.updateVisuals(0);const road=w.rideRoute(w.P.pos.x,w.P.pos.z,w.P.pos.y);return {height:q.camera.position.y-road.y,side:(q.camera.position.x-road.cx)*road.nx+(q.camera.position.z-road.cz)*road.nz,half:road.half};}''')

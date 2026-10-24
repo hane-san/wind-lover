@@ -10,7 +10,7 @@
     function update(dt,{position,velocity,active=false,snow=0,pressure=0,reduced=false}={}){
       if(!(dt>0))return;
       const speed=Math.hypot(velocity.x,velocity.z),fx=velocity.x/(speed||1),fz=velocity.z/(speed||1);
-      const target=active&&!reduced?Math.max(0,Math.min(1,(speed-60)/85))*(1-pressure*.45):0;
+      const target=active&&!reduced?Math.max(0,Math.min(1,(speed-16)/25))*(1-pressure*.45):0;
       strength+=(target-strength)*(1-Math.exp(-4*dt));material.opacity=strength*.10;
       material.color.setHex(snow>.4?0xe0eaf0:0xcddcce);lines.visible=strength>.005;
       const length=.8+strength*2.1;
