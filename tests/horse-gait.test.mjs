@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 await import('../world/horse-gait.js');
 const g=globalThis.WindHorseGait;
 test('a forward gallop caps cadence, and simulation frame rates preserve the rhythm',()=>{
-  assert.ok(g.cadence(40)>1.7&&g.cadence(40)<1.85);
+  assert.ok(g.cadence(40)>1.95&&g.cadence(40)<2.05);
+  assert.ok(g.cadence(34)-g.cadence(12)>.4,'Mounted cruising and acceleration need audibly different stride rates');
   assert.ok(g.cadence(500)<=2.12);
   const cycles=[];
   for(const fps of [20,30,60,120]){const s=g.create();for(let i=0;i<fps*10;i++)g.advance(s,1/fps,80,true);cycles.push(s.cycles);}

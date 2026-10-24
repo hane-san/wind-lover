@@ -16,7 +16,7 @@ try:
    s=(root/'prototype/index.html').read_text().replace('function frame(now) {','function frame(now) { if(window.__bowCapture){requestAnimationFrame(frame);return;}').replace('window.__wl = {', '''window.__bowQA={camera,renderer,models,updateArchery,updateVisuals,updatePalette,updateDrones,updateEncounters,updateThreat,clearDrones,drawBowSight,saddleScreen,bowTargets,assaultVolley,kineticVolley,updateBullets,bLife,bKind,bPos,bVel,forms,sfx,barrageBodies,barrageExhaust,arrows,releaseBow,openSheet,closeSheet,get time(){return t},set time(v){t=v},get attack(){return shellsOn},set attack(v){shellsOn=v},get paused(){return paused},set paused(v){paused=v}};
     window.__wl = {''');r.fulfill(body=s,content_type='text/html')
   page.route('**/prototype/',probe);page.goto(f'http://127.0.0.1:{server.server_port}/',timeout=120000);page.wait_for_function('window.__wl',timeout=120000)
-  assert page.evaluate("__wl.vehicle==='horse' && __wl.S.camFov===46 && __wl.S.camHeight===20 && __wl.S.camDist===14"),'Fresh departure is not the mounted panorama'
+  assert page.evaluate("__wl.vehicle==='horse' && __wl.S.camFov===46 && __wl.S.camHeight===20 && __wl.S.camDist===17"),'Fresh departure is not the mounted panorama'
   page.locator('#featuredTrips [data-journey-route="desert"]').click(timeout=120000);page.locator('#btnMenu').click()
   report={}
   report['pace']=page.evaluate('''()=>{const w=__wl,q=__bowQA;w.travelFeatured('desert');q.paused=true;const trace=[];let max=0;
@@ -89,7 +89,7 @@ try:
     for(const f of hostiles){if(f.ahead<35&&f.cue)throw Error('Rearward attack');if(f.weapon==='kinetic'&&f.cue)near=f.ahead;if(f.weapon==='missile'&&f.cue)far=f.ahead;}
     if(phase==='scenic'&&(w.combat.bullets||w.shells.length))throw Error('Quiet interval contains enemy fire');
    }
-   if(!(missile>100&&kinetic>10&&maxHostiles<=4&&phases.scenic>phases.combat&&near<155&&far>380&&maxMissiles<160))throw Error('Wrong patrol loop '+JSON.stringify({missile,kinetic,maxHostiles,phases,near,far,maxMissiles,events}));
+   if(!(missile>100&&kinetic>10&&maxHostiles<=4&&phases.scenic>phases.combat&&near<155&&far>285&&maxMissiles<160))throw Error('Wrong patrol loop '+JSON.stringify({missile,kinetic,maxHostiles,phases,near,far,maxMissiles,events}));
    return {phases,events,near,far,maxMissiles,maxHostiles,hull:w.P.hull};}''');print('Patrols:',json.dumps(report['patrols']),flush=True)
   report['ridingCombats']=page.evaluate('''()=>{const w=__wl,q=__bowQA,out=[];q.paused=true;if(q.sfx.on)q.sfx.toggle();
    for(const route of ['desert','mountain','lake','silk']){

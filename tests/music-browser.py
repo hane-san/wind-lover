@@ -87,6 +87,19 @@ try:
       page.wait_for_timeout(1100)
       page.wait_for_function('__wlMusic.inspect().voices===1',timeout=15000)
       probe=page.evaluate('__wlMusic.inspect()');assert probe['voices']==1 and len(probe['cached'])<=2,probe
+    # Accelerate only the age probe: use the real route playlist, asset loader and audio crossfade.
+    page.select_option('#musicTrack','auto')
+    page.wait_for_function('__wlMusic.state.status==="playing"',timeout=60000);page.wait_for_timeout(2600)
+    page.evaluate("window.__originalMusicInspect=__wlMusic.inspect;__wlMusic.inspect=()=>({...__originalMusicInspect(),playingSeconds:65,duration:60})")
+    before_auto=page.evaluate('__wlMusic.state.track');page.wait_for_timeout(3300)
+    assert page.evaluate('(id)=>__wlMusic.state.track===id',before_auto),'A paused menu rotated the score'
+    page.locator('#menuClose').click()
+    page.wait_for_function('(id)=>__wlMusic.state.track!==id',arg=before_auto,timeout=20000)
+    page.evaluate('__wlMusic.inspect=__originalMusicInspect')
+    page.wait_for_function('__wlMusic.state.status==="playing"',timeout=60000)
+    assert page.evaluate('__wlMusic.inspect().fadeSeconds>2.3'),'Automatic change lost its longer crossfade'
+    page.wait_for_timeout(2600);page.wait_for_function('__wlMusic.inspect().voices===1')
+    page.locator('#btnMenu').click()
     recording=page.evaluate('''async()=>{const p=musicRecording;p.r.stop();await p.stopped;const bytes=new Uint8Array(await new Blob(p.chunks).arrayBuffer());let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(s);}''')
     webm=args.out/'game-bgm-stall.webm';webm.write_bytes(base64.b64decode(recording))
     pcm=np.frombuffer(subprocess.check_output(['ffmpeg','-v','error','-i',str(webm),'-f','f32le','-ac','2','-ar','24000','-']),dtype='<f4').reshape(-1,2)
@@ -118,7 +131,7 @@ try:
     page.wait_for_function('(distance)=>__wl.P.dist>distance+2',arg=distance,timeout=60000)
     assert page.evaluate('Number.isFinite(__wl.P.pos.x+__wl.P.pos.y+__wl.P.pos.z)')
     assert not errors,errors
-    result={'defaultOn':True,'loopWrapsRecorded':True,'windSeamMatched':True,'maximumOutputStep':float(np.max(np.abs(np.diff(measured,axis=0)))),'quietArrangements':True,'sharedContext':True,'menuDoesNotRestart':True,'outgoingContinuesDuringLoad':True,'offDuringLoad':True,'persistentSettings':True,'drivingWithMusic':True,'recordedSeconds':len(pcm)/24000,'minimum100msRMS':min(rms),'mainThreadStallSeconds':1.6,'pageErrors':errors}
+    result={'automaticRotationInQuietJourney':True,'menuDoesNotRotate':True,'automaticFadeSeconds':2.4,'defaultOn':True,'loopWrapsRecorded':True,'windSeamMatched':True,'maximumOutputStep':float(np.max(np.abs(np.diff(measured,axis=0)))),'quietArrangements':True,'sharedContext':True,'menuDoesNotRestart':True,'outgoingContinuesDuringLoad':True,'offDuringLoad':True,'persistentSettings':True,'drivingWithMusic':True,'recordedSeconds':len(pcm)/24000,'minimum100msRMS':min(rms),'mainThreadStallSeconds':1.6,'pageErrors':errors}
     (args.out/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
     print('PASS:',json.dumps(result),flush=True)
     browser.close()

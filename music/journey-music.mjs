@@ -249,11 +249,11 @@ export function createJourneyMusic(options = {}) {
     pending.set(id, job); renderChain = job.catch(() => {});
     job.finally(() => pending.delete(id)).catch(() => {}); return job;
   }
-  function activate(track, token) {
+  function activate(track, token,fade=.9) {
     if (!track || token !== epoch || disposed || !enabled || hidden) return false;
     if (active?.track.id === track.id) { status = 'playing'; notify(); return true; }
     if (outgoing && context.currentTime < outgoing.end + 0.04) {
-      clearTimeout(switchTimer); switchTimer = setTimeout(() => activate(track, token), Math.max(30, (outgoing.end + 0.05 - context.currentTime) * 1000));
+      clearTimeout(switchTimer); switchTimer = setTimeout(() => activate(track, token,fade), Math.max(30, (outgoing.end + 0.05 - context.currentTime) * 1000));
       return true;
     }
     const now = context.currentTime, source = context.createBufferSource(), gain = context.createGain();
@@ -263,11 +263,11 @@ export function createJourneyMusic(options = {}) {
     allVoices.add(voice);
     source.onended = () => { source.disconnect(); gain.disconnect(); allVoices.delete(voice); if (outgoing === voice) outgoing = null; };
     source.start(voice.started, modulo(offset, track.buffer.duration));
-    if (active) { outgoing = active; retire(outgoing, 0.9); }
-    active = voice; ramp(voice, 1, 0.9); offsetTrack = null; resumeOffset = 0; lastError = null; status = 'playing'; notify();
+    if (active) { outgoing = active; retire(outgoing, fade); }
+    active = voice; ramp(voice, 1, fade); offsetTrack = null; resumeOffset = 0; lastError = null; status = 'playing'; notify();
     return true;
   }
-  async function unlock() {
+  async function unlock(fade=.9) {
     if (disposed || !enabled || hidden) return false;
     const token = ++epoch;
     try {
@@ -277,7 +277,7 @@ export function createJourneyMusic(options = {}) {
       if (token !== epoch || disposed || !enabled || hidden) return false;
       if (active?.track.id === selected) { status = 'playing'; notify(); return true; }
       status = active ? 'switching' : 'preparing'; lastError = null; notify();
-      return activate(await prepare(selected), token);
+      return activate(await prepare(selected), token,fade);
     } catch (error) { return token === epoch ? fail(error) : false; }
   }
   function setEnabled(value) {
@@ -286,11 +286,11 @@ export function createJourneyMusic(options = {}) {
     if (enabled) return unlock();
     stop(); status = 'off'; notify(); return Promise.resolve(true);
   }
-  function select(id) {
+  function select(id,{fade=.9}={}) {
     if (!TRACKS.some(t => t.id === id)) throw new RangeError('Unknown Wind Lover composition: ' + id);
     if (disposed) return Promise.resolve(false);
     if (selected !== id) { selected = id; save('track', id); }
-    notify(); return enabled ? unlock() : Promise.resolve(true);
+    notify(); return enabled ? unlock(clamp(fade,.3,3)) : Promise.resolve(true);
   }
   function setVolume(value) {
     if (!Number.isFinite(Number(value))) return volume;
@@ -312,6 +312,6 @@ export function createJourneyMusic(options = {}) {
     else if (master) setTimeout(() => master.disconnect(), 250);
   }
   return { unlock, setEnabled, select, setVolume, dispose, get state() { return state(); },
-    inspect: () => ({ voices: allVoices.size, playingTrack: active?.track.id || null, cached: [...cache.keys()], pending: [...pending.keys()], contextState: context?.state || 'none', ownContext }) };
+    inspect: () => ({ voices: allVoices.size, playingTrack: active?.track.id || null,playingSeconds:active?Math.max(0,context.currentTime-active.started+active.offset):0,duration:active?.track.buffer.duration||0,fadeSeconds:active?active.end-active.at:0, cached: [...cache.keys()], pending: [...pending.keys()], contextState: context?.state || 'none', ownContext }) };
 }
 

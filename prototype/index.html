@@ -366,14 +366,15 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="../world/featured-routes.js?v=20261022-voyage"></script>
 <script src="../world/horse-riding.js?v=20261024-bow"></script>
-<script src="../world/horse-gait.js?v=20261022-reins"></script>
-<script src="../world/horse-sound.js?v=20261022-reins"></script>
+<script src="../world/horse-gait.js?v=20261024-phrase"></script>
+<script src="../world/horse-sound.js?v=20261024-phrase"></script>
 <script src="../world/horse-wake.js?v=20261022-voyage"></script>
 <script src="../world/flow-effects.js?v=20261024-bow"></script>
 <script src="../world/journey-climate.js?v=20261022-voyage"></script>
 <script src="../world/travel-camera.js?v=20261022-network"></script>
 <script src="../world/horse-archery.js?v=20261024-side-draw"></script>
-<script src="../world/encounter-director.js?v=20261024-bow"></script>
+<script src="../world/encounter-director.js?v=20261024-phrase"></script>
+<script src="../world/patrol-score.js?v=20261024-phrase"></script>
 <script src="../world/weapon-audio.js?v=20261024-weight"></script>
 <script src="../world/missiles.js?v=20261023-defence"></script>
 <script>
@@ -403,6 +404,7 @@ const VEHICLES = {
 VEHICLES.horse = { ...VEHICLES.sidecar, grip: 8.8, accel:18, name: 'キルギスの馬', defaults: { ...VEHICLES.sidecar.defaults,maxSpeed:34,cruise:20,tailwind:1.5 } };
 // The broadest rear panorama is the starting view; per-vehicle custom compositions remain available.
 for(const vehicle of Object.values(VEHICLES))Object.assign(vehicle.defaults,{camFov:46,camHeight:20,camTilt:-5,camFrame:.08,camDist:14});
+VEHICLES.horse.defaults.camDist=17;
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
@@ -426,6 +428,12 @@ if(!store.get('windlover.mounted-bow.v1',false)){
     }
   }
   store.set('windlover.settings.v11',allS);store.set('windlover.mounted-bow.v1',true);
+}
+// Pull the untouched mounted panorama back a little; preserve every deliberate composition.
+if(!store.get('windlover.sky-phrase.v1',false)){
+  const h=allS.horse;
+  if(h&&(h.camFov??46)===46&&(h.camHeight??20)===20&&(h.camTilt??-5)===-5&&(h.camFrame??.08)===.08&&(h.camDist??14)===14)h.camDist=17;
+  store.set('windlover.settings.v11',allS);store.set('windlover.sky-phrase.v1',true);
 }
 const loadS = () => ({ ...VEHICLES[vehKey].defaults, ...(allS[vehKey] || {}) });
 let S = loadS();
@@ -4311,6 +4319,15 @@ const droneGeo = (() => {
 const MAXD = 240;
 const droneMesh = new THREE.InstancedMesh(droneGeo, new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 18 }), MAXD);
 const eyeMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), MAXD);
+// The surviving roadside network: low tracked chassis, raised launch boxes, one amber optic.
+const sentryGeo=(()=>{const m=new Merger();
+  m.add(G.box,M(0,-1.5,0,0,3.9,.8,3.1),0x5a6159);
+  for(const side of [-1,1])m.add(G.box,M(side*1.85,-1.8,0,0,.75,.85,3.6),0x303b3b);
+  m.add(G.cyl,M(0,-.6,0,0,1.1,1.3,1.1),0x686a59);
+  for(const side of [-1,1])m.add(G.box,M(side*.95,.15,.1,0,1.2,1.1,3.1,-.28),0x424c4d);
+  m.add(G.box,M(0,.4,1.5,0,.65,.55,.4),0xb99a65);return m.build();})();
+const sentryMesh=new THREE.InstancedMesh(sentryGeo,new THREE.MeshPhongMaterial({vertexColors:true,flatShading:true,shininess:12}),8);
+sentryMesh.count=0;sentryMesh.frustumCulled=false;scene.add(sentryMesh);
 const EYE_HOSTILE = new THREE.Color(0xffb050), EYE_PEACE = new THREE.Color(0xa8f0e8), EYE_ASSAULT = new THREE.Color(0xff4444), EYE_CLOSE = new THREE.Color(0xff8844);
 const EYE_SHOT=new THREE.Color(0xfff0b4),EYE_LOCK=new THREE.Color(0xffce7d);
 for (let i = 0; i < MAXD; i++) eyeMesh.setColorAt(i, EYE_HOSTILE);
@@ -4318,6 +4335,7 @@ for (const im of [droneMesh, eyeMesh]) { im.count = 0; im.frustumCulled = false;
 const HIT_RADIUS = 0.32, HIT_HEIGHT = 0.45, GRAZE_RADIUS = 3.8;
 const BUL = 4608, bPos = new Float32Array(BUL * 3), bVel = new Float32Array(BUL * 3), bLife = new Float32Array(BUL), bCol = new Float32Array(BUL * 3);
 const bKind=new Float32Array(BUL),bWhizz=new Uint8Array(BUL),slugP=new Float32Array(BUL*6),slugC=new Float32Array(BUL*6);
+const bGravity=new Float32Array(BUL),bTailClock=new Float32Array(BUL),TAIL_N=12,bTail=new Float32Array(BUL*TAIL_N*3);
 const bulGeo = new THREE.BufferGeometry(); bulGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3)); bulGeo.setAttribute('color', new THREE.BufferAttribute(bCol, 3));
 bulGeo.setAttribute('projectileKind',new THREE.BufferAttribute(bKind,1));
 const geometricRoundTex=canvasTex(64,64,(g,w)=>{
@@ -4332,6 +4350,12 @@ bulPts.frustumCulled = false; scene.add(bulPts);
 slugP.fill(-9999);const slugGeo=new THREE.BufferGeometry();slugGeo.setAttribute('position',new THREE.BufferAttribute(slugP,3));slugGeo.setAttribute('color',new THREE.BufferAttribute(slugC,3));slugGeo.setDrawRange(0,0);
 const slugLines=new THREE.LineSegments(slugGeo,new THREE.LineBasicMaterial({vertexColors:true,fog:false}));slugLines.frustumCulled=false;slugLines.visible=false;scene.add(slugLines);
 const BARRAGE_CAP=256;let barrageLive=0;
+const missileTailP=new Float32Array(BARRAGE_CAP*TAIL_N*6),missileTailC=new Float32Array(BARRAGE_CAP*TAIL_N*6),missileTailF=new Float32Array(BARRAGE_CAP*TAIL_N*2),missileTailGeo=new THREE.BufferGeometry();
+missileTailGeo.setAttribute('position',new THREE.BufferAttribute(missileTailP,3));missileTailGeo.setAttribute('color',new THREE.BufferAttribute(missileTailC,3));missileTailGeo.setAttribute('tailFade',new THREE.BufferAttribute(missileTailF,1));missileTailGeo.setDrawRange(0,0);
+const missileTailMat=new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.48,depthWrite:false,fog:false});
+missileTailMat.onBeforeCompile=s=>{s.vertexShader='attribute float tailFade; varying float vTailFade;\n'+s.vertexShader;s.vertexShader=s.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvTailFade=tailFade;');s.fragmentShader='varying float vTailFade;\n'+s.fragmentShader;s.fragmentShader=s.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.a *= vTailFade;');};
+const missileTailLines=new THREE.LineSegments(missileTailGeo,missileTailMat);
+missileTailLines.frustumCulled=false;scene.add(missileTailLines);
 const barrageGeo=(()=>{const m=new Merger();
   for(const geo of [new THREE.CylinderGeometry(.16,.21,2.4,6),new THREE.ConeGeometry(.16,.7,6).translate(0,1.55,0),new THREE.BoxGeometry(1.65,.65,.12).translate(0,-.8,0),new THREE.BoxGeometry(.12,.65,1.65).translate(0,-.8,0)]){m.add(geo,new THREE.Matrix4(),0x41484b);geo.dispose();}return m.build();})();
 const barrageBodies=new THREE.InstancedMesh(barrageGeo,new THREE.MeshLambertMaterial({vertexColors:true,fog:false}),BARRAGE_CAP);
@@ -4395,6 +4419,7 @@ function shapeSlot(type, n, t, i, out) {
 }
 // a formation can slowly breathe from one figure into another and back
 function slotOf(f, i, out, clock=f.t) {
+  if(f.score){const a=f.score.slots[i%f.score.sky];return out.set(a.side,a.height+Math.sin(clock*.7+i)*1.5,a.depth);}
   shapeSlot(f.type, f.n, clock, i, out);
   if (!f.morph) return out;
   const m = 0.5 - 0.5 * Math.cos(clock * 0.32); if (m < 0.001) return out;
@@ -4409,18 +4434,37 @@ const EYE_PEACES = [0xa8f0e8, 0xf4e2a8, 0xd6c4ff, 0xc8f0b0, 0xffd0dc].map((h) =>
 function spawnFormation(forceMode) {
   const hs = Math.hypot(P.vel.x, P.vel.z) || 1, fx = hs>1?P.vel.x / hs:fwd.x, fz = hs>1?P.vel.z / hs:fwd.z;
   const mode = forceMode || 'pass';
+  const score=mode==='assault'?WindPatrolScore.plan(encounter.cycle,true,innerWidth/innerHeight):null;
   const type = mode==='assault'?'patrol':FORM_TYPES[Math.random() * FORM_TYPES.length | 0], n = mode==='assault'?3+encounter.cycle%2:FORM_N[type];
   // scenic approach: rise over the horizon far ahead, slightly off your line, and come on slowly
   const side = mode === 'flyby' ? (Math.random() < 0.5 ? -1 : 1) * (700 + Math.random() * 300) : (Math.random() - 0.5) * 24;
   const dist = mode === 'assault' ? 690 : mode === 'pass' ? 1400 : mode === 'flyby' ? 450 + Math.random() * 700 : -420;
   const pos = new V3(P.pos.x + fx * dist - fz * side, 0, P.pos.z + fz * dist + fx * side);
-  pos.y = surfaceAt(pos.x, pos.z) + (mode === 'assault' ? 34 : mode === 'pass' ? 70 + Math.random() * 30 : mode === 'flyby' ? 60 + Math.random() * 90 : 34 + Math.random() * 20);
+  pos.y = surfaceAt(pos.x, pos.z) + (score?score.altitude:mode === 'pass' ? 70 + Math.random() * 30 : mode === 'flyby' ? 60 + Math.random() * 90 : 34 + Math.random() * 20);
   // flybys cross your path far off, slowly, like birds; they never fire
   const vel = mode === 'pass' ? new V3(-fx, 0, -fz).multiplyScalar(34) : mode === 'flyby' ? new V3(fz, 0, -fx).multiplyScalar(Math.sign(side) * (28 + Math.random() * 12)) : new V3(fx, 0, fz).multiplyScalar(45);
   const morph = MORPHABLE.includes(type) && Math.random() < 0.55 ? MORPHABLE[Math.random() * MORPHABLE.length | 0] : null;
   if (mode === 'assault') vel.set(-fx * 40, 0, -fz * 40);
   const f = { mode, type, n, pos, vel, t: Math.random() * 4, age: 0, phase: 'approach', gap: 1.15, pat: encounterPattern, fireT: 1.5, volley: 0, weapon:'missile',cue:null,flash:0,turned: false, peace: mode === 'flyby', drones: [], seq: 0, seqT: 0, morph: morph === type ? null : morph, eye: EYE_PEACES[Math.random() * EYE_PEACES.length | 0] };
-  for (let i = 0; i < n; i++) f.drones.push(slotOf(f, i, new V3()).add(pos));
+  if(mode==='assault'){f.score=score;f.salvos=0;}
+  for (let i = 0; i < n; i++) {const d=slotOf(f,i,new V3());
+    // Slot axes follow the road on initial creation too, rather than jumping in from global XYZ.
+    const x=d.x,y=d.y,z=d.z;d.set(pos.x-fz*x+fx*z,pos.y+y,pos.z+fx*x+fz*z);d.slot=i;f.drones.push(d);}
+  if(f.score?.sentry){
+    const road=rideRoute(P.pos.x,P.pos.z,P.pos.y),dir=road.tx*fx+road.tz*fz>=0?1:-1;
+    const a=road.path?TOURS.at(road.path,road.s+dir*730):null;
+    const x=a?.x??P.pos.x+fx*730,z=a?.z??P.pos.z+fz*730,tx=a?a.tx*dir:fx,tz=a?a.tz*dir:fz;
+    const side=encounter.cycle%2?1:-1,offset=(road.half||22)+10,sx=x-tz*offset*side,sz=z+tx*offset*side;
+    const floor=surfaceAt(sx,sz),deck=a?.y??('loop'in road?routeY(road,x):deckAt(x,z));
+    const nearTour=tourAt(sx,sz),nearRail=railway(sx,sz),railMargin=nearRail.d-nearRail.half,nearHW=highway(sx,sz);
+    const margin=Math.min(nearTour?nearTour.d-nearTour.half:Infinity,railMargin,nearHW.d-HW_HALF,roadDist(sx,sz)-6);
+    const clear=colliders.every(c=>Math.hypot(c.x-sx,c.z-sz)>c.hw+c.hd+7);
+    // A cut, viaduct, shoreline or building is not a suitable emplacement. Keep an aerial slot instead.
+    if(Math.abs(floor-deck)<10&&margin>5&&floor>WATER+2&&clear){
+      const d=f.drones[n-1];d.set(sx,floor+3.45,sz);d.sentry=true;d.yaw=Math.atan2(-tx,-tz);
+    }else f.score=WindPatrolScore.plan(encounter.cycle,false,innerWidth/innerHeight);
+  }
+  if(mode==='assault')f.launchers=f.drones.slice();
   forms.push(f);
 }
 // One patrol closes from ahead: geometric missile salvos, a bow window, then short close-range bursts.
@@ -4437,17 +4481,22 @@ function assaultMove(f,dt,fx,fz,hs){
   const road=rideRoute(P.pos.x,P.pos.z,P.pos.y);let tx=P.pos.x+fx*Math.max(55,f.ahead),tz=P.pos.z+fz*Math.max(55,f.ahead);
   if(road.path&&road.d<road.half+8){const dir=P.vel.x*road.tx+P.vel.z*road.tz>=0?1:-1,a=TOURS.at(road.path,road.s+dir*Math.max(55,f.ahead));tx=a.x;tz=a.z;}
   const closing=vehKey==='horse'?23:48,forward=Math.max(0,hs-closing);
-  tmp.set(fx*forward+(tx-f.pos.x)*2,(surfaceAt(tx,tz)+22-f.pos.y)*2,fz*forward+(tz-f.pos.z)*2);
+  tmp.set(fx*forward+(tx-f.pos.x)*2,(surfaceAt(tx,tz)+(f.score?.altitude??22)-f.pos.y)*2,fz*forward+(tz-f.pos.z)*2);
   f.vel.lerp(tmp,1-Math.exp(-3*dt));
+}
+function defenceVisible(d){
+  const eye={x:P.pos.x,y:P.pos.y+2.8,z:P.pos.z};if(WindTravelCamera.boomFraction(eye,d,colliders)<.98)return false;
+  for(const u of [.2,.4,.6,.8])if(surfaceAt(lerp(eye.x,d.x,u),lerp(eye.z,d.z,u))>lerp(eye.y,d.y,u)-.2)return false;
+  return true;
 }
 function assaultVolley(f){
   const hs=Math.hypot(P.vel.x,P.vel.z)||1,fx=hs>1?P.vel.x/hs:fwd.x,fz=hs>1?P.vel.z/hs:fwd.z,rx=-fz,rz=fx;
-  const ahead=(f.pos.x-P.pos.x)*fx+(f.pos.z-P.pos.z)*fz,flight=Math.max(.8,ahead/AS_REL),col=AS_COLS[f.pat%AS_COLS.length];
+  const ahead=(f.pos.x-P.pos.x)*fx+(f.pos.z-P.pos.z)*fz,flight=Math.max(2.7,ahead/AS_REL),col=AS_COLS[f.pat%AS_COLS.length];
   const aim=P.pos.clone().addScaledVector(P.vel,flight);aim.y=P.grounded?ground(aim.x,aim.z,P.pos.y+20).h+HOVER+HIT_HEIGHT:P.pos.y+HIT_HEIGHT;
-  const pat=f.pat++%PATTERN_NAMES.length;encounterPattern=f.pat;
+  const pat=f.pat++%PATTERN_NAMES.length;encounterPattern=f.pat;const gap=WindPatrolScore.gap(f.salvos||0);
   // Every motor lights up on a visible geometric edge. Aim is frozen at launch, never homing.
   const points=[],add=(x,y,delay=0)=>points.push({x,y,delay});
-  if(pat===0||pat===5){for(let row=0;row<(pat===5?2:1);row++)for(let k=-9;k<=9;k++)if(Math.abs(k*5.4-8)>5.5)add(k*5.4,0,row*.48);}
+  if(pat===0||pat===5){for(let row=0;row<(pat===5?2:1);row++)for(let k=-9;k<=9;k++)if(Math.abs(k*5.4-gap)>5.5)add(k*5.4,0,row*.48);}
   else if(pat===1){for(let k=-9;k<=9;k++)add(k*5.8,Math.abs(k)*.22);}
   else if(pat===3){for(let row=0;row<4;row++)for(const x of [-14,-7,0,7,14])add(x,0,row*.18);}
   else if(pat===4){for(let k=0;k<28;k++)add(Math.cos(k*.45)*30,Math.sin(k*.45)*7,k*.045);}
@@ -4455,25 +4504,31 @@ function assaultVolley(f){
   else{const sides=pat===6?4:pat===7?6:0,n=sides?sides*6:30;
     for(let k=0;k<n;k++){const a=k/n*TAU;let x=Math.cos(a)*32,y=Math.sin(a)*11+1;
       if(sides){const edge=k/6|0,u=(k%6)/6,A=edge/sides*TAU,B=(edge+1)/sides*TAU;x=lerp(Math.cos(A),Math.cos(B),u)*34;y=1+lerp(Math.sin(A),Math.sin(B),u)*12;}
-      if(Math.abs(x-8)>5.5||Math.abs(y)>2.5)add(x,y);}}
-  if(pat===6||pat===7){for(const a of [...points]){const x=a.x*.68,y=a.y*.68;if(Math.abs(x-8)>5.5||Math.abs(y)>2.5)add(x,y,.48);}}
+      if(Math.abs(x-gap)>5.5||Math.abs(y)>2.5)add(x,y);}}
+  if(pat===6||pat===7){for(const a of [...points]){const x=a.x*.68,y=a.y*.68;if(Math.abs(x-gap)>5.5||Math.abs(y)>2.5)add(x,y,.48);}}
   const density=(f.n??3)/(3+encounter.cycle%2);f.pending=f.pending||[];
+  const sourceSight=new Map((f.drones||[]).map(d=>[d,defenceVisible(d)]));
   points.forEach((a,i)=>{
     // Destroying launchers thins subsequent salvos, but missiles already in flight remain real.
-    if((i%4)/4>density)return;
-    const node=f.drones?.length?f.drones.reduce((best,d)=>Math.abs((d.x-f.pos.x)*rx+(d.z-f.pos.z)*rz-a.x*.48)<Math.abs((best.x-f.pos.x)*rx+(best.z-f.pos.z)*rz-a.x*.48)?d:best):null;
+    if(!f.launchers&&(i%4)/4>density)return;
+    const node=f.launchers?.[i%f.launchers.length]||f.drones?.[i%f.drones.length]||null;
+    if(node&&(!f.drones.includes(node)||(node.x-P.pos.x)*fx+(node.z-P.pos.z)*fz<95))return;
+    if(node&&!sourceSight.get(node))return;
     const origin=node?node.clone():f.pos.clone().addScaledVector(new V3(rx,0,rz),a.x*.48);if(!node)origin.y+=a.y*.55;
-    const target=aim.clone().addScaledVector(new V3(rx,0,rz),a.x);target.y+=a.y;
-    const v=target.sub(origin).multiplyScalar(1/flight);origin.addScaledVector(f.vel||P.vel,a.delay);
-    if(a.delay)f.pending.push({p:origin,v,c:col,kind:2,at:t+a.delay});else shoot(origin,v,col,2);
-  });sfx.weapon('launch',{gain:.6,pan:weaponPan(f.pos)});
+    if(!node?.sentry)origin.addScaledVector(f.vel||P.vel,a.delay);
+    const target=aim.clone().addScaledVector(P.vel,a.delay).addScaledVector(new V3(rx,0,rz),a.x);target.y=aim.y+a.y;
+    const v=target.sub(origin).multiplyScalar(1/flight),arc=WindPatrolScore.loft(flight,!!node?.sentry,i,f.score?.skyScale??1);
+    v.y+=arc.lift;
+    if(a.delay)f.pending.push({p:origin,v,c:col,kind:2,gravity:arc.gravity,source:node,at:t+a.delay});else shoot(origin,v,col,2,arc.gravity);
+  });f.salvos=(f.salvos||0)+1;sfx.weapon('launch',{gain:.6,pan:weaponPan(f.pos)});
 }
-function clearDrones(reset=true) { if(reset)forms.length=0;else for(let i=forms.length-1;i>=0;i--)if(!forms[i].peace)forms.splice(i,1); for (let i = 0; i < BUL; i++) { bLife[i] = 0; bPos[i * 3 + 1] = -9999; } droneMesh.count = eyeMesh.count = 0; bulI = -1; bulDrawCount = 0; bulGeo.setDrawRange(0, 0);slugGeo.setDrawRange(0,0);slugLines.visible=false;barrageBodies.count=barrageExhaust.count=0;barrageLive=0;missiles.clear();sfx.stopWeapons();assaultRest=5;if(reset)Object.assign(encounter,WindEncounters.create()); }
-function shoot(p, v, c,kind=0) {
+function clearDrones(reset=true) { if(reset)forms.length=0;else for(let i=forms.length-1;i>=0;i--)if(!forms[i].peace)forms.splice(i,1); for (let i = 0; i < BUL; i++) { bLife[i] = 0; bPos[i * 3 + 1] = -9999; } droneMesh.count = eyeMesh.count = sentryMesh.count = 0; missileTailGeo.setDrawRange(0,0); bulI = -1; bulDrawCount = 0; bulGeo.setDrawRange(0, 0);slugGeo.setDrawRange(0,0);slugLines.visible=false;barrageBodies.count=barrageExhaust.count=0;barrageLive=0;missiles.clear();sfx.stopWeapons();assaultRest=5;if(reset)Object.assign(encounter,WindEncounters.create()); }
+function shoot(p, v, c,kind=0,gravity=0) {
   if(kind===2&&barrageLive>=BARRAGE_CAP)return;
   const i = bulI = (bulI + 1) % BUL; bGraze[i] = 0;
   if(bLife[i]>0&&bKind[i]===2)barrageLive--;if(kind===2)barrageLive++;
-  bKind[i]=kind;bWhizz[i]=0;
+  bKind[i]=kind;bWhizz[i]=0;bGravity[i]=gravity;bTailClock[i]=0;
+  for(let k=0;k<TAIL_N;k++){const o=(i*TAIL_N+k)*3;bTail[o]=p.x;bTail[o+1]=p.y;bTail[o+2]=p.z;}
   bGroundT[i] = (i % 8) * 0.018; bulletColoursDirty = true;
   bulDrawCount = Math.max(bulDrawCount, i + 1); bulGeo.setDrawRange(0, bulDrawCount);
   bPos[i * 3] = p.x; bPos[i * 3 + 1] = p.y; bPos[i * 3 + 2] = p.z; bVel[i * 3] = v.x; bVel[i * 3 + 1] = v.y; bVel[i * 3 + 2] = v.z; bLife[i] = 5;
@@ -4481,13 +4536,16 @@ function shoot(p, v, c,kind=0) {
 }
 function kineticVolley(f){
   const hs=Math.hypot(P.vel.x,P.vel.z)||1,fx=hs>1?P.vel.x/hs:fwd.x,fz=hs>1?P.vel.z/hs:fwd.z,rx=-fz,rz=fx,relative=230;
-  const muzzle=f.drones?.[Math.floor(f.n/2)]||f.pos;
+  const nodes=f.drones?.filter(d=>(d.x-P.pos.x)*fx+(d.z-P.pos.z)*fz>55&&defenceVisible(d));
+  if(nodes&&!nodes.length)return;
+  const muzzle=nodes?.reduce((a,b)=>a.distanceToSquared(P.pos)<b.distanceToSquared(P.pos)?a:b)||f.pos;
   const flight=Math.max(.42,((muzzle.x-P.pos.x)*fx+(muzzle.z-P.pos.z)*fz)/relative),floor=ground(P.pos.x+P.vel.x*flight,P.pos.z+P.vel.z*flight,P.pos.y+20).h+HOVER+HIT_HEIGHT;
   const aim=P.pos.clone().addScaledVector(P.vel,flight);aim.y=P.grounded?floor:P.pos.y+HIT_HEIGHT;
   f.pending=f.pending||[];
   for(let row=0;row<3;row++)for(const offset of [-12,-6,0,6,12]){
-    const delay=row*.075,origin=muzzle.clone().addScaledVector(P.vel,delay),target=aim.clone().addScaledVector(tmp2.set(rx,0,rz),offset),v=target.sub(muzzle).multiplyScalar(1/flight);
-    if(delay)f.pending.push({p:origin,v,c:[1,.85,.58],kind:1,at:t+delay});else shoot(origin,v,[1,.85,.58],1);
+    const delay=row*.075,origin=muzzle.clone();if(!muzzle.sentry)origin.addScaledVector(f.vel||P.vel,delay);
+    const target=aim.clone().addScaledVector(P.vel,delay).addScaledVector(tmp2.set(rx,0,rz),offset),v=target.sub(origin).multiplyScalar(1/flight);
+    if(delay)f.pending.push({p:origin,v,c:[1,.85,.58],kind:1,source:nodes?muzzle:null,at:t+delay});else shoot(origin,v,[1,.85,.58],1);
   }
   const shotTime=sfx.context?.currentTime||0;for(const delay of [0,.075,.15])sfx.weapon('kinetic',{at:shotTime+delay,pan:weaponPan(f.pos),gain:.85});
 }
@@ -4535,10 +4593,11 @@ function volley(f) {
 function updateDrones(dt, previous = P.pos) {
   const hs = Math.hypot(P.vel.x, P.vel.z);
   const canFire=shellsOn&&!P.dead&&!P.inTunnel&&encounter.fire;
+  const canQueue=shellsOn&&!P.dead&&!P.inTunnel&&encounter.phase==='combat'&&!encounter.turning;
   droneSpawnT-=dt;assaultRest-=dt;
   if(!P.dead&&droneSpawnT<=0&&forms.filter(f=>f.peace).length<4){spawnFormation('flyby');droneSpawnT=5+Math.random()*5;}
   if(encounter.event==='engage'&&!forms.some(f=>f.mode==='assault'&&f.phase!=='leave')&&assaultRest<=0){spawnFormation('assault');assaultRest=2;}
-  let nearest = Infinity, k = 0;
+  let nearest = Infinity, k = 0, groundCount=0;
   const fx = hs > 1 ? P.vel.x / hs : fwd.x, fz = hs > 1 ? P.vel.z / hs : fwd.z;
   for (let i = forms.length - 1; i >= 0; i--) {
     const f = forms[i];f.t+=dt;f.flash=Math.max(0,(f.flash||0)-dt);
@@ -4546,10 +4605,11 @@ function updateDrones(dt, previous = P.pos) {
       const ahead=(f.pos.x-P.pos.x)*fx+(f.pos.z-P.pos.z)*fz;
       const weapon=ahead<155?'kinetic':'missile';
       if(f.weapon!==weapon){f.weapon=weapon;f.cue=null;f.pending?.splice(0);f.fireT=.65;}
-      if(weapon==='missile'&&ahead<380)f.cue=null;
+      if(weapon==='missile'&&!WindPatrolScore.mayLaunch({ahead,salvos:f.salvos}))f.cue=null;
       if(ahead<35)f.phase='leave';
     }
-    if(!canFire){f.cue=null;if(f.pending?.length)f.pending.length=0;f.seq=0;}
+    if(!canFire)f.cue=null;
+    if(!canQueue){if(f.pending?.length)f.pending.length=0;f.seq=0;}
     if(!f.peace&&['scenic','release'].includes(encounter.phase)){f.phase='leave';}
 
     if (!f.peace && f.mode === 'pass' && !f.turned && (P.pos.x - f.pos.x) * f.vel.x + (P.pos.z - f.pos.z) * f.vel.z < 0) f.turned = true;
@@ -4574,43 +4634,52 @@ function updateDrones(dt, previous = P.pos) {
     const d = f.pos.distanceTo(P.pos); nearest = Math.min(nearest, d);
     f.fireT -= dt;
     if(f.seq>0&&(f.seqT-=dt)<=0&&canFire)volley(f);
-    if(f.pending?.length)for(let q=f.pending.length-1;q>=0;q--){const pr=f.pending[q];if(t>=pr.at){pr.p.addScaledVector(pr.v,t-pr.at);if(canFire)shoot(pr.p,pr.v,pr.c,pr.kind||0);f.pending.splice(q,1);}}
-    if(f.mode==='assault'&&f.phase==='hold'&&canFire&&f.ahead>55&&(f.weapon==='kinetic'||f.ahead>380)){
+    if(f.pending?.length)for(let q=f.pending.length-1;q>=0;q--){const pr=f.pending[q],valid=!pr.source||(f.drones.includes(pr.source)&&(pr.source.x-P.pos.x)*fx+(pr.source.z-P.pos.z)*fz>55);
+      if(!valid){f.pending.splice(q,1);continue;}
+      if(t>=pr.at){const late=t-pr.at;pr.p.addScaledVector(pr.v,late);pr.p.y+=.5*(pr.gravity||0)*late*late;pr.v.y+=(pr.gravity||0)*late;if(canQueue)shoot(pr.p,pr.v,pr.c,pr.kind||0,pr.gravity||0);f.pending.splice(q,1);}}
+    if(f.mode==='assault'&&f.phase==='hold'&&canFire&&f.ahead>55&&(f.weapon==='kinetic'||WindPatrolScore.mayLaunch({ahead:f.ahead,salvos:f.salvos}))){
       if(!f.cue&&f.fireT<=0){
-        f.cue={weapon:f.weapon,remaining:f.weapon==='kinetic'?.65:.7,clock:f.t};
+        f.cue={weapon:f.weapon,remaining:f.weapon==='kinetic'?.8:WindPatrolScore.cueTime,clock:f.t};
         if(f.weapon==='missile'||f.lastCueWeapon!==f.weapon){sfx.weapon('acquire',{gain:.28,pan:weaponPan(f.pos)});f.lastCueWeapon=f.weapon;}
       }
       if(f.cue&&(f.cue.remaining-=dt)<=0){
         if(f.weapon==='kinetic')kineticVolley(f);else assaultVolley(f);
-        f.cue=null;f.flash=.09;f.fireT=(f.weapon==='kinetic'?1.35:2.6)*(P.hull<2?1.35:1);
+        f.cue=null;f.flash=.09;f.fireT=(f.weapon==='kinetic'?1.7:WindPatrolScore.salvoGap)*(P.hull<2?1.35:1);
       }
     }
     if ((d > 1700 && f.t > 20 && f.mode !== 'assault') || (f.mode === 'assault' && f.phase === 'leave' && d > 650) || f.t > 90 || (!shellsOn && !f.peace)) { forms.splice(i, 1); continue; }
     // drones ease into their slots; the formation faces where it flies
     _f.copy(f.mode==='assault'?fwd:f.vel).normalize(); _r.crossVectors(_f, UP).normalize(); _u.crossVectors(_r, _f);
     for (let j = 0; j < f.n && k < MAXD; j++, k++) {
-      slotOf(f,j,tmp2,f.cue?.clock??f.t); const tx = f.pos.x + _r.x * tmp2.x + _u.x * tmp2.y + _f.x * tmp2.z, ty = f.pos.y + _r.y * tmp2.x + _u.y * tmp2.y + _f.y * tmp2.z, tz = f.pos.z + _r.z * tmp2.x + _u.z * tmp2.y + _f.z * tmp2.z;
-      const dp=f.drones[j],kk=1-Math.exp(-(f.cue?18:8)*dt);dp.addScaledVector(f.vel,dt);dp.x += (tx - dp.x) * kk; dp.y += (ty - dp.y) * kk; dp.z += (tz - dp.z) * kk;
+      const dp=f.drones[j];slotOf(f,dp.slot??j,tmp2,f.cue?.clock??f.t); const tx = f.pos.x + _r.x * tmp2.x + _u.x * tmp2.y + _f.x * tmp2.z, ty = f.pos.y + _r.y * tmp2.x + _u.y * tmp2.y + _f.y * tmp2.z, tz = f.pos.z + _r.z * tmp2.x + _u.z * tmp2.y + _f.z * tmp2.z;
+      const kk=1-Math.exp(-(f.cue?18:8)*dt);if(!dp.sentry){dp.addScaledVector(f.vel,dt);dp.x += (tx - dp.x) * kk; dp.y += (ty - dp.y) * kk; dp.z += (tz - dp.z) * kk;}
       // More dynamic drone animations
       _dm.position.copy(dp); 
       _dm.rotation.set(Math.sin(t * 3 + j * 0.5) * 0.07, Math.atan2(_f.x, _f.z), Math.cos(t * 2.6 + j * 0.3) * 0.07);
       _dm.scale.setScalar(f.mode==='assault'?3.8:2.6);
+      if(dp.sentry){
+        _dm.rotation.set(0,dp.yaw,0);_dm.scale.setScalar(1.5);_dm.updateMatrix();
+        if(groundCount<8)sentryMesh.setMatrixAt(groundCount++,_dm.matrix);_dm.scale.setScalar(0);
+      }
       _dm.updateMatrix();
       droneMesh.setMatrixAt(k, _dm.matrix);
-      _dm.position.addScaledVector(_f, 1.2); _dm.position.y -= 1.0; 
+      _dm.position.addScaledVector(_f, dp.sentry?-1.8:1.2); _dm.position.y += dp.sentry?.6:-1.0;
       _dm.scale.setScalar(f.flash>0?5.8:f.cue?4.2+Math.sin(f.t*24)*.5:f.mode==='assault'?3.0:2.0);
       _dm.updateMatrix(); 
       eyeMesh.setMatrixAt(k, _dm.matrix); 
       // Eye color changes based on formation mode and state
-      if (f.peace) eyeMesh.setColorAt(k, f.eye);
+      if(f.phase==='leave')eyeMesh.setColorAt(k,EYE_PEACE);
+      else if (f.peace) eyeMesh.setColorAt(k, f.eye);
       else if(f.flash>0)eyeMesh.setColorAt(k,EYE_SHOT);
       else if(f.cue)eyeMesh.setColorAt(k,EYE_LOCK);
+      else if(dp.sentry)eyeMesh.setColorAt(k,EYE_HOSTILE);
       else if (f.mode === 'assault') eyeMesh.setColorAt(k, EYE_ASSAULT); // Red for assault
       else if (d < 200) eyeMesh.setColorAt(k, EYE_CLOSE); // Orange when close
       else eyeMesh.setColorAt(k, EYE_HOSTILE);
     }
   }
   droneMesh.count = eyeMesh.count = k; droneMesh.instanceMatrix.needsUpdate = eyeMesh.instanceMatrix.needsUpdate = true; if (eyeMesh.instanceColor) eyeMesh.instanceColor.needsUpdate = true;
+  sentryMesh.count=groundCount;if(groundCount)sentryMesh.instanceMatrix.needsUpdate=true;
   sfx.hum(nearest < 400 ? 1 - nearest / 400 : 0);
   updateBullets(dt, previous);
   missiles.update(dt,{position:P.pos,previous,velocity:P.vel,enabled:shellsOn,sheltered:P.inTunnel,dead:P.dead});
@@ -4618,12 +4687,12 @@ function updateDrones(dt, previous = P.pos) {
 function updateBullets(dt, previous = P.pos) {
   const cx = P.pos.x, cy = P.pos.y + HIT_HEIGHT, cz = P.pos.z, py = previous.y + HIT_HEIGHT;
   const vulnerable = P.invuln <= 0 && !P.dead && !P.inTunnel;
-  let slugCount=0,missileCount=0;
+  let slugCount=0,missileCount=0,tailCount=0;
   for (let i = 0; i < bulDrawCount; i++) {
     if (bLife[i] <= 0) continue;
     const o = i * 3, ax = bPos[o] - previous.x, ay = bPos[o + 1] - py, az = bPos[o + 2] - previous.z;
     bLife[i] -= dt;
-    bPos[o] += bVel[o] * dt; bPos[o + 1] += bVel[o + 1] * dt; bPos[o + 2] += bVel[o + 2] * dt;
+    bPos[o] += bVel[o] * dt; bPos[o + 1] += bVel[o + 1] * dt + .5*bGravity[i]*dt*dt; bVel[o+1]+=bGravity[i]*dt; bPos[o + 2] += bVel[o + 2] * dt;
     const dx = bPos[o] - cx - ax, dy = bPos[o + 1] - cy - ay, dz = bPos[o + 2] - cz - az;
     const length2 = dx * dx + dy * dy + dz * dz, u = length2 > 1e-9 ? clamp(-(ax * dx + ay * dy + az * dz) / length2, 0, 1) : 0;
     const nx = ax + dx * u, ny = ay + dy * u, nz = az + dz * u, d2 = nx * nx + ny * ny + nz * nz;
@@ -4635,12 +4704,23 @@ function updateBullets(dt, previous = P.pos) {
     if (bLife[i] > 0 && (bGroundT[i] -= dt) <= 0) { bGroundT[i] = 0.14; if (bPos[o + 1] < surfaceAt(bPos[o], bPos[o + 2])) bLife[i] = 0; }
     if (bLife[i] <= 0) { bPos[o + 1] = -9999; bGraze[i] = 0; }
     if(bLife[i]>0&&bKind[i]){
-      const k=slugCount++*6,speed=Math.hypot(bVel[o],bVel[o+1],bVel[o+2])||1,isMissile=bKind[i]===2,length=isMissile?12:4.2;
-      for(let j=0;j<3;j++){slugP[k+j]=bPos[o+j];slugP[k+3+j]=bPos[o+j]-bVel[o+j]/speed*length;slugC[k+j]=isMissile?bCol[o+j]*.6+.18:bCol[o+j];slugC[k+3+j]=isMissile?.22:bCol[o+j]*.35;}
-      if(isMissile){_dm.position.set(bPos[o],bPos[o+1],bPos[o+2]);tmp.set(bVel[o],bVel[o+1],bVel[o+2]).normalize();_dm.quaternion.setFromUnitVectors(UP,tmp);_dm.scale.setScalar(clamp(_dm.position.distanceTo(P.pos)/95,1.15,3.5));_dm.updateMatrix();barrageBodies.setMatrixAt(missileCount,_dm.matrix);
+      const speed=Math.hypot(bVel[o],bVel[o+1],bVel[o+2])||1,isMissile=bKind[i]===2;
+      if(!isMissile){const k=slugCount++*6;
+        for(let j=0;j<3;j++){slugP[k+j]=bPos[o+j];slugP[k+3+j]=bPos[o+j]-bVel[o+j]/speed*4.2;slugC[k+j]=bCol[o+j];slugC[k+3+j]=bCol[o+j]*.35;}
+      }else{
+        const base=i*TAIL_N*3;bTailClock[i]+=dt;
+        if(bTailClock[i]>=.045){bTailClock[i]%=.045;bTail.copyWithin(base+3,base,base+(TAIL_N-1)*3);for(let j=0;j<3;j++)bTail[base+j]=bPos[o+j];}
+        for(let segment=0;segment<TAIL_N;segment++){const k=tailCount*6,from=base+(segment-1)*3,to=base+segment*3;
+          missileTailF[tailCount*2]=WindPatrolScore.tailFade(segment);missileTailF[tailCount*2+1]=WindPatrolScore.tailFade(segment+1);tailCount++;
+          for(let j=0;j<3;j++){missileTailP[k+j]=segment?bTail[from+j]:bPos[o+j];missileTailP[k+3+j]=bTail[to+j];
+            missileTailC[k+j]=missileTailC[k+3+j]=bCol[o+j]*.65+.28;}
+        }
+      }
+      if(isMissile){_dm.position.set(bPos[o],bPos[o+1],bPos[o+2]);tmp.set(bVel[o],bVel[o+1],bVel[o+2]).normalize();_dm.quaternion.setFromUnitVectors(UP,tmp);_dm.scale.setScalar(clamp(_dm.position.distanceTo(P.pos)/140,1,2.2));_dm.updateMatrix();barrageBodies.setMatrixAt(missileCount,_dm.matrix);
         _dm.position.addScaledVector(tmp,-1.75*_dm.scale.x);_dm.scale.multiplyScalar(.6);_dm.updateMatrix();barrageExhaust.setMatrixAt(missileCount++,_dm.matrix);}
     }
   }
+  missileTailGeo.setDrawRange(0,tailCount*2);if(tailCount)missileTailGeo.attributes.position.needsUpdate=missileTailGeo.attributes.color.needsUpdate=missileTailGeo.attributes.tailFade.needsUpdate=true;
   barrageLive=missileCount;
   for(const mesh of [barrageBodies,barrageExhaust]){mesh.count=missileCount;mesh.instanceMatrix.needsUpdate=true;}
   slugLines.visible=slugCount>0;slugGeo.setDrawRange(0,slugCount*2);if(slugCount)slugGeo.attributes.position.needsUpdate=slugGeo.attributes.color.needsUpdate=true;
@@ -5680,7 +5760,7 @@ const CAMERA_TUNE=['camFov','camHeight','camTilt','camDist','camFrame'];
 const CAMERA_PRESETS={
   riding:{label:'高め追従',camFov:24,camHeight:12,camTilt:-3,camDist:10.5,camFrame:0},
   scenic:{label:'遠景ひろめ',camFov:38,camHeight:16,camTilt:-4,camDist:12,camFrame:.06},
-  panorama:{label:'大パノラマ',camFov:46,camHeight:20,camTilt:-5,camDist:14,camFrame:.08},
+  panorama:{label:'大パノラマ',camFov:46,camHeight:20,camTilt:-5,camDist:17,camFrame:.08},
 };
 let previousCamera=null;
 const cameraSnapshot=()=>Object.fromEntries([...CAMERA_TUNE,'fovKick'].map(key=>[key,S[key]]));
@@ -5874,12 +5954,12 @@ function frame(now) {
 setVehicle(vehKey); applyLens();
 placeHome(0); buildHome(); buildFeaturedVista(); updatePalette(0, true); refreshCards();
 requestAnimationFrame(frame);
-window.__wl = { climate:WindJourneyClimate,get lakeJourney(){return lakeJourney;},flowEffects,riding: WindHorseRiding, musicRegion, setVehicle, get vehicle(){return vehKey;}, tours: TOURS, tourAt, travelFeatured, get featured() { return featured; }, performance: { streaming: streamStats, quality }, archery:bow, combat: { encounter,missiles,hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, patternNames: PATTERN_NAMES, relativeSpeed: AS_REL, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
+window.__wl = { get paused(){return paused;}, climate:WindJourneyClimate,get lakeJourney(){return lakeJourney;},flowEffects,riding: WindHorseRiding, musicRegion, setVehicle, get vehicle(){return vehKey;}, tours: TOURS, tourAt, travelFeatured, get featured() { return featured; }, performance: { streaming: streamStats, quality }, archery:bow, combat: { encounter,missiles,hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, patternNames: PATTERN_NAMES, relativeSpeed: AS_REL, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
 // A lazy connection lets the menu's independent BGM bus reuse the game's audio clock.
 window.__wlAudio = { getContext() { sfx.init(); return sfx.context; }, getDestination() { sfx.init(); return sfx.output; }, get soundOn() { return sfx.on; } };
 })();
 </script>
-<script type="module" src="../music/game-music.mjs?v=20261022-quiet" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
+<script type="module" src="../music/game-music.mjs?v=20261024-phrase" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
 </body>
 </html>
 

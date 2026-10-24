@@ -1,5 +1,5 @@
-import { createJourneyMusic, TRACKS } from './journey-music.mjs?v=20261022-quiet';
-import { createRoutePlaylist } from './route-playlist.mjs?v=20261022';
+import { createJourneyMusic, TRACKS } from './journey-music.mjs?v=20261024-phrase';
+import { createRoutePlaylist } from './route-playlist.mjs?v=20261024-phrase';
 
 const settings = document.querySelector('#musicSettings');
 const toggle = document.querySelector('#musicToggle');
@@ -22,7 +22,7 @@ function show(state) {
 }
 
 const autoOption = document.createElement('option');
-autoOption.value = 'auto'; autoOption.textContent = 'おまかせ：この土地に合う曲'; select.append(autoOption);
+autoOption.value = 'auto'; autoOption.textContent = 'おまかせ：旅に合わせて曲が移り変わる'; select.append(autoOption);
 for (const track of TRACKS) {
   const option = document.createElement('option');
   option.value = track.id; option.textContent = track.title;
@@ -55,10 +55,11 @@ window.addEventListener('wl:music-region', event => {
 // Require a stable region for 12 seconds whilst driving, so boundary noise cannot churn songs.
 let candidate = null, since = 0;
 setInterval(() => {
-  if (!window.__wl?.started || document.hidden || !document.querySelector('#menuSheet')?.hidden) return;
+  if (!window.__wl?.started || window.__wl.paused || window.__wl.P.dead || document.hidden) return;
   const region = window.__wl.musicRegion();
   if(candidate !== region) { candidate = region; since = performance.now(); }
   else if(performance.now() - since >= 12000) playlist.enter(region);
+  playlist.tick({phase:window.__wl.combat.encounter.phase});
 }, 3000);
 show(music.state); settings.disabled = false;
 window.__wlMusic = music;

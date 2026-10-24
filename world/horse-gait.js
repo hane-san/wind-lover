@@ -3,7 +3,7 @@
   const TAU=Math.PI*2,clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
   const smooth=x=>{x=clamp(x,0,1);return x*x*(3-2*x);};
   const mix=(a,b,k)=>a+(b-a)*k;
-  const cadence=speed=>1.55+.57*clamp((speed-10)/80,0,1);
+  const cadence=speed=>1.08+.94*Math.pow(clamp((speed-3)/39,0,1),.68);
   // The close hind pair reads as one pickup, followed by two distinct fore contacts: pa-ka-ra, space.
   const offsets=[.07,0,.44,.26],weights=[.72,.82,1.1,1];
   // Shared with the rendered model so taller proportions cannot detach the planted hooves.

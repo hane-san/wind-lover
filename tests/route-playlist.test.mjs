@@ -27,3 +27,18 @@ test('region polling preserves playback, re-entry rerolls, manual selection surv
   await reloaded.enter('desert');assert.equal(selected.length,2);
   await reloaded.setAutomatic(true);assert.equal(selected.length,3);
 });
+test('complete phrases rotate without repeats only in a playing, quiet journey; manual and paused tracks stay put',async()=>{
+ const calls=[];let elapsed=0;
+ const music={state:{track:'rust-horizon',status:'playing'},inspect:()=>({playingSeconds:elapsed,duration:60}),select(id,options){calls.push({id,options});this.state.track=id;elapsed=0;return Promise.resolve(true);}};
+ const list=createRoutePlaylist(music,{storage:null,random:()=>0});await list.enter('lake');
+ const songs=[music.state.track];
+ for(let i=0;i<7;i++){
+  elapsed=58;assert.equal(await list.tick(),false);
+  elapsed=61;assert.equal(await list.tick({phase:'combat'}),false);assert.equal(await list.tick({active:false}),false);
+  music.state.status='switching';assert.equal(await list.tick(),false);music.state.status='playing';
+  assert.equal(await list.tick({phase:i%2?'release':'scenic'}),true);songs.push(music.state.track);
+ }
+ for(let i=0;i<songs.length-3;i++)assert.equal(new Set(songs.slice(i,i+4)).size,4);
+ assert.ok(calls.every(c=>c.options.fade===2.4));
+ await list.setAutomatic(false);elapsed=120;assert.equal(await list.tick(),false);assert.equal(list.history.length,4);
+});

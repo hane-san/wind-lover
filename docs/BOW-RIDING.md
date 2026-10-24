@@ -14,6 +14,8 @@ Only hostile, unreserved targets within 360m and the forward view can lock. Buil
 
 The rider raises a physical recurved bow, extends the left arm and draws the right hand to the cheek; the string and rein endpoints follow the hands. The original clothes, gallop, scarf and saddle absorption remain. Release and impact have separate cached sounds. Hits produce an enlarged core/fireball/ring, debris, a short white hit mark, bounded camera impulse and haptics. No hit stop or speed subtraction interrupts the gallop.
 
+The later sky/ground phrase, paired salvos, distance-17 panorama, hoof cadence and automatic musical changes supersede their older values below; see [SKY-RHYTHM.md](SKY-RHYTHM.md).
+
 ## Pace and patrols
 
 The horse defaults are cruise 20m/s, base maximum 34m/s, acceleration 18m/s² and tailwind 1.5. Flow adds up to 30% to cruise and 12% to the base maximum; slopes and the soft cap can briefly put actual speed around 40m/s. These are still stylised travel speeds, not a claim of realistic equine performance. A featured departure starts at 90% cruise instead of forcing every vehicle to 52m/s. Only untouched old horse speed/wind fields migrate; deliberate tuning survives.

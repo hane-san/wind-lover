@@ -14,9 +14,9 @@
       else if(s.phase==='combat'){s.phase='release';s.duration=4.5;s.event='release';}
       else{s.phase='scenic';s.cycle++;s.duration=rest(region,s.cycle,hull);s.event='clear';}
     }
-    // Three seconds of clear air between salvos also provide a comfortable drawing window.
-    const beat=s.elapsed%6.2;
-    s.fire=s.phase==='combat'&&beat<3.1&&Math.abs(bend)<.48;
+    // A paired reading, then a longer answer on the bow. Each patrol has at most two missile salvos.
+    const beat=s.elapsed%9.4;
+    s.turning=Math.abs(bend)>=.48;s.fire=s.phase==='combat'&&beat<4.2&&!s.turning;
     s.weapon=s.fire?'missile':null;s.pressure=s.phase==='combat'?1:s.phase==='warning'?.35:0;return s;
   }
   globalThis.WindEncounters=Object.freeze({create,advance,rest});

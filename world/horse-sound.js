@@ -32,7 +32,7 @@
       const source=context.createBufferSource(),gain=context.createGain(),pan=context.createStereoPanner();
       const variant=serial++%3;
       source.buffer=buffer(surface,event.leg,variant);source.playbackRate.value=.98+event.leg*.008+variant*.006;
-      const level=.36*event.weight;
+      const level=.265*event.weight;
       gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(level,at+.0015);
       gain.gain.setValueAtTime(level,at+.12);gain.gain.linearRampToValueAtTime(0,at+.16);
       pan.pan.value=event.leg%2?.13:-.13;
@@ -61,7 +61,8 @@
         const beat=cycle+WindHorseGait.offsets[leg],at=epoch.time+(beat-epoch.cycles)/rate,key=`${cycle}:${leg}`;
         if(at<now+.003||at>now+.24||scheduled.has(key))continue;
         const index=WindHorseGait.legIndex(leg,gait.lead||1);
-        if(strike({leg:index,weight:(leg<2?.77:1.02)*(1+.06*load)},surface,at,true))scheduled.set(key,cycle);
+        const pace=.78+.22*Math.min(1,Math.max(0,(speed-5)/30));
+        if(strike({leg:index,weight:(leg<2?.77:1.02)*(1+.06*load)*pace},surface,at,true))scheduled.set(key,cycle);
       }
       for(const [key,cycle]of scheduled)if(cycle<Math.floor(gait.cycles)-1)scheduled.delete(key);
     }

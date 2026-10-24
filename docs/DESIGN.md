@@ -18,6 +18,8 @@ The later enemy behaviour and firing rhythm are specified in [DEFENCE-RHYTHM.md]
 
 The latest mounted-bow game loop, lower horse pace and default panorama are specified in [BOW-RIDING.md](BOW-RIDING.md). This supersedes the older speed/weapon rotation and default composition values below; custom settings, the connected world and quiet soundtrack remain.
 
+The latest sky/ground patrol choreography, ballistic missile trails, quieter speed-related hoof rhythm, distant mounted panorama and automatic regional song rotation are specified in [SKY-RHYTHM.md](SKY-RHYTHM.md). This supersedes the older patrol altitude, launch band, repeated salvo and one-song-per-region rules.
+
 ## Core rules
 
 Per-vehicle FOV, height, pitch, sky/ground framing and distance can be explored in a paused camera preview or a full-screen comparison. The owner's high-follow view and two wider presets provide starting points. Defaults retain the existing composition, and wall/tunnel protection still takes precedence. See [CAMERA-TUNING.md](CAMERA-TUNING.md) for ranges, saving and checks.
