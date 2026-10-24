@@ -44,7 +44,7 @@ try:
   session=page.context.new_cdp_session(page);lower={'id':41,'x':130,'y':min(774,horse['y']+80)};upper={'id':42,'x':195,'y':horse['y']-230}
   session.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[lower]})
   session.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[lower,upper]})
-  moved_lower={**lower,'x':165};moved_upper={**upper,'y':upper['y']+95}
+  moved_lower={**lower,'x':165};moved_upper={**upper,'x':upper['x']+80,'y':upper['y']-10}
   session.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[moved_lower,moved_upper]})
   assert page.evaluate('__wl.inp.jx>.5 && __wl.archery.pull>.8 && __wl.archery.id!==null'),'Native multi-touch did not keep independent controls'
   shots=page.evaluate('__wl.archery.shots');session.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[moved_upper]})

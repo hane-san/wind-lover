@@ -8,14 +8,33 @@ test('a touch below the saddle remains a rein gesture; an upper draw releases on
  A.begin(s,3,170,350,horse,390,844);A.move(s,3,195,470,horse);assert.equal(A.end(s,3),false);A.advance(s,.25);
  A.begin(s,4,170,350,horse,390,844);A.move(s,4,195,470,horse);assert.equal(A.end(s,4,true),false);assert.equal(s.shots,1);
 });
-test('taps, sideways drags and pulling away from the horse cannot loose arrows',()=>{
- for(const delta of [[0,0],[80,0],[0,-90]]){const s=A.create(),horse={x:195,y:590};A.begin(s,1,195,350,horse,390,844);A.move(s,1,195+delta[0],350+delta[1],horse);assert.equal(A.end(s,1),false);}
+test('taps, shallow sideways strokes and steep upward drags cannot loose arrows',()=>{
+ for(const delta of [[0,0],[35,0],[-35,0],[0,-90],[80,-40],[-80,-40]]){const s=A.create(),horse={x:195,y:590};A.begin(s,1,195,350,horse,390,844);A.move(s,1,195+delta[0],350+delta[1],horse);assert.equal(A.end(s,1),false);}
+});
+test('left, right and slightly upward sideways draws retain the full committed stroke',()=>{
+ for(const [w,h]of [[320,568],[390,844],[844,390]])for(const x of [w*.12,w*.5,w*.88])for(const degrees of [-10,0,30,90])for(const side of [-1,1]){
+  const s=A.create(),horse={x:w*.5,y:h*.8},y=h*.3,angle=degrees*Math.PI/180;
+  A.begin(s,1,x,y,horse,w,h);const minimum=3+A.minPull*(s.drawLength-3);
+  A.move(s,1,x+side*Math.cos(angle)*(minimum-.1),y+Math.sin(angle)*(minimum-.1),horse);assert.ok(s.pull<A.minPull);
+  A.move(s,1,x+side*Math.cos(angle)*(minimum+.1),y+Math.sin(angle)*(minimum+.1),horse);assert.equal(A.end(s,1),true);
+ }
+});
+test('directional forgiveness eases away smoothly and follows displacement rather than path length',()=>{
+ const s=A.create(),horse={x:195,y:590};A.begin(s,1,195,350,horse,390,844);
+ const pulls=[];for(const degrees of [-10,-12,-14,-16,-18,-20,-22]){const a=degrees*Math.PI/180;A.move(s,1,195+80*Math.cos(a),350+80*Math.sin(a),horse);pulls.push(s.pull);}
+ assert.ok(Math.abs(pulls[0]-(80-3)/(s.drawLength-3))<1e-10);assert.equal(pulls.at(-1),0);for(let i=1;i<pulls.length;i++)assert.ok(pulls[i]<=pulls[i-1]);
+ for(let i=0;i<10;i++){A.move(s,1,275,350,horse);A.move(s,1,195,350,horse);}assert.equal(s.pull,0);assert.equal(A.end(s,1),false);
 });
 test('generous screen-space locks exclude hidden, reserved, distant and rear targets',()=>{
  const s=A.create();s.x=195;s.y=350;const d={};const good={d,x:265,y:385,distance:290,ahead:1,z:.9};
- for(const invalid of [{distance:500},{ahead:-1},{reserved:true},{hidden:true},{visible:false},{z:1.1},{x:500}])assert.equal(A.pick(s,[{...good,...invalid}]),null);
+ for(const invalid of [{distance:500},{ahead:-1},{ahead:-.01},{reserved:true},{hidden:true},{visible:false},{z:1.1},{x:500}])assert.equal(A.pick(s,[{...good,...invalid}]),null);
  assert.equal(A.pick(s,[good]),good);const slightlyWorse={...good,d:{},x:270};s.target=slightlyWorse;assert.equal(A.pick(s,[good,slightlyWorse]),slightlyWorse);
  A.cancel(s);assert.equal(s.target,null);assert.equal(s.id,null);
+});
+test('a visible lock survives from the forward quarter to directly alongside, but not behind',()=>{
+ const s=A.create(),d={},v={d,x:195,y:350,distance:35,ahead:1,z:.8};s.x=195;s.y=350;
+ s.target=A.lock(s,[v]);for(const ahead of [.2,.05,.001,0]){const next={...v,ahead};s.target=A.lock(s,[next]);assert.equal(s.target,next);}
+ assert.equal(A.lock(s,[{...v,ahead:-.01}]),null);
 });
 test('a committed draw is required across phone sizes, but reaching it needs no holding timer',()=>{
  for(const [width,height]of [[390,844],[320,568],[844,390]]){

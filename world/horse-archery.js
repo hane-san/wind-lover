@@ -10,8 +10,11 @@
   }
   function move(s,id,x,y,horse){
     if(s.id!==id)return false;s.dx=x-s.x;s.dy=y-s.y;
-    // Take up a little slack, then put the extra commitment in the stroke, not a timer.
-    s.pull=clamp((s.dx*s.axisX+s.dy*s.axisY-3)/(s.drawLength-3),0,1);return true;
+    // Keep the saddle draw; either sideways stroke also loads fully, up to 10 degrees upwards.
+    // Ease out by 20 degrees rather than making readiness jump at the edge of that sector.
+    const length=Math.hypot(s.dx,s.dy),edge=clamp((s.dy/Math.max(1,length)+Math.sin(Math.PI/9))/(Math.sin(Math.PI/9)-Math.sin(Math.PI/18)),0,1);
+    const stroke=Math.max(s.dx*s.axisX+s.dy*s.axisY,length*edge*edge*(3-2*edge));
+    s.pull=clamp((stroke-3)/(s.drawLength-3),0,1);return true;
   }
   function end(s,id,cancel=false){
     if(s.id!==id)return false;
@@ -39,7 +42,7 @@
       return {x:target.x+ux*distance,y:target.y+uy*distance,angle,scale,distance};
     }return null;
   }
-  function available(v){return v.distance<=range&&v.distance>=10&&v.ahead>=.25&&v.z>=-1&&v.z<=1&&!v.reserved&&!v.hidden&&v.visible!==false;}
+  function available(v){return v.distance<=range&&v.distance>=10&&v.ahead>=-1e-6&&v.z>=-1&&v.z<=1&&!v.reserved&&!v.hidden&&v.visible!==false;}
   function pick(s,targets,previous=s.target){
     let best=null,score=Infinity;
     for(const v of targets){

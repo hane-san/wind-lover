@@ -1,5 +1,5 @@
 """Check immediate small locks, committed draws, bow recoil and persistent arrow wakes in real WebGL."""
-import argparse,functools,http.server,json,threading
+import argparse,functools,http.server,json,math,threading
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 p=argparse.ArgumentParser(description=__doc__);p.add_argument('--browser',default='/usr/bin/chromium');p.add_argument('--three',type=Path,required=True);p.add_argument('--out',type=Path,default=Path('/tmp/bow-feel-qa'));args=p.parse_args();args.out.mkdir(parents=True,exist_ok=True);root=Path(__file__).resolve().parents[1]
@@ -33,11 +33,17 @@ try:
    page.screenshot(path=str(args.out/(str(width)+'-nocked.png')))
    pointer('pointermove',80,x,y+35);page.evaluate('__feelQA.renderer.render(__wl.scene,__feelQA.camera)');page.screenshot(path=str(args.out/(str(width)+'-partial.png')))
    pointer('pointerup',80,x,y+35);assert page.evaluate('(before)=>__wl.archery.shots===before && __feelQA.arrows.every(a=>a.life<=0)',setup['shots']),'A shallow draw fired'
-   # Start a second draw; no timer/hold is needed once the string is pulled far enough.
-   pointer('pointerdown',81,x,y);pointer('pointermove',81,horse['x'],y+100)
+   # Both hands may draw sideways, including a slight upward slant, without a holding timer.
+   for side in [-1,1]:
+    for degrees in [0,-10]:
+     length=page.evaluate('3+(Math.min(96,Math.max(70,Math.min(innerWidth,innerHeight)*.22))-3)*WindArchery.minPull+.5');a=math.radians(degrees)
+     pointer('pointerdown',82,x,y);pointer('pointermove',82,x+side*length*math.cos(a),y+length*math.sin(a))
+     assert page.evaluate('__wl.archery.pull>=WindArchery.minPull && __wl.archery.target?.d===__feelTarget.d'),'A lateral draw lost its weight or lock'
+     pointer('pointercancel',82,x,y)
+   pointer('pointerdown',81,x,y);end_x=x+(-1 if x>width/2 else 1)*80;end_y=y-10;pointer('pointermove',81,end_x,end_y)
    assert page.evaluate('__wl.archery.pull>=WindArchery.minPull && __wl.archery.target?.d===__feelTarget.d')
    page.evaluate('()=>{__feelQA.updateVisuals(.06);__feelQA.drawBowSight(0);__feelQA.renderer.render(__wl.scene,__feelQA.camera)}');page.screenshot(path=str(args.out/(str(width)+'-full.png')))
-   speed=page.evaluate('__wl.P.vel.length()');page.evaluate('window.__lockStrokes=[]');pointer('pointerup',81,horse['x'],y+100)
+   speed=page.evaluate('__wl.P.vel.length()');page.evaluate('window.__lockStrokes=[]');pointer('pointerup',81,end_x,end_y)
    assert page.evaluate('__lockStrokes.length===0'),'The lock marker survived pointer-up'
    state=page.evaluate('''()=>{const w=__wl,q=__feelQA;q.drawBowSight(0);q.renderer.render(w.scene,q.camera);return {width:innerWidth,height:innerHeight,shots:w.archery.shots,fullDraw:w.archery.drawLength,minimumDraw:3+(w.archery.drawLength-3)*WindArchery.minPull,recoil:w.archery.recoil};}''');assert state['shots']==setup['shots']+1 and state['recoil']>0
    page.screenshot(path=str(args.out/(str(width)+'-release.png')))
@@ -61,5 +67,18 @@ try:
     }q.drawBowSight(0,false);
    }''')
    report['views'].append(state)
-  assert not errors,errors;report.update(pageErrors=errors,separatedBow=True,shatteredDrones=True,immediateNearbyLock=True,noLargeCircle=True,committedDraw=True,releaseWithoutTimer=True,hitWake=True,travelSpeedPreserved=True);(args.out/'result.json').write_text(json.dumps(report,indent=2));print(json.dumps(report),flush=True);browser.close()
+  # Move a real hostile from a forward quarter to the rider's side. A rear view still requires visibility.
+  page.set_viewport_size({'width':844,'height':390})
+  side_hits=page.evaluate('''()=>{const w=__wl,q=__feelQA;let hits=0;
+   for(const side of [-1,1]){w.travelFeatured('desert');q.paused=false;w.spawnF('assault');const f=w.forms.find(f=>!f.peace);Object.assign(w.combat.encounter,{phase:'combat',elapsed:1,duration:32,fire:false});f.phase='hold';q.updateDrones(0);for(let i=0;i<100;i++)q.updateVisuals(1/60);
+    const dir=new THREE.Vector3(Math.sin(w.P.yaw),0,Math.cos(w.P.yaw)),right=new THREE.Vector3(dir.z,0,-dir.x),d=f.drones[0];d.copy(w.P.pos).addScaledVector(dir,1).addScaledVector(right,side*16);d.y=w.P.pos.y+5;
+    const v=q.bowTargets().find(t=>t.d===d);if(!v||!v.visible||v.hidden||v.ahead>=.25)throw Error('Side presentation fixture is not a visible near-side enemy: '+JSON.stringify(v));
+    const canvas=q.renderer.domElement,send=(type,x,y)=>canvas.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:88,pointerType:'touch',clientX:x,clientY:y,button:0}));
+    WindArchery.advance(w.archery,1);send('pointerdown',v.x,v.y);if(w.archery.target?.d!==d)throw Error('Near-side enemy failed to lock');
+    d.addScaledVector(dir,-1);q.drawBowSight(0);if(w.archery.target?.d!==d)throw Error('Lock disappeared at directly alongside');
+    const x=v.x-side*80,y=v.y-10;send('pointermove',x,y);const before=w.archery.hits,shots=w.archery.shots;send('pointerup',x,y);if(w.archery.shots!==shots+1)throw Error('Side draw did not release');for(let i=0;i<60&&w.archery.hits===before;i++)q.updateArchery(1/60);
+    if(w.archery.hits!==before+1)throw Error('Side draw did not hit the side enemy');hits++;
+   }return hits;
+  }''')
+  assert not errors,errors;report.update(pageErrors=errors,sideHits=side_hits,lateralAndSlightlyUpwardDraw=True,separatedBow=True,shatteredDrones=True,immediateNearbyLock=True,noLargeCircle=True,committedDraw=True,releaseWithoutTimer=True,hitWake=True,travelSpeedPreserved=True);(args.out/'result.json').write_text(json.dumps(report,indent=2));print(json.dumps(report),flush=True);browser.close()
 finally:server.shutdown();server.server_close()
