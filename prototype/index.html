@@ -372,9 +372,9 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 <script src="../world/flow-effects.js?v=20261024-bow"></script>
 <script src="../world/journey-climate.js?v=20261022-voyage"></script>
 <script src="../world/travel-camera.js?v=20261022-network"></script>
-<script src="../world/horse-archery.js?v=20261024-bow"></script>
+<script src="../world/horse-archery.js?v=20261024-recurve"></script>
 <script src="../world/encounter-director.js?v=20261024-bow"></script>
-<script src="../world/weapon-audio.js?v=20261024-bow"></script>
+<script src="../world/weapon-audio.js?v=20261024-recurve"></script>
 <script src="../world/missiles.js?v=20261023-defence"></script>
 <script>
 'use strict';
@@ -3433,8 +3433,10 @@ function limb(parent, a, b, r, mat) {
   // Move the rider's own geometry, keeping its group pivot available for saddle absorption.
   for(const child of rider.children)child.position.y+=.32;
   const ridingBow=new THREE.Group();rider.add(ridingBow);ridingBow.visible=false;
-  const bowPath=new THREE.CatmullRomCurve3([new V3(0,-.65,.14),new V3(0,-.38,-.02),new V3(0,0,0),new V3(0,.38,-.02),new V3(0,.65,.14)]);
-  ridingBow.add(new THREE.Mesh(new THREE.TubeGeometry(bowPath,16,.026,6,false),gold));
+  const bowPath=new THREE.CatmullRomCurve3([new V3(0,-.67,.16),new V3(0,-.53,.02),new V3(0,-.4,-.13),new V3(0,-.17,-.05),new V3(0,0,0),new V3(0,.17,-.05),new V3(0,.4,-.13),new V3(0,.53,.02),new V3(0,.67,.16)]);
+  const bowLimb=new THREE.Mesh(new THREE.TubeGeometry(bowPath,24,.026,6,false),gold);ridingBow.add(bowLimb);
+  const bowBase=new Float32Array(bowLimb.geometry.attributes.position.array),bowEars=[];
+  for(const side of [-1,1]){const ear=limb(ridingBow,[0,side*.53,.02],[0,side*.67,.16],.033,pale);bowEars.push({ear,side});}
   const bowStringGeo=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(9),3));
   ridingBow.add(new THREE.Line(bowStringGeo,new THREE.LineBasicMaterial({color:0xe6ddc8})));
   // A small leather quiver rests behind the shoulder rather than replacing the traditional clothes.
@@ -3443,7 +3445,7 @@ function limb(parent, a, b, r, mat) {
   const reins=[];
   for(const side of [-1,1]){const geo=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(27),3));const line=new THREE.Line(geo,new THREE.LineBasicMaterial({color:0x3a3026}));line.frustumCulled=false;body.add(line);reins.push({geo,hand:new V3(side*.18,2.47,.65),bit:new V3(side*.16,.69,1.12),a:new V3(),b:new V3()});}
   const trailA=new THREE.Object3D();trailA.position.set(0,.05,-1.15);g.add(trailA);
-  models.horse={group:g,rider,scarf:scarfA,trail:trailA,arms:null,body,neck,tail,legs,reins,rig,torso,bowArms,ridingBow,bowStringGeo,bowBlend:0,motion:WindHorseGait.create()};boardPivot.add(g);
+  models.horse={group:g,rider,scarf:scarfA,trail:trailA,arms:null,body,neck,tail,legs,reins,rig,torso,bowArms,ridingBow,bowLimb,bowBase,bowEars,bowFlex:-1,bowStringGeo,bowBlend:0,motion:WindHorseGait.create()};boardPivot.add(g);
 })();
 const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
 scene.add(shadow);
@@ -4871,6 +4873,21 @@ const bow=WindArchery.create(),bowCanvas=$('#bowSight'),bowInk=bowCanvas.getCont
 const arrowCount=12,arrows=Array.from({length:arrowCount},()=>({p:new V3(),dir:new V3(),life:0,target:null}));
 const arrowP=new Float32Array(arrowCount*24),arrowGeo=new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(arrowP,3));
 const arrowLines=new THREE.LineSegments(arrowGeo,new THREE.LineBasicMaterial({color:0xffe8b5,transparent:true,opacity:.94,fog:false}));arrowLines.frustumCulled=false;scene.add(arrowLines);arrowGeo.setDrawRange(0,0);
+// A fixed, short-lived wake bridges low frame rates and remains visible when an arrow lands.
+const ARROW_WAKE_N=96,arrowWake=Array.from({length:ARROW_WAKE_N},()=>({a:new V3(),b:new V3(),life:0}));let arrowWakeI=0;
+const arrowWakeP=new Float32Array(ARROW_WAKE_N*6),arrowWakeF=new Float32Array(ARROW_WAKE_N*2),arrowWakeGeo=new THREE.BufferGeometry();
+arrowWakeGeo.setAttribute('position',new THREE.BufferAttribute(arrowWakeP,3));arrowWakeGeo.setAttribute('arrowFade',new THREE.BufferAttribute(arrowWakeF,1));arrowWakeGeo.setDrawRange(0,0);
+const arrowWakeMat=new THREE.LineBasicMaterial({color:0xffedcf,transparent:true,opacity:.85,depthWrite:false,fog:false});
+arrowWakeMat.onBeforeCompile=s=>{s.vertexShader='attribute float arrowFade; varying float vArrowFade;\n'+s.vertexShader;s.vertexShader=s.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvArrowFade=arrowFade;');s.fragmentShader='varying float vArrowFade;\n'+s.fragmentShader;s.fragmentShader=s.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.a *= vArrowFade;');};
+const arrowWakeLines=new THREE.LineSegments(arrowWakeGeo,arrowWakeMat);arrowWakeLines.frustumCulled=false;scene.add(arrowWakeLines);
+const arrowBefore=new V3();
+function markArrowWake(a,b){const slot=arrowWake[arrowWakeI++%ARROW_WAKE_N];slot.a.copy(a);slot.b.copy(b);slot.life=.16;}
+function updateArrowWake(dt){let count=0;
+  for(const slot of arrowWake){slot.life=Math.max(0,slot.life-dt);if(!slot.life)continue;
+    const k=count*6;arrowWakeP[k]=slot.a.x;arrowWakeP[k+1]=slot.a.y;arrowWakeP[k+2]=slot.a.z;arrowWakeP[k+3]=slot.b.x;arrowWakeP[k+4]=slot.b.y;arrowWakeP[k+5]=slot.b.z;
+    const fade=slot.life/.16;arrowWakeF[count*2]=fade*.12;arrowWakeF[count*2+1]=fade;count++;
+  }arrowWakeGeo.setDrawRange(0,count*2);if(count)arrowWakeGeo.attributes.position.needsUpdate=arrowWakeGeo.attributes.arrowFade.needsUpdate=true;
+}
 function saddleScreen(){
   camera.updateMatrixWorld();bowScreen.copy(P.pos);bowScreen.y+=1.8;bowScreen.project(camera);
   return {x:clamp((bowScreen.x*.5+.5)*innerWidth,innerWidth*.2,innerWidth*.8),y:clamp((.5-bowScreen.y*.5)*innerHeight,innerHeight*.46,innerHeight*.88)};
@@ -4882,19 +4899,21 @@ function bowTargets(){
       if(distance>WindArchery.range)continue;
       const eye={x:P.pos.x,y:P.pos.y+2.8,z:P.pos.z};let hidden=WindTravelCamera.boomFraction(eye,d,colliders)<.98;
       for(const u of [.25,.5,.75])if(!hidden&&surfaceAt(lerp(eye.x,d.x,u),lerp(eye.z,d.z,u))>lerp(eye.y,d.y,u)-.2)hidden=true;
-      targets.push({f,d,distance,ahead:((d.x-P.pos.x)*fwd.x+(d.z-P.pos.z)*fwd.z)/Math.max(1,distance),x:(bowScreen.x*.5+.5)*innerWidth,y:(.5-bowScreen.y*.5)*innerHeight,z:bowScreen.z,hidden,reserved:(d.bowIncoming||0)>0});
+      targets.push({f,d,distance,ahead:((d.x-P.pos.x)*fwd.x+(d.z-P.pos.z)*fwd.z)/Math.max(1,distance),x:(bowScreen.x*.5+.5)*innerWidth,y:(.5-bowScreen.y*.5)*innerHeight,z:bowScreen.z,visible:Math.abs(bowScreen.x)<=1&&Math.abs(bowScreen.y)<=1,hidden,reserved:(d.bowIncoming||0)>0});
     }
   }return targets;
 }
 function clearArrows(){
   for(const a of arrows){if(a.target)a.target.d.bowIncoming=Math.max(0,(a.target.d.bowIncoming||0)-1);a.target=null;a.life=0;}
-  arrowGeo.setDrawRange(0,0);bow.flash=0;bow.recoil=0;
+  arrowGeo.setDrawRange(0,0);for(const slot of arrowWake)slot.life=0;arrowWakeGeo.setDrawRange(0,0);bow.flash=0;bow.recoil=0;
 }
 function releaseBow(){
   if(vehKey!=='horse'||paused||P.dead)return;
   const a=arrows.find(a=>a.life<=0);if(!a)return;
   // Re-evaluate at release, so an already destroyed target never steals another arrow.
-  bow.target=WindArchery.pick(bow,bowTargets());a.target=bow.target;
+  bow.target=WindArchery.lock(bow,bowTargets());a.target=bow.target;
+  bow.releaseX=bow.target?.x??bow.x;bow.releaseY=bow.target?.y??bow.y;
+  const horse=saddleScreen();bow.releaseAngle=Math.atan2(horse.y-bow.releaseY,horse.x-bow.releaseX)-Math.PI/2;
   a.p.copy(P.pos);a.p.y+=2.8;a.p.addScaledVector(fwd,.9);a.life=.85;
   if(a.target){a.target.d.bowIncoming=(a.target.d.bowIncoming||0)+1;a.dir.subVectors(a.target.d,a.p).normalize();}
   else {bowScreen.set(bow.x/innerWidth*2-1,1-bow.y/innerHeight*2,.5).unproject(camera);a.dir.subVectors(bowScreen,camera.position).normalize();}
@@ -4908,13 +4927,14 @@ function updateArchery(dt){
     const target=a.target,alive=target&&target.f.drones.includes(target.d);
     if(alive){bowScreen.subVectors(target.d,a.p);const distance=bowScreen.length();
       if(distance<760*dt+2){
+        markArrowWake(a.p,target.d);
         target.d.bowIncoming=Math.max(0,(target.d.bowIncoming||0)-1);bowHit.copy(target.d);killDrone(target.f,target.d,'bow');
         bow.hits++;bow.flash=.3;sfx.weapon('bowhit',{gain:1,pan:weaponPan(bowHit)});shake=Math.max(shake,.19);dashPunch=Math.max(dashPunch,.18);P.flow=Math.min(1,P.flow+.035);
         if(navigator.vibrate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)try{navigator.vibrate([15,12,20]);}catch(_){}
         a.target=null;a.life=0;continue;
       }a.dir.copy(bowScreen).multiplyScalar(1/distance);
     }
-    a.p.addScaledVector(a.dir,760*dt);
+    arrowBefore.copy(a.p);a.p.addScaledVector(a.dir,760*dt);if(dt>0)markArrowWake(arrowBefore,a.p);
     if(a.life<=0){if(a.target)a.target.d.bowIncoming=Math.max(0,(a.target.d.bowIncoming||0)-1);a.target=null;continue;}
     // Shaft, bright tip and two feather strokes: one fixed buffer for all arrows.
     const k=count++*24,sideX=a.dir.z*.3,sideZ=-a.dir.x*.3;
@@ -4923,21 +4943,49 @@ function updateArchery(dt){
       a.p.x,a.p.y,a.p.z,a.p.x-a.dir.x*.8+sideX,a.p.y-a.dir.y*.8,a.p.z-a.dir.z*.8+sideZ,
       tail.x,tail.y,tail.z,tail.x+a.dir.x*.8+sideX,tail.y+a.dir.y*.8,tail.z+a.dir.z*.8+sideZ,
       tail.x,tail.y,tail.z,tail.x+a.dir.x*.8-sideX,tail.y+a.dir.y*.8,tail.z+a.dir.z*.8-sideZ],k);
-  }arrowGeo.setDrawRange(0,count*8);if(count)arrowGeo.attributes.position.needsUpdate=true;
+  }arrowGeo.setDrawRange(0,count*8);if(count)arrowGeo.attributes.position.needsUpdate=true;updateArrowWake(dt);
 }
-function drawBowSight(dt){
+function drawBowSight(dt,refresh=true){
   const w=innerWidth,h=innerHeight;
   if(bowCanvas.width!==w||bowCanvas.height!==h){bowCanvas.width=w;bowCanvas.height=h;}
   const g=bowInk;g.clearRect(0,0,w,h);
   if(!started||paused||P.dead||vehKey!=='horse')return;
-  if(bow.id!==null){
-    bow.target=WindArchery.pick(bow,bowTargets());const r=bow.radius;
-    g.strokeStyle='rgba(255,255,255,.23)';g.lineWidth=15;g.beginPath();g.arc(bow.x,bow.y,r,0,TAU);g.stroke();
-    g.strokeStyle='rgba(255,255,255,.85)';g.lineWidth=1.5;g.beginPath();g.arc(bow.x,bow.y,r-8,0,TAU);g.stroke();
-    g.strokeStyle='rgba(255,255,255,.6)';g.lineWidth=2;g.beginPath();g.moveTo(bow.x-r*.65,bow.y);g.lineTo(bow.x+bow.dx,bow.y+bow.dy);g.lineTo(bow.x+r*.65,bow.y);g.stroke();
-    g.lineWidth=4;g.strokeStyle=`rgba(255,255,255,${.25+bow.pull*.7})`;g.beginPath();g.arc(bow.x,bow.y,r+10,-Math.PI/2,-Math.PI/2+TAU*bow.pull);g.stroke();
-    if(bow.target){const q=bow.target;g.strokeStyle='rgba(255,250,225,.95)';g.lineWidth=2.5;g.beginPath();g.arc(q.x,q.y,18,0,TAU);g.stroke();
-      for(let i=0;i<4;i++){const a=i*TAU/4;g.beginPath();g.moveTo(q.x+Math.cos(a)*23,q.y+Math.sin(a)*23);g.lineTo(q.x+Math.cos(a)*30,q.y+Math.sin(a)*30);g.stroke();}}
+  const holding=bow.id!==null,releasing=!holding&&bow.recoil>0;
+  if(holding||releasing){
+    if(holding&&refresh)bow.target=WindArchery.lock(bow,bowTargets());
+    const q=holding?bow.target:null,cx=holding?(q?.x??bow.x):bow.releaseX,cy=holding?(q?.y??bow.y):bow.releaseY;
+    const horse=holding?saddleScreen():null,angle=holding?Math.atan2(horse.y-cy,horse.x-cx)-Math.PI/2:bow.releaseAngle;
+    const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches,u=1-bow.recoil;
+    const pull=holding?bow.pull:reduced?0:bow.releasePull*Math.cos(u*Math.PI*3.4)*Math.exp(-u*5);
+    const ready=holding&&pull>=WindArchery.minPull,load=Math.pow(Math.max(0,pull),1.35),half=bow.span*(1-load*.12);
+    const tipY=-2+load*17,kneeY=13+load*17,nockY=tipY+pull*70;
+    g.save();g.translate(cx,cy);g.rotate(angle);g.globalAlpha=holding?1:bow.recoil;
+    g.lineCap='round';g.lineJoin='round';g.shadowColor='rgba(20,28,32,.65)';g.shadowBlur=2;
+    // Flexible limbs, a firm central grip and short, forward-turned rigid ears: a composite horsebow.
+    g.strokeStyle=ready?'rgba(255,255,250,.98)':'rgba(255,255,255,.78)';g.lineWidth=ready?2.8:2.2;
+    for(const side of [-1,1]){
+      g.beginPath();g.moveTo(side*5,-24);
+      g.bezierCurveTo(side*24,-22+load*7,side*(half*.48),kneeY-3,side*(half-18),kneeY);
+      g.bezierCurveTo(side*(half-8),kneeY+1,side*(half-6),tipY+13,side*half,tipY);g.stroke();
+      g.lineWidth=3;g.beginPath();g.moveTo(side*half,tipY);g.lineTo(side*(half+4),tipY-13);g.stroke();g.lineWidth=ready?2.8:2.2;
+    }
+    // The limbs store the tension; the string stays straight between each tip and the draw hand.
+    g.strokeStyle=ready?'rgba(255,255,255,.98)':'rgba(255,255,255,.55)';g.lineWidth=ready?1.7:1.1;
+    g.beginPath();g.moveTo(-half,tipY);g.lineTo(0,nockY);g.lineTo(half,tipY);g.stroke();
+    g.lineWidth=2;g.beginPath();g.moveTo(-5,-24);g.lineTo(5,-24);g.stroke();
+    for(const y of [-28,-24,-20]){g.lineWidth=1;g.beginPath();g.moveTo(-4,y);g.lineTo(4,y+1);g.stroke();}
+    if(pull>.1){
+      g.lineWidth=1.4;g.beginPath();g.moveTo(0,nockY);g.lineTo(0,12);g.stroke();
+      for(const side of [-1,1]){g.beginPath();g.moveTo(0,nockY-4);g.lineTo(side*4,nockY-10);g.stroke();}
+    }
+    // One short forward whip joins the release to the physical arrow's persistent world-space wake.
+    if(releasing&&!reduced){g.lineWidth=1.5;g.beginPath();g.moveTo(0,-12-u*100);g.lineTo(0,-36-u*110);g.stroke();}
+    g.restore();
+    if(q){
+      g.save();g.strokeStyle=ready?'rgba(255,255,245,1)':'rgba(255,250,225,.76)';g.lineWidth=ready?2.3:1.6;
+      g.beginPath();g.arc(q.x,q.y,18,0,TAU);g.stroke();
+      const r=ready?21:25;for(let i=0;i<4;i++){const a=i*TAU/4;g.beginPath();g.moveTo(q.x+Math.cos(a)*r,q.y+Math.sin(a)*r);g.lineTo(q.x+Math.cos(a)*(r+5),q.y+Math.sin(a)*(r+5));g.stroke();}g.restore();
+    }
   }
   if(bow.flash>0){bowScreen.copy(bowHit).project(camera);const x=(bowScreen.x*.5+.5)*w,y=(.5-bowScreen.y*.5)*h,u=1-bow.flash/.3;
     g.globalAlpha=1-u;g.strokeStyle='#fff8e7';g.lineWidth=3;for(let i=0;i<4;i++){const a=(i+.5)*TAU/4;g.beginPath();g.moveTo(x+Math.cos(a)*(10+u*10),y+Math.sin(a)*(10+u*10));g.lineTo(x+Math.cos(a)*(25+u*20),y+Math.sin(a)*(25+u*20));g.stroke();}g.globalAlpha=1;
@@ -5110,17 +5158,19 @@ function updateVisuals(dt) {
     MD.neck.rotation.set(pose.neck,action.neckYaw,action.neckRoll);MD.tail.rotation.set(pose.tailX,action.load*.13,pose.tailZ);
     MD.body.rotation.y=-action.load*.035;
     const drawing=bow.id!==null?1:bow.recoil*.65;
-    MD.bowBlend+=(drawing-MD.bowBlend)*(1-Math.exp(-16*dt));const k=MD.bowBlend,pull=bow.pull;
+    MD.bowBlend+=(drawing-MD.bowBlend)*(1-Math.exp(-16*dt));const k=MD.bowBlend,pull=bow.id!==null?bow.pull:bow.releasePull*bow.recoil;
     const setLimb=(mesh,a,b)=>{tmp.subVectors(b,a);mesh.position.copy(a).add(b).multiplyScalar(.5);mesh.scale.y=tmp.length()/mesh.geometry.parameters.height;mesh.quaternion.setFromUnitVectors(UP,tmp.normalize());};
     for(const arm of MD.bowArms){const side=arm.side;
       const a=new V3(side*.21,2.85,-.05),elbow=new V3(side*.31,2.53,.35),hand=new V3(side*.18,2.47,.65);
       elbow.lerp(new V3(side<0?-.34:.55,2.88,side<0?.65:.32-pull*.25),k);
       hand.lerp(new V3(side<0?-.32:.16,side<0?3.02:3.04,side<0?1.02:.85-pull*.74),k);
-      setLimb(arm.upper,a,elbow);setLimb(arm.lower,elbow,hand);arm.hand.position.copy(hand);
+      setLimb(arm.upper,a,elbow);setLimb(arm.lower,elbow,hand);arm.hand.position.copy(hand);arm.hand.rotation.z=side>0?bow.recoil*.65:0;
       MD.reins[side<0?0:1].hand.copy(hand);
     }
     MD.ridingBow.visible=k>.02;MD.ridingBow.position.copy(MD.bowArms[0].hand.position);MD.ridingBow.rotation.y=-.14;
-    const string=MD.bowStringGeo.attributes.position;string.setXYZ(0,0,-.65,.14);string.setXYZ(1,.18*pull,0,-.62*pull);string.setXYZ(2,0,.65,.14);string.needsUpdate=true;
+    if(Math.abs(pull-MD.bowFlex)>.003){const pos=MD.bowLimb.geometry.attributes.position;for(let i=0;i<pos.count;i++)pos.setZ(i,MD.bowBase[i*3+2]-.12*pull*Math.pow(Math.abs(MD.bowBase[i*3+1])/.67,1.3));pos.needsUpdate=true;MD.bowFlex=pull;
+      for(const {ear,side}of MD.bowEars){ear.position.z=.09-.10*pull;ear.rotation.x=side*Math.atan2(.14-.12*pull*(1-Math.pow(.53/.67,1.3)),.14);}}
+    const string=MD.bowStringGeo.attributes.position;string.setXYZ(0,0,-.67,.16-.12*pull);string.setXYZ(1,.18*pull,0,-.62*pull);string.setXYZ(2,0,.67,.16-.12*pull);string.needsUpdate=true;
     MD.rider.updateMatrix();MD.neck.updateMatrix();
     sfx.horseRhythm(gait,{active:started&&!paused&&!P.dead,grounded:P.grounded,speed,
       surface:P.onWater?'water':WindJourneyClimate.mountain(P.pos.x,P.pos.z,P.pos.y).snow>.45?'snow':P.onRoad?(String(P.routeTrack).startsWith('rail')?'gravel':'road'):musicRegion()==='mountain'?'snow':'earth',load:Math.abs(action.load)});
@@ -5704,7 +5754,7 @@ function begin(randomStart) {
   else placeHome(S.cruise * 0.45);
   last = performance.now();
   const hint = $('#hint'); hint.hidden = false;
-  hint.innerHTML = vehKey==='horse'?(isTouch?'馬より下で左右移動<br>馬より上を触り、馬へ引いて離すと弓。一発で射抜く':'A・D 左右へ　W 前傾　S ブレーキ　Space 跳躍<br>馬より上をクリックし、馬へ引いて離すと弓'):
+  hint.innerHTML = vehKey==='horse'?(isTouch?'馬より下で左右移動<br>敵の近くを触り、弦が白く張るまで馬へ引いて離す':'A・D 左右へ　W 前傾　S ブレーキ　Space 跳躍<br>敵の近くをクリックし、弦が白く張るまで引いて離す'):
     (isTouch ? 'ドラッグで操作　上で前傾・下でブレーキ・下＋左右でドリフト' : 'A・D 曲がる　W 前傾　S ブレーキ　S＋A・D ドリフト　R 立て直す') + '<br>段差は最高速で滑空、越えられる障害物は自動で跳ぶ';
   renderer.domElement.tabIndex=0;renderer.domElement.focus({preventScroll:true});
   setTimeout(() => { hint.style.opacity = 0; }, 7000);
@@ -5730,13 +5780,15 @@ renderer.domElement.addEventListener('pointerdown',e=>{
   if(!started||paused||P.dead||e.button>0)return;e.preventDefault();sfx.resume();
   try{renderer.domElement.setPointerCapture(e.pointerId);}catch(_){}
   if(vehKey==='horse'&&e.clientY<saddleScreen().y){
-    if(WindArchery.begin(bow,e.pointerId,e.clientX,e.clientY,saddleScreen(),innerWidth,innerHeight))sfx.weapon('bowdraw',{gain:.45});return;
+    if(WindArchery.begin(bow,e.pointerId,e.clientX,e.clientY,saddleScreen(),innerWidth,innerHeight)){bow.target=WindArchery.lock(bow,bowTargets());drawBowSight(0,false);sfx.weapon('bowdraw',{gain:.28});}return;
   }
   if(stickId===null){stickId=e.pointerId;sx0=e.clientX;sy0=e.clientY;stickBase.style.left=sx0+'px';stickBase.style.top=sy0+'px';stickBase.classList.add('on');stickKnob.style.transform='translate(0,0)';}
 });
 window.addEventListener('pointermove',e=>{
   if(paused||P.dead)return;
-  if(bow.id===e.pointerId){WindArchery.move(bow,e.pointerId,e.clientX,e.clientY,saddleScreen());return;}
+  if(bow.id===e.pointerId){WindArchery.move(bow,e.pointerId,e.clientX,e.clientY,saddleScreen());
+    if(bow.pull>=WindArchery.minPull&&!bow.readyCue){bow.readyCue=true;if(navigator.vibrate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)try{navigator.vibrate(5);}catch(_){} }
+    drawBowSight(0,false);return;}
   if(e.pointerId!==stickId)return;
   let dx=e.clientX-sx0,dy=e.clientY-sy0;const R=56,l=Math.hypot(dx,dy);if(l>R){dx*=R/l;dy*=R/l;}
   inp.jx=dx/R;inp.jy=-dy/R;stickKnob.style.transform=`translate(${dx}px, ${dy}px)`;
