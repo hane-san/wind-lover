@@ -33,3 +33,25 @@ test('a tapped drone stays selected through the draw until it becomes unavailabl
  assert.equal(A.lock(s,[{...moved,hidden:true}]),null);
  A.cancel(s);assert.equal(s.recoil,0);assert.equal(s.releasePull,0);
 });
+test('bow layouts stay between saddle and lock, inside the screen, or yield to the physical bow',()=>{
+ let shown=0,hidden=0;
+ for(const [w,h]of [[320,568],[390,844],[844,390],[768,1024]])for(const horse of [{x:w*.5,y:h*.82},{x:w*.2,y:h*.5},{x:w*.8,y:h*.88}])for(let ix=0;ix<=10;ix++)for(let iy=0;iy<=10;iy++){
+  const target={x:w*ix/10,y:h*iy/10},span=Math.min(78,Math.max(52,Math.min(w,h)*.18)),q=A.layout(target,horse,w,h,span);
+  if(!q){hidden++;continue;}shown++;const dx=horse.x-target.x,dy=horse.y-target.y,length=Math.hypot(dx,dy);
+  assert.ok(Math.abs((q.x-target.x)*dy-(q.y-target.y)*dx)<1e-6);assert.ok(q.distance>0&&q.distance<length);
+  const c=Math.cos(q.angle),s=Math.sin(q.angle);
+  for(const x of [-span-8,span+8])for(const y of [-40,96]){const px=q.x+(x*c-y*s)*q.scale,py=q.y+(x*s+y*c)*q.scale;assert.ok(px>=11.999&&px<=w-11.999&&py>=11.999&&py<=h-11.999);}
+ }
+ assert.ok(shown>1000&&hidden>10);assert.equal(A.layout({x:1,y:1},{x:1,y:1},390,844,70),null);assert.equal(A.layout({x:NaN,y:1},{x:100,y:700},390,844,70),null);
+});
+test('camera and saddle motion do not change the resistance of an existing draw',()=>{
+ const s=A.create();A.begin(s,1,170,350,{x:195,y:590},390,844);
+ A.move(s,1,190,415,{x:195,y:590});const pull=s.pull;
+ A.move(s,1,190,415,{x:70,y:750});assert.equal(s.pull,pull);
+ A.move(s,1,190,415,{x:320,y:410});assert.equal(s.pull,pull);
+});
+test('a follow-up draw can prepare during recovery and fires as soon as it recovers',()=>{
+ const s=A.create(),horse={x:195,y:590};
+ A.begin(s,1,195,350,horse,390,844);A.move(s,1,195,450,horse);assert.equal(A.end(s,1),true);
+ A.begin(s,2,195,350,horse,390,844);A.move(s,2,195,450,horse);A.advance(s,A.cooldown/2);assert.equal(s.shots,1);A.advance(s,A.cooldown/2+.001);assert.equal(A.end(s,2),true);assert.equal(s.shots,2);
+});

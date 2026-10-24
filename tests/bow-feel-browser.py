@@ -12,7 +12,7 @@ try:
   page.on('pageerror',lambda e:errors.append(str(e)));page.on('console',lambda m:errors.append(m.text) if m.type=='error' and 'Shader' in m.text else None)
   page.route('**/three.min.js*',lambda r:r.fulfill(path=str(args.three),content_type='application/javascript'));page.route('https://fonts.googleapis.com/**',lambda r:r.abort());page.add_init_script("localStorage.setItem('windlover.journey-music.v1.enabled','false')")
   def probe(r):
-   s=(root/'prototype/index.html').read_text().replace('function frame(now) {','function frame(now) { if(window.__freezeBowFrame){requestAnimationFrame(frame);return;}').replace('window.__wl = {', '''window.__feelQA={camera,renderer,updateVisuals,updateDrones,updateTurret,updateArchery,clearDrones,clearArrows,saddleScreen,bowTargets,drawBowSight,bowInk,arrowWake,arrowWakeGeo,arrowGeo,arrowWakeLines,arrows,get paused(){return paused},set paused(v){paused=v}};window.__wl = {''');r.fulfill(body=s,content_type='text/html')
+   s=(root/'prototype/index.html').read_text().replace('function frame(now) {','function frame(now) { if(window.__freezeBowFrame){requestAnimationFrame(frame);return;}').replace('window.__wl = {', '''window.__feelQA={camera,renderer,updateVisuals,updateDrones,updateTurret,updateArchery,clearDrones,clearArrows,saddleScreen,bowTargets,drawBowSight,bowInk,arrowWake,arrowWakeGeo,arrowGeo,arrowWakeLines,arrows,bowShards,bowShardMesh,updateBowShards,breakBowTarget,get paused(){return paused},set paused(v){paused=v}};window.__wl = {''');r.fulfill(body=s,content_type='text/html')
   page.route('**/prototype/',probe);page.goto(f'http://127.0.0.1:{server.server_port}/',timeout=120000);page.wait_for_function('window.__wl');page.locator('#featuredTrips [data-journey-route="desert"]').click(timeout=120000)
   page.evaluate('window.__freezeBowFrame=true');report={'views':[]}
   # Real canvas rendering, not a screenshot-only mock: inspect the small marker and physical arrows too.
@@ -23,13 +23,13 @@ try:
     Object.assign(w.combat.encounter,{phase:'combat',elapsed:1,duration:32,fire:false});q.updateDrones(0);for(let i=0;i<100;i++)q.updateVisuals(1/60);
     document.querySelector('#hint').hidden=true;document.querySelector('#toast').classList.remove('on');q.renderer.render(w.scene,q.camera);
     const target=q.bowTargets()[0];if(!target||target.hidden)throw Error('Presentation target is hidden');window.__feelTarget=target;
-    window.__bowArcs=[];window.__bowCentres=[];if(!q.bowInk.__probe){const arc=q.bowInk.arc,translate=q.bowInk.translate;q.bowInk.arc=function(...args){__bowArcs.push(args[2]);return arc.apply(this,args)};q.bowInk.translate=function(...args){__bowCentres.push(args);return translate.apply(this,args)};q.bowInk.__probe=true;}
+    window.__bowArcs=[];window.__bowCentres=[];if(!q.bowInk.__probe){const arc=q.bowInk.arc,translate=q.bowInk.translate,stroke=q.bowInk.stroke;window.__lockStrokes=[];q.bowInk.stroke=function(){if(this.getTransform().isIdentity)__lockStrokes.push(this.strokeStyle);return stroke.apply(this,arguments);};q.bowInk.arc=function(...args){__bowArcs.push(args[2]);return arc.apply(this,args)};q.bowInk.translate=function(...args){__bowCentres.push(args);return translate.apply(this,args)};q.bowInk.__probe=true;}
     return {target:{x:target.x,y:target.y},anchor:{x:target.x-37,y:target.y},horse:q.saddleScreen(),shots:w.archery.shots};}''')
    def pointer(kind,id,x,y):page.evaluate("([type,id,x,y])=>__feelQA.renderer.domElement.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:id,pointerType:'touch',clientX:x,clientY:y,button:0}))",[kind,id,x,y])
    x,y=setup['anchor']['x'],setup['anchor']['y'];horse=setup['horse']
    pointer('pointerdown',80,x,y)
    assert page.evaluate('__wl.archery.target?.d===__feelTarget.d'),'A nearby touch did not lock immediately'
-   assert page.evaluate('Math.max(...__bowArcs)<=18 && Math.abs(__bowCentres.at(-1)[0]-__feelTarget.x)<.1'),'A large circle remains or the bow is centred on the tap'
+   assert page.evaluate('''()=>{const q=__feelQA,b=__wl.archery,p=WindArchery.layout(__feelTarget,q.saddleScreen(),innerWidth,innerHeight,b.span),centre=__bowCentres.at(-1);return __bowArcs.length===0&&(!p||(Math.abs(centre[0]-p.x)<.1&&Math.abs(centre[1]-p.y)<.1&&Math.hypot(p.x-__feelTarget.x,p.y-__feelTarget.y)>25));}'''),'Lock and bow were not separated on the shot line'
    page.screenshot(path=str(args.out/(str(width)+'-nocked.png')))
    pointer('pointermove',80,x,y+35);page.evaluate('__feelQA.renderer.render(__wl.scene,__feelQA.camera)');page.screenshot(path=str(args.out/(str(width)+'-partial.png')))
    pointer('pointerup',80,x,y+35);assert page.evaluate('(before)=>__wl.archery.shots===before && __feelQA.arrows.every(a=>a.life<=0)',setup['shots']),'A shallow draw fired'
@@ -37,17 +37,29 @@ try:
    pointer('pointerdown',81,x,y);pointer('pointermove',81,horse['x'],y+100)
    assert page.evaluate('__wl.archery.pull>=WindArchery.minPull && __wl.archery.target?.d===__feelTarget.d')
    page.evaluate('()=>{__feelQA.updateVisuals(.06);__feelQA.drawBowSight(0);__feelQA.renderer.render(__wl.scene,__feelQA.camera)}');page.screenshot(path=str(args.out/(str(width)+'-full.png')))
-   speed=page.evaluate('__wl.P.vel.length()');pointer('pointerup',81,horse['x'],y+100)
-   state=page.evaluate('''()=>{const w=__wl,q=__feelQA;q.drawBowSight(0);q.renderer.render(w.scene,q.camera);return {width:innerWidth,height:innerHeight,shots:w.archery.shots,fullDraw:w.archery.drawLength,minimumDraw:w.archery.drawLength*WindArchery.minPull,recoil:w.archery.recoil};}''');assert state['shots']==setup['shots']+1 and state['recoil']>0
+   speed=page.evaluate('__wl.P.vel.length()');page.evaluate('window.__lockStrokes=[]');pointer('pointerup',81,horse['x'],y+100)
+   assert page.evaluate('__lockStrokes.length===0'),'The lock marker survived pointer-up'
+   state=page.evaluate('''()=>{const w=__wl,q=__feelQA;q.drawBowSight(0);q.renderer.render(w.scene,q.camera);return {width:innerWidth,height:innerHeight,shots:w.archery.shots,fullDraw:w.archery.drawLength,minimumDraw:3+(w.archery.drawLength-3)*WindArchery.minPull,recoil:w.archery.recoil};}''');assert state['shots']==setup['shots']+1 and state['recoil']>0
    page.screenshot(path=str(args.out/(str(width)+'-release.png')))
    page.evaluate('()=>{const q=__feelQA;for(let i=0;i<3;i++)q.updateArchery(1/60);q.drawBowSight(0);q.renderer.render(__wl.scene,q.camera)}');assert page.evaluate('__feelQA.arrowWakeGeo.drawRange.count>0 && __feelQA.arrowGeo.drawRange.count>0');page.screenshot(path=str(args.out/(str(width)+'-flight.png')))
    hits=page.evaluate('__wl.archery.hits')
    page.evaluate('(before)=>{const q=__feelQA;for(let i=0;i<60&&__wl.archery.hits===before;i++)q.updateArchery(1/60);q.updateDrones(0);q.updateTurret(1/60);q.drawBowSight(0);q.renderer.render(__wl.scene,q.camera)}',hits)
    assert page.evaluate('(before)=>__wl.archery.hits===before+1 && __feelQA.arrowWakeGeo.drawRange.count>0',hits),'The impact lost its arrow wake'
+   assert page.evaluate('__feelQA.bowShardMesh.count===6'),'The drone did not break into visible parts'
    page.screenshot(path=str(args.out/(str(width)+'-hit.png')))
    assert page.evaluate('(before)=>__wl.P.vel.length()===before',speed),'Bow changed the travelling speed'
    page.evaluate('__feelQA.updateArchery(.2)');assert page.evaluate('__feelQA.arrowWakeGeo.drawRange.count===0'),'Arrow wake outlived its short pool life'
-   page.evaluate('()=>{__feelQA.clearArrows();WindArchery.cancel(__wl.archery)}');assert page.evaluate('__feelQA.arrowWake.every(s=>s.life===0) && __feelQA.arrowWakeGeo.drawRange.count===0')
+   # Pause freezes the debris; the same pool clears on travel.
+   page.evaluate('''()=>{const q=__feelQA,before=q.bowShards.filter(s=>s.life>0).map(s=>s.p.toArray());q.updateBowShards(0);const after=q.bowShards.filter(s=>s.life>0).map(s=>s.p.toArray());if(!before.length||JSON.stringify(before)!==JSON.stringify(after))throw Error('Paused fragments moved');}''')
+   page.evaluate('''()=>{const q=__feelQA;for(let i=0;i<100;i++)q.breakBowTarget(__feelTarget.d,__feelTarget.f.vel,new THREE.Vector3(1,0,0));q.updateBowShards(0);if(q.bowShardMesh.count!==48||q.bowShards.length!==48)throw Error('Unbounded shatter pool');q.updateBowShards(1);if(q.bowShardMesh.count!==0)throw Error('Fragments did not expire');q.breakBowTarget(__feelTarget.d,__feelTarget.f.vel,new THREE.Vector3(1,0,0));q.updateBowShards(0);q.clearArrows();WindArchery.cancel(__wl.archery);if(q.bowShardMesh.count||q.bowShards.some(s=>s.life>0))throw Error('Fragments survived cleanup');}''')
+   assert page.evaluate('__feelQA.arrowWake.every(s=>s.life===0) && __feelQA.arrowWakeGeo.drawRange.count===0')
+   # Inspect actual overlay pixels at the viewport edges, keeping the reticle separate from the bow.
+   page.evaluate('''()=>{const q=__feelQA,w=innerWidth,h=innerHeight,horse=q.saddleScreen(),b=__wl.archery;
+    for(const target of [{x:3,y:h*.32},{x:w-3,y:h*.32},{x:w*.5,y:3},{x:horse.x,y:horse.y-36},{x:horse.x,y:horse.y-105}]){
+     WindArchery.begin(b,91,w*.5,h*.2,horse,w,h);b.target={...__feelTarget,...target};b.pull=1;q.drawBowSight(0,false);
+     const d=q.bowInk.getImageData(0,0,w,h).data;for(let y=0;y<h;y++)for(let x=0;x<w;x++)if((x<8||x>w-9||y<8||y>h-9)&&Math.hypot(x-target.x,y-target.y)>38&&d[(y*w+x)*4+3]>8)throw Error('Bow clipped at screen edge');WindArchery.cancel(b);
+    }q.drawBowSight(0,false);
+   }''')
    report['views'].append(state)
-  assert not errors,errors;report.update(pageErrors=errors,immediateNearbyLock=True,noLargeCircle=True,committedDraw=True,releaseWithoutTimer=True,hitWake=True,travelSpeedPreserved=True);(args.out/'result.json').write_text(json.dumps(report,indent=2));print(json.dumps(report),flush=True);browser.close()
+  assert not errors,errors;report.update(pageErrors=errors,separatedBow=True,shatteredDrones=True,immediateNearbyLock=True,noLargeCircle=True,committedDraw=True,releaseWithoutTimer=True,hitWake=True,travelSpeedPreserved=True);(args.out/'result.json').write_text(json.dumps(report,indent=2));print(json.dumps(report),flush=True);browser.close()
 finally:server.shutdown();server.server_close()

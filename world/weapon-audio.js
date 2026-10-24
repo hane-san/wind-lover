@@ -1,6 +1,7 @@
 /* Short cached weapon transients: sharp attacks, smooth edges and bounded audio-clock voices. */
 (() => {
-  const lengths={geometry:.18,kinetic:.13,launch:.55,flyby:.16,impact:.32,acquire:.24,bowdraw:.24,bow:.22,bowhit:.32};
+  const lengths={geometry:.18,kinetic:.13,launch:.55,flyby:.16,impact:.32,acquire:.24,bowdraw:.26,bow:.26,bowhit:.40};
+  const fracturePulse=u=>u>0?Math.min(1,u/.002)*Math.exp(-u*95):0;
   function create(context,destination){
     const cache=new Map(),voices=new Set();let serial=0,lastFly=-10;
     function buffer(kind,variant){
@@ -12,17 +13,18 @@
         lo+=.12*(n-lo);const hi=n-lo,attack=Math.min(1,t/.0018),release=Math.min(1,(length-t)/.009);
         let v=0;
         // Broad air and a dry string snap replace the old pitched, plucked note.
-        if(kind==='bowdraw')v=(lo*.43+hi*.07)*Math.sin(Math.PI*t/length)**2*(.72+.28*Math.sin(t*160));
+        if(kind==='bowdraw')v=(lo*.62+hi*.025)*Math.sin(Math.PI*t/length)**2*(.8+.2*Math.sin(t*110));
         else if(kind==='bow'){
-          air+=(1-Math.exp(-2*Math.PI*(4200-2600*Math.min(1,t/length))/context.sampleRate))*(n-air);
-          body+=(1-Math.exp(-2*Math.PI*280/context.sampleRate))*(n-body);
-          v=(air-body)*1.6*Math.min(1,t/.008)*Math.exp(-t*18)+hi*.32*Math.exp(-t*100);
+          air+=(1-Math.exp(-2*Math.PI*(2700-1700*Math.min(1,t/length))/context.sampleRate))*(n-air);
+          body+=(1-Math.exp(-2*Math.PI*390/context.sampleRate))*(n-body);
+          v=(air-body)*1.65*Math.min(1,t/.012)*Math.exp(-t*15)+(lo-body)*.28*Math.exp(-t*35);
         }
         // A short broad crack, low body and breaking metal: bash, rather than an electronic chirp.
         else if(kind==='bowhit'){
-          body+=.045*(n-body);
-          v=hi*.88*Math.exp(-t*75)+(lo-body)*1.35*Math.exp(-t*27)+body*1.5*Math.exp(-t*18)
-            +Math.sin(t*2*Math.PI*(90+variant*7))*.16*Math.exp(-t*31)+hi*.12*Math.exp(-t*15);
+          body+=.025*(n-body);air+=.19*(n-air);
+          const fracture=fracturePulse(t-.034)+fracturePulse(t-.067)+fracturePulse(t-.106);
+          v=hi*.4*Math.exp(-t*90)+(air-body)*1.55*Math.exp(-t*24)+body*1.9*Math.exp(-t*18)
+            +Math.sin(t*2*Math.PI*(76+variant*5))*.32*Math.exp(-t*29)+(air-lo)*fracture*.48;
         }
         else if(kind==='kinetic')v=hi*.54*Math.exp(-t*75)+lo*.80*Math.exp(-t*32)+Math.sin(t*650)*.20*Math.exp(-t*48);
         else if(kind==='geometry')v=hi*.40*Math.exp(-t*49)+Math.sin(t*1740)*.19*Math.exp(-t*36)+lo*.65*Math.exp(-t*28);
