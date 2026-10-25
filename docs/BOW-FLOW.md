@@ -1,5 +1,7 @@
 # A drawn bow, moving aim and a fuller encounter — 25 October 2026
 
+The latest [fixed-grip and interceptor study](GRIP-AND-SWEEPER.md) supersedes the moving grip, steering reference and all-launcher patrol description below.
+
 This is the owner's latest mounted-combat direction. It builds on SKY-RHYTHM and the sideways weighted draw, and supersedes their short-stroke, stable-until-unavailable lock, three/four-target and two-salvo limits. Keep the approved recurved outline, melancholy landscape, regional music, rear camera, independent reins and physical road network.
 
 ## Draw, steer, release

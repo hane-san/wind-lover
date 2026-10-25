@@ -23,13 +23,13 @@ try:
     Object.assign(w.combat.encounter,{phase:'combat',elapsed:1,duration:32,fire:false});q.updateDrones(0);for(let i=0;i<100;i++)q.updateVisuals(1/60);
     document.querySelector('#hint').hidden=true;document.querySelector('#toast').classList.remove('on');q.renderer.render(w.scene,q.camera);
     const target=q.bowTargets()[0];if(!target||target.hidden)throw Error('Presentation target is hidden');window.__feelTarget=target;
-    window.__bowArcs=[];window.__bowCentres=[];if(!q.bowInk.__probe){const arc=q.bowInk.arc,translate=q.bowInk.translate,stroke=q.bowInk.stroke;window.__lockStrokes=[];q.bowInk.stroke=function(){if(this.getTransform().isIdentity)__lockStrokes.push(this.strokeStyle);return stroke.apply(this,arguments);};q.bowInk.arc=function(...args){__bowArcs.push(args[2]);return arc.apply(this,args)};q.bowInk.translate=function(...args){__bowCentres.push(args);return translate.apply(this,args)};q.bowInk.__probe=true;}
+    window.__bowArcs=[];window.__bowCentres=[];if(!q.bowInk.__probe){const arc=q.bowInk.arc,translate=q.bowInk.translate,stroke=q.bowInk.stroke;window.__lockStrokes=[];window.__gripPixels=[];q.bowInk.stroke=function(){const m=this.getTransform();if(!m.isIdentity&&this.lineWidth===2)__gripPixels.push({x:m.e-24*m.c,y:m.f-24*m.d});if(m.isIdentity)__lockStrokes.push(this.strokeStyle);return stroke.apply(this,arguments);};q.bowInk.arc=function(...args){__bowArcs.push(args[2]);return arc.apply(this,args)};q.bowInk.translate=function(...args){__bowCentres.push(args);return translate.apply(this,args)};q.bowInk.__probe=true;}
     return {target:{x:target.x,y:target.y},anchor:{x:target.x-37,y:target.y},horse:q.saddleScreen(),shots:w.archery.shots};}''')
    def pointer(kind,id,x,y):page.evaluate("([type,id,x,y])=>__feelQA.renderer.domElement.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:id,pointerType:'touch',clientX:x,clientY:y,button:0}))",[kind,id,x,y])
    x,y=setup['anchor']['x'],setup['anchor']['y'];horse=setup['horse']
    pointer('pointerdown',80,x,y)
    assert page.evaluate('__wl.archery.target?.d===__feelTarget.d'),'A nearby touch did not lock immediately'
-   assert page.evaluate('''()=>{const q=__feelQA,b=__wl.archery,p=WindArchery.layout(__feelTarget,q.saddleScreen(),innerWidth,innerHeight,b.span),centre=__bowCentres.at(-1);return __bowArcs.length===0&&(!p||(Math.abs(centre[0]-p.x)<.1&&Math.abs(centre[1]-p.y)<.1&&Math.hypot(p.x-__feelTarget.x,p.y-__feelTarget.y)>25));}'''),'Lock and bow were not separated on the shot line'
+   assert page.evaluate('''()=>{const b=__wl.archery,p=b.pose;return __bowArcs.length===0&&p&&Math.abs(p.x+Math.sin(p.angle)*24*p.scale-b.grip.x)<.01&&Math.abs(p.y-Math.cos(p.angle)*24*p.scale-b.grip.y)<.01;}'''),'The bow grip is not anchored'
    page.screenshot(path=str(args.out/(str(width)+'-nocked.png')))
    pointer('pointermove',80,x,y+35);page.evaluate('__feelQA.renderer.render(__wl.scene,__feelQA.camera)');page.screenshot(path=str(args.out/(str(width)+'-partial.png')))
    pointer('pointerup',80,x,y+35);assert page.evaluate('(before)=>__wl.archery.shots===before && __feelQA.arrows.every(a=>a.life<=0)',setup['shots']),'A shallow draw fired'
@@ -41,7 +41,7 @@ try:
      assert page.evaluate('__wl.archery.pull>=WindArchery.minPull && __wl.archery.target?.d===__feelTarget.d'),'A lateral draw lost its weight or lock'
      pointer('pointercancel',82,x,y)
    # A captured upper pointer may reach the bottom and then sweep aim sideways, without becoming reins.
-   pointer('pointerdown',83,x,y);nocked_size=page.evaluate('(__wl.archery.pose?.scale||0)*__wl.archery.span*2')
+   page.evaluate('window.__gripPixels=[]');pointer('pointerdown',83,x,y);nocked_size=page.evaluate('(__wl.archery.pose?.scale||0)*__wl.archery.span*2')
    bottom=height-18;pointer('pointermove',83,x,bottom)
    for _ in range(12):page.evaluate('__feelQA.updateArchery(1/60);__feelQA.drawBowSight(1/60)')
    full_size=page.evaluate('(__wl.archery.pose?.scale||0)*__wl.archery.span*2')
@@ -50,10 +50,11 @@ try:
    for _ in range(6):page.evaluate('__feelQA.updateArchery(1/60);__feelQA.drawBowSight(1/60)')
    assert page.evaluate('__wl.archery.target?.d===__feelTarget.d'),'A tiny sideways hand movement changed target'
    next_target=page.evaluate('''()=>{const t=__feelQA.bowTargets().filter(t=>t.visible&&!t.hidden&&!t.reserved&&t.d!==__feelTarget.d).sort((a,b)=>b.x-a.x)[0];window.__feelNext=t;return {x:t.x,y:t.y};}''')
-   desired_hand=page.evaluate('''([tx,ty,y])=>{const b=__wl.archery,desired=Math.atan2(tx-b.aimOriginX,b.aimOriginY-ty),turn=b.aimAngle-desired,dy=y-b.y;let a=b.drawAngle+turn;for(let i=0;i<8;i++)a=b.drawAngle+turn+Math.sign(turn)*.025;return b.x+Math.tan(a)*dy;}''',[next_target['x'],next_target['y'],bottom]);shift=desired_hand-x
+   desired_hand=page.evaluate('''([tx,ty,y])=>{const b=__wl.archery,desired=Math.atan2(tx-b.aimOriginX,b.aimOriginY-ty),turn=b.aimAngle-desired,dy=y-b.controlY;let a=b.drawAngle+turn;for(let i=0;i<8;i++)a=b.drawAngle+turn+Math.sign(turn)*.025;return b.controlX+Math.tan(a)*dy;}''',[next_target['x'],next_target['y'],bottom]);shift=desired_hand-x
    pointer('pointermove',83,x+shift,bottom)
    for _ in range(20):page.evaluate('__feelQA.updateArchery(1/60);__feelQA.drawBowSight(1/60)')
    assert page.evaluate('__wl.archery.target?.d===__feelNext.d && __wl.archery.pull>=WindArchery.minPull && __wl.inp.jx===0'),'A held draw failed to select the next target independently of the reins'
+   assert page.evaluate('''()=>{const p=__gripPixels[0];return p&&__gripPixels.every(q=>Math.hypot(q.x-p.x,q.y-p.y)<.01)}'''),'The drawn graphic moved its grip'
    page.screenshot(path=str(args.out/(str(width)+'-aim-switch.png')))
    pointer('pointercancel',83,x+shift,bottom)
    pointer('pointerdown',81,x,y);end_x=x+(-1 if x>width/2 else 1)*145;end_y=y-10;pointer('pointermove',81,end_x,end_y)
@@ -116,15 +117,15 @@ try:
   moved_lower={**lower,'x':125};drawn={**upper,'x':60,'y':826}
   session.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[moved_lower,drawn]})
   assert page.evaluate('__wl.archery.pull>=WindArchery.minPull && __wl.inp.jx>.5')
-  hand_x=page.evaluate('''(y)=>{const b=__wl.archery,n=__nativeNext,desired=Math.atan2(n.x-b.aimOriginX,b.aimOriginY-n.y),turn=b.aimAngle-desired,dy=y-b.y;let a=b.drawAngle+turn;for(let i=0;i<8;i++)a=b.drawAngle+turn+Math.sign(turn)*.025;return b.x+Math.tan(a)*dy;}''',drawn['y']);steered={**drawn,'x':hand_x}
+  hand_x=page.evaluate('''(y)=>{const b=__wl.archery,n=__nativeNext,desired=Math.atan2(n.x-b.aimOriginX,b.aimOriginY-n.y),turn=b.aimAngle-desired,dy=y-b.controlY;let a=b.drawAngle+turn;for(let i=0;i<8;i++)a=b.drawAngle+turn+Math.sign(turn)*.025;return b.controlX+Math.tan(a)*dy;}''',drawn['y']);steered={**drawn,'x':hand_x}
   session.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[moved_lower,steered]})
   for _ in range(20):page.evaluate('__feelQA.updateArchery(1/60);__feelQA.drawBowSight(1/60)')
-  assert steered['x']>drawn['x'] and page.evaluate('Math.sin(__wl.archery.pose.angle)<0 && __wl.archery.aimX<innerWidth/2 && __wl.archery.target?.d===__nativeNext.d && __wl.inp.jx>.5'),'Native bottom draw did not retain independent steering/retarget'
+  assert 12<steered['x']<378 and steered['x']>drawn['x'] and page.evaluate('Math.sin(__wl.archery.pose.angle)<0 && __wl.archery.aimX<__wl.archery.grip.x && __wl.archery.target?.d===__nativeNext.d && __wl.inp.jx>.5'),'Native bottom draw did not retain independent steering/retarget'
   page.evaluate("document.querySelector('#toast').classList.remove('on');document.querySelector('#hint').hidden=true;__feelQA.renderer.render(__wl.scene,__feelQA.camera)");page.screenshot(path=str(args.out/'native-bottom-retarget.png'))
   session.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[steered]})
   assert page.evaluate('(n)=>__wl.archery.shots===n+1 && __wl.inp.jx>.5',fixture['shots'])
   session.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]})
   for _ in range(60):page.evaluate('__feelQA.updateArchery(1/60);__feelQA.drawBowSight(1/60)')
   assert page.evaluate('(n)=>__wl.archery.hits===n+1 && !__nativeNext.f.drones.includes(__nativeNext.d) && __nativeOld.f.drones.includes(__nativeOld.d) && __wl.inp.jx===0',fixture['hits']),'The released arrow did not destroy exactly the newly selected enemy'
-  assert not errors,errors;report.update(pageErrors=errors,sideHits=side_hits,lateralAndSlightlyUpwardDraw=True,bottomDrawAndRetarget=True,nativeBottomSteerRetargetHit=True,oppositeNockDirection=True,layeredBlastAndSparks=True,separatedBow=True,shatteredDrones=True,immediateNearbyLock=True,noLargeCircle=True,committedDraw=True,releaseWithoutTimer=True,hitWake=True,travelSpeedPreserved=True);(args.out/'result.json').write_text(json.dumps(report,indent=2));print(json.dumps(report),flush=True);browser.close()
+  assert not errors,errors;report.update(pageErrors=errors,sideHits=side_hits,lateralAndSlightlyUpwardDraw=True,bottomDrawAndRetarget=True,nativeBottomSteerRetargetHit=True,oppositeNockDirection=True,fixedCanvasGrip=True,layeredBlastAndSparks=True,separatedBow=True,shatteredDrones=True,immediateNearbyLock=True,noLargeCircle=True,committedDraw=True,releaseWithoutTimer=True,hitWake=True,travelSpeedPreserved=True);(args.out/'result.json').write_text(json.dumps(report,indent=2));print(json.dumps(report),flush=True);browser.close()
 finally:server.shutdown();server.server_close()
