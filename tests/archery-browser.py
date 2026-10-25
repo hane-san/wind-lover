@@ -28,15 +28,15 @@ try:
   report['gestures']=page.evaluate('''()=>{const w=__wl,q=__bowQA,c=q.renderer.domElement,horse=q.saddleScreen(),b=w.archery;
    // Keep the browser frame paused whilst dispatching synchronously; the input itself is live.
    q.paused=false;const e=(type,id,x,y)=>c.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:id,pointerType:'touch',isPrimary:id===11,clientX:x,clientY:y,button:0}));
-   const sx=100,sy=Math.min(innerHeight-70,horse.y+90),ax=195,ay=Math.max(140,horse.y-240);
+   const sx=100,sy=Math.min(innerHeight-70,horse.y+150),ax=195,ay=Math.max(140,horse.y-240);
    const before=b.shots;e('pointerdown',11,sx,sy);e('pointermove',11,sx+35,sy);if(w.inp.jx<.5)throw Error('Lower touch did not steer');
-   e('pointerdown',12,ax,ay);e('pointermove',12,horse.x,ay+95);if(b.pull<.8||w.inp.jx<.5)throw Error('Bow consumed the reins');
+   e('pointerdown',12,ax,ay);e('pointermove',12,horse.x,ay+150);if(b.pull<.8||w.inp.jx<.5)throw Error('Bow consumed the reins');
    q.updateVisuals(.05);q.drawBowSight(.05);q.renderer.render(w.scene,q.camera);
    const locked={pull:b.pull,steer:w.inp.jx,radius:b.radius,horse,anchor:{x:ax,y:ay}};
-   e('pointerup',12,horse.x,ay+95);if(b.shots!==before+1||w.inp.jx<.5)throw Error('Bow release changed movement');
+   e('pointerup',12,horse.x,ay+150);if(b.shots!==before+1||w.inp.jx<.5)throw Error('Bow release changed movement');
    e('pointerup',11,sx+35,sy);if(w.inp.jx!==0)throw Error('Reins stuck');
-   WindArchery.advance(b,1);e('pointerdown',13,ax,ay);e('pointermove',13,horse.x,ay+90);e('pointercancel',13,horse.x,ay+90);if(b.shots!==before+1)throw Error('Cancellation fired an arrow');
-   e('pointerdown',14,ax,ay);e('pointermove',14,horse.x,ay+90);q.openSheet('#menuSheet');e('pointerup',14,horse.x,ay+90);if(b.shots!==before+1||b.id!==null||w.inp.jx!==0)throw Error('Menu left an armed gesture');
+   WindArchery.advance(b,1);e('pointerdown',13,ax,ay);e('pointermove',13,horse.x,ay+150);e('pointercancel',13,horse.x,ay+150);if(b.shots!==before+1)throw Error('Cancellation fired an arrow');
+   e('pointerdown',14,ax,ay);e('pointermove',14,horse.x,ay+150);q.openSheet('#menuSheet');e('pointerup',14,horse.x,ay+150);if(b.shots!==before+1||b.id!==null||w.inp.jx!==0)throw Error('Menu left an armed gesture');
    return {...locked,shots:b.shots-before,cancelSafe:true,multitouch:true};}''')
   # Chromium's real multi-touch pipeline, including capture/release (rather than synthetic events alone).
   horse=page.evaluate("()=>{window.__bowCapture=true;__bowQA.paused=false;WindArchery.advance(__wl.archery,1);document.querySelector('#menuSheet').hidden=true;return __bowQA.saddleScreen();}")
@@ -44,7 +44,7 @@ try:
   session=page.context.new_cdp_session(page);lower={'id':41,'x':130,'y':min(774,horse['y']+80)};upper={'id':42,'x':195,'y':horse['y']-230}
   session.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[lower]})
   session.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[lower,upper]})
-  moved_lower={**lower,'x':165};moved_upper={**upper,'x':upper['x']+80,'y':upper['y']-10}
+  moved_lower={**lower,'x':165};moved_upper={**upper,'x':upper['x']+145,'y':upper['y']-10}
   session.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[moved_lower,moved_upper]})
   assert page.evaluate('__wl.inp.jx>.5 && __wl.archery.pull>.8 && __wl.archery.id!==null'),'Native multi-touch did not keep independent controls'
   shots=page.evaluate('__wl.archery.shots');session.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[moved_upper]})
@@ -54,7 +54,7 @@ try:
   # Set a real, visible front patrol within bow range; hit each distinct drone through the actual upper drag.
   report['kills']=page.evaluate('''()=>{const w=__wl,q=__bowQA,b=w.archery,c=q.renderer.domElement;w.travelFeatured('desert');q.paused=true;q.attack=true;
    w.spawnF('assault');const f=w.forms.find(f=>!f.peace),dir=new THREE.Vector3(Math.sin(w.P.yaw),0,Math.cos(w.P.yaw));f.phase='hold';f.pos.copy(w.P.pos).addScaledVector(dir,230);f.pos.y=w.P.pos.y+22;f.vel.copy(w.P.vel);f.drones.forEach((d,i)=>d.copy(f.pos).add(new THREE.Vector3(-dir.z*(i-1)*18,i*2,dir.x*(i-1)*18)));
-   for(let i=0;i<100;i++)q.updateVisuals(1/60);const before=b.hits,speed=w.P.vel.length(),kills=[];
+   for(let i=0;i<100;i++)q.updateVisuals(1/60);const before=b.hits,initial=f.n,speed=w.P.vel.length(),kills=[];
    const d=f.drones[0],wall={x:(w.P.pos.x+d.x)/2,z:(w.P.pos.z+d.z)/2,c:1,s:0,hw:8,hd:8,bottom:w.P.pos.y-2,top:w.P.pos.y+80};w.colliders.push(wall);
    if(!q.bowTargets().find(v=>v.d===d)?.hidden)throw Error('Bow locked through a building');w.colliders.pop();
    document.querySelector('#menuSheet').hidden=true;
@@ -62,13 +62,13 @@ try:
     const d=f.drones[0],sp=d.clone().project(q.camera),x=(sp.x*.5+.5)*innerWidth,y=(.5-sp.y*.5)*innerHeight;
     if(y>=q.saddleScreen().y)throw Error('Target below the bow/movement split');
     q.paused=false;const emit=(type,Y)=>c.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:21,pointerType:'touch',clientX:x,clientY:Y,button:0}));
-    WindArchery.advance(b,1);emit('pointerdown',y);emit('pointermove',y+90);q.drawBowSight(.02);
+    WindArchery.advance(b,1);emit('pointerdown',y);emit('pointermove',y+150);q.drawBowSight(.02);
     if(b.target?.d!==d)throw Error('Sight failed to lock a visible drone '+JSON.stringify({x,y,targets:q.bowTargets()}));
-    const n=f.n;emit('pointerup',y+90);q.paused=true;
+    const n=f.n;emit('pointerup',y+150);q.paused=true;
     for(let i=0;i<80;i++)q.updateArchery(1/120);
     if(f.n!==n-1)throw Error('One arrow did not destroy exactly one drone');kills.push({x,y,remaining:f.n});
    }
-   if(b.hits-before!==3||w.P.vel.length()!==speed||w.TURRET.state!==0)throw Error('Bow interrupted the gallop');
+   if(b.hits-before!==initial||w.P.vel.length()!==speed||w.TURRET.state!==0)throw Error('Bow interrupted the gallop');
    Object.assign(w.combat.encounter,{phase:'combat',elapsed:6,duration:32});q.updateEncounters(.05);if(w.combat.encounter.phase!=='release')throw Error('Victory did not earn scenery');
    return {hits:b.hits-before,speedBefore:speed,speedAfter:w.P.vel.length(),kills};}''');print('Bow:',json.dumps(report['kills']),flush=True)
   # Real contact/moving-rider sweeps at 20, 60 and 120 Hz: no dodge gets hit; a timed sidestep survives.
@@ -89,7 +89,7 @@ try:
     for(const f of hostiles){if(f.ahead<35&&f.cue)throw Error('Rearward attack');if(f.weapon==='kinetic'&&f.cue)near=f.ahead;if(f.weapon==='missile'&&f.cue)far=f.ahead;}
     if(phase==='scenic'&&(w.combat.bullets||w.shells.length))throw Error('Quiet interval contains enemy fire');
    }
-   if(!(missile>100&&kinetic>10&&maxHostiles<=4&&phases.scenic>phases.combat&&near<155&&far>285&&maxMissiles<160))throw Error('Wrong patrol loop '+JSON.stringify({missile,kinetic,maxHostiles,phases,near,far,maxMissiles,events}));
+   if(!(missile>100&&kinetic>10&&maxHostiles<=6&&phases.scenic>phases.combat&&near<155&&far>285&&maxMissiles<=256))throw Error('Wrong patrol loop '+JSON.stringify({missile,kinetic,maxHostiles,phases,near,far,maxMissiles,events}));
    return {phases,events,near,far,maxMissiles,maxHostiles,hull:w.P.hull};}''');print('Patrols:',json.dumps(report['patrols']),flush=True)
   report['ridingCombats']=page.evaluate('''()=>{const w=__wl,q=__bowQA,out=[];q.paused=true;if(q.sfx.on)q.sfx.toggle();
    for(const route of ['desert','mountain','lake','silk']){
@@ -101,7 +101,7 @@ try:
      const prev=w.P.pos.clone();for(let j=0;j<6;j++)w.stepPhysics(1/120);q.updateEncounters(.05);q.updateThreat(.05);q.updateDrones(.05,prev);q.updateArchery(.05);q.updateVisuals(.05);if(i%3===0)w.loadStep();
      const count=q.barrageBodies.count;if(count>lastCount+4)targetLane=targetLane>0?-7:7;lastCount=count;
      if(i*.05-shotAt>.6){const target=q.bowTargets().find(v=>!v.hidden&&!v.reserved&&v.distance<300&&v.y<q.saddleScreen().y);
-      if(target){const b=w.archery,horse=q.saddleScreen();q.paused=false;WindArchery.begin(b,71,target.x,target.y,horse,innerWidth,innerHeight);WindArchery.move(b,71,horse.x,target.y+100,horse);if(WindArchery.end(b,71))q.releaseBow();q.paused=true;shotAt=i*.05;}}
+      if(target){const b=w.archery,horse=q.saddleScreen();q.paused=false;WindArchery.begin(b,71,target.x,target.y,horse,innerWidth,innerHeight);WindArchery.move(b,71,horse.x,target.y+150,horse);if(WindArchery.end(b,71))q.releaseBow();q.paused=true;shotAt=i*.05;}}
      minHull=Math.min(minHull,w.P.hull);maxOff=Math.max(maxOff,w.rideRoute(w.P.pos.x,w.P.pos.z,w.P.pos.y).d);
      if(w.P.dead)throw Error('Riding combat killed the horse '+JSON.stringify({route,time:i*.05,hits:w.archery.hits-startHits,minHull,maxOff}));
     }
@@ -125,7 +125,7 @@ try:
     const dir=new THREE.Vector3(Math.sin(w.P.yaw),0,Math.cos(w.P.yaw));w.P.vel.copy(dir).multiplyScalar(34);w.spawnF('assault');const f=w.forms.find(f=>!f.peace);f.pos.copy(w.P.pos).addScaledVector(dir,290);f.pos.y=w.P.pos.y+22;f.phase='hold';f.drones.forEach((d,i)=>d.copy(f.pos).add(new THREE.Vector3(-dir.z*(i-1)*18,i*2,dir.x*(i-1)*18)));
     f.pat=7;q.assaultVolley(f);for(let i=0;i<120;i++){const prev=w.P.pos.clone();w.P.pos.addScaledVector(w.P.vel,1/120);q.updateBullets(1/120,prev);}
     for(let i=0;i<100;i++)q.updateVisuals(1/60);q.paused=false;const target=q.bowTargets().find(t=>!t.hidden),horse=q.saddleScreen();if(!target)throw Error('No visible bow target');
-    WindArchery.begin(w.archery,91,target.x,target.y,horse,innerWidth,innerHeight);WindArchery.move(w.archery,91,horse.x,target.y+100,horse);
+    WindArchery.begin(w.archery,91,target.x,target.y,horse,innerWidth,innerHeight);WindArchery.move(w.archery,91,horse.x,target.y+150,horse);
     q.updateVisuals(.1);q.drawBowSight(.1);q.renderer.render(w.scene,q.camera);q.paused=true;document.querySelector('#menuSheet').hidden=true;document.querySelector('#hint').hidden=true;document.querySelector('#toast').classList.remove('on');}''')
    # RAF draws the same paused image; draw once in its callback for the visible aiming screenshot.
    page.evaluate('''()=>{const q=__bowQA;q.paused=false;q.updateVisuals(.01);q.drawBowSight(.01);q.renderer.render(__wl.scene,q.camera);q.paused=true;}''');page.screenshot(path=str(args.out/(str(size[0])+'-bow.png')))

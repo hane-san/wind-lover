@@ -1,5 +1,7 @@
 # Mounted archery — 24 October 2026
 
+The 25 October [drawn-bow flow update](BOW-FLOW.md) supersedes the earlier draw, target switching, effects, patrol size and salvo values in this document.
+
 The owner's latest direction supersedes the 116m/s horse and the rotating geometric/kinetic/guided-missile waves in VOYAGE-FLOW and DEFENCE-RHYTHM. Keep the current world, quiet soundtrack, independent reins, small hit core and camera tuning. The central loop is now: a patrol appears ahead, dodge its distant missile geometry, draw and release whilst galloping, destroy individual drones in one hit, and earn another quiet stretch. Surviving enemies become dangerous with short machine-gun bursts at close range.
 
 ## Controls and view

@@ -1,6 +1,6 @@
 /* Short cached weapon transients: sharp attacks, smooth edges and bounded audio-clock voices. */
 (() => {
-  const lengths={geometry:.18,kinetic:.13,launch:.55,flyby:.16,impact:.32,acquire:.24,bowdraw:.26,bow:.26,bowhit:.40};
+  const lengths={geometry:.18,kinetic:.13,launch:.55,flyby:.16,impact:.32,acquire:.24,bowdraw:.26,bow:.26,bowhit:.65};
   const fracturePulse=u=>u>0?Math.min(1,u/.002)*Math.exp(-u*95):0;
   function create(context,destination){
     const cache=new Map(),voices=new Set();let serial=0,lastFly=-10;
@@ -23,8 +23,8 @@
         else if(kind==='bowhit'){
           body+=.025*(n-body);air+=.19*(n-air);
           const fracture=fracturePulse(t-.034)+fracturePulse(t-.067)+fracturePulse(t-.106);
-          v=hi*.4*Math.exp(-t*90)+(air-body)*1.55*Math.exp(-t*24)+body*1.9*Math.exp(-t*18)
-            +Math.sin(t*2*Math.PI*(76+variant*5))*.32*Math.exp(-t*29)+(air-lo)*fracture*.48;
+          v=hi*.4*Math.exp(-t*90)+(air-body)*1.55*Math.exp(-t*24)+body*2.5*Math.exp(-t*11)
+            +Math.sin(t*2*Math.PI*(76+variant*5))*.48*Math.exp(-t*18)+(air-lo)*fracture*.48;
         }
         else if(kind==='kinetic')v=hi*.54*Math.exp(-t*75)+lo*.80*Math.exp(-t*32)+Math.sin(t*650)*.20*Math.exp(-t*48);
         else if(kind==='geometry')v=hi*.40*Math.exp(-t*49)+Math.sin(t*1740)*.19*Math.exp(-t*36)+lo*.65*Math.exp(-t*28);
@@ -33,7 +33,10 @@
         else if(kind==='flyby')v=hi*.34*Math.sin(Math.PI*t/length)**2*Math.exp(-t*10);
         else{phase+=2*Math.PI*(960-t*1800)/context.sampleRate;v=(lo*.3+Math.sin(phase)*.11)*Math.sin(Math.PI*t/length)**2;}
         d[i]=v*attack*release;
-      }cache.set(key,b);return b;
+      }
+      // The longer blast adds body without clipping when several fragments overlap.
+      const ceiling=kind==='bowhit'?1.3:.9;let peak=0;for(const v of d)peak=Math.max(peak,Math.abs(v));if(peak>ceiling)for(let i=0;i<d.length;i++)d[i]*=ceiling/peak;
+      cache.set(key,b);return b;
     }
     function play(kind,{gain=1,pan=0,at=context.currentTime}={}){
       if(kind==='flyby'){if(at-lastFly<.09)return false;lastFly=at;}

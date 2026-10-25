@@ -1,12 +1,12 @@
 /* A short steppe bow rewards a committed draw, then releases without an artificial holding timer. */
 (() => {
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  const range=360,cooldown=.28,minPull=.8;
-  function create(){return {id:null,x:0,y:0,dx:0,dy:0,axisX:0,axisY:1,pull:0,drawLength:86,span:70,radius:110,target:null,recoil:0,releasePull:0,releaseX:0,releaseY:0,releaseAngle:0,releaseScale:0,readyCue:false,flash:0,shots:0,hits:0,cooldown:0};}
+  const range=420,cooldown=.24,minPull=.8;
+  function create(){return {id:null,x:0,y:0,dx:0,dy:0,axisX:0,axisY:1,pull:0,drawLength:86,span:70,radius:110,target:null,recoil:0,releasePull:0,releaseX:0,releaseY:0,releaseAngle:0,releaseScale:0,drawn:false,steering:false,steerX:0,steerY:0,aimBaseX:0,aimBaseY:0,aimX:0,aimY:0,aimGoalX:0,aimGoalY:0,width:0,height:0,retarget:null,retargetT:0,pose:null,readyCue:false,flash:0,shots:0,hits:0,cooldown:0};}
   function begin(s,id,x,y,horse,width,height){
     if(s.id!==null||y>=horse.y)return false;
     const side=Math.min(width,height),hx=horse.x-x,hy=Math.max(20,horse.y-y),length=Math.hypot(hx,hy);
-    Object.assign(s,{id,x,y,dx:0,dy:0,axisX:hx/length,axisY:hy/length,pull:0,drawLength:clamp(side*.22,70,96),span:clamp(side*.18,52,78),radius:clamp(side*.28,88,150),target:null,recoil:0,releasePull:0,releaseScale:0,readyCue:false});return true;
+    Object.assign(s,{id,x,y,dx:0,dy:0,axisX:hx/length,axisY:hy/length,pull:0,drawLength:clamp(side*.4,110,170),span:clamp(side*.23,70,96),radius:clamp(side*.28,88,150),target:null,recoil:0,releasePull:0,releaseScale:0,drawn:false,steering:false,aimBaseX:x,aimBaseY:y,aimX:x,aimY:y,aimGoalX:x,aimGoalY:y,width,height,retarget:null,retargetT:0,pose:null,readyCue:false});return true;
   }
   function move(s,id,x,y,horse){
     if(s.id!==id)return false;s.dx=x-s.x;s.dy=y-s.y;
@@ -14,7 +14,19 @@
     // Ease out by 20 degrees rather than making readiness jump at the edge of that sector.
     const length=Math.hypot(s.dx,s.dy),edge=clamp((s.dy/Math.max(1,length)+Math.sin(Math.PI/9))/(Math.sin(Math.PI/9)-Math.sin(Math.PI/18)),0,1);
     const stroke=Math.max(s.dx*s.axisX+s.dy*s.axisY,length*edge*edge*(3-2*edge));
-    s.pull=clamp((stroke-3)/(s.drawLength-3),0,1);return true;
+    s.pull=clamp((stroke-3)/(s.drawLength-3),0,1);
+    if(!s.drawn&&s.pull>=minPull){
+      s.drawn=true;s.steerX=x;s.steerY=y;s.aimBaseX=s.aimX=s.aimGoalX=s.target?.x??s.x;s.aimBaseY=s.aimY=s.aimGoalY=s.target?.y??s.y;
+    }
+    if(s.drawn){
+      if(length<s.drawLength*.35){s.drawn=false;s.steering=false;s.retarget=null;s.retargetT=0;}
+      else{
+        s.pull=Math.max(minPull,s.pull);const shift=x-s.steerX;
+        if(Math.abs(shift)>20)s.steering=true;
+        if(s.steering){s.aimGoalX=clamp(s.aimBaseX+Math.sign(shift)*Math.max(0,Math.abs(shift)-12)*1.35,16,s.width-16);
+          s.aimGoalY=clamp(s.aimBaseY+(y-s.steerY)*.35,32,s.height-24);}
+      }
+    }return true;
   }
   function end(s,id,cancel=false){
     if(s.id!==id)return false;
@@ -22,14 +34,15 @@
     s.releasePull=fire?s.pull:0;s.id=null;s.pull=0;
     if(fire){s.shots++;s.recoil=1;s.cooldown=cooldown;}return fire;
   }
-  function cancel(s){s.id=null;s.pull=0;s.target=null;s.recoil=0;s.releasePull=0;s.releaseScale=0;s.readyCue=false;}
-  function layout(target,horse,width,height,span){
+  function cancel(s){s.id=null;s.pull=0;s.target=null;s.recoil=0;s.releasePull=0;s.releaseScale=0;s.readyCue=false;s.drawn=false;s.steering=false;s.retarget=null;s.retargetT=0;s.pose=null;}
+  function layout(target,horse,width,height,span,pull=0){
     if(![target?.x,target?.y,horse?.x,horse?.y,width,height,span].every(Number.isFinite)||width<80||height<80)return null;
     const dx=horse.x-target.x,dy=horse.y-target.y,length=Math.hypot(dx,dy);
     if(length<88)return null; // The physical bow still shows when the projected gap cannot hold an overlay.
     const ux=dx/length,uy=dy/length,angle=Math.atan2(dy,dx)-Math.PI/2,c=Math.cos(angle),s=Math.sin(angle),margin=12;
-    for(const scale of [1,.85,.7,.55,.42,.32]){
-      let lo=26+40*scale,hi=length-18-96*scale;
+    for(const factor of [1,.85,.7,.55,.42,.32]){
+      const scale=(1+clamp(pull,0,1)*.65)*factor;
+      let lo=26+40*scale,hi=length-18-(96-68*clamp(pull,0,1))*scale;
       const corners=[];
       for(const x of [-span-8,span+8])for(const y of [-40,96])corners.push({x:(x*c-y*s)*scale,y:(x*s+y*c)*scale});
       // Intersect a segment with the padded viewport; never clamp x/y independently off the shot line.
@@ -43,20 +56,39 @@
     }return null;
   }
   function available(v){return v.distance<=range&&v.distance>=10&&v.ahead>=-1e-6&&v.z>=-1&&v.z<=1&&!v.reserved&&!v.hidden&&v.visible!==false;}
+  function fitPose(p,width,height,span){
+    if(!p)return null;const top=Math.min(64,height*.15),margin=12,c=Math.cos(p.angle),s=Math.sin(p.angle);
+    if(p.x<margin||p.x>width-margin||p.y<top||p.y>height-margin)return null;
+    let scale=p.scale;
+    for(const x of [-span-8,span+8])for(const y of [-40,96]){
+      const dx=x*c-y*s,dy=x*s+y*c;
+      if(dx>0)scale=Math.min(scale,(width-margin-p.x)/dx);else if(dx<0)scale=Math.min(scale,(margin-p.x)/dx);
+      if(dy>0)scale=Math.min(scale,(height-margin-p.y)/dy);else if(dy<0)scale=Math.min(scale,(top-p.y)/dy);
+    }
+    if(scale<.25)return null;p.scale=scale;return p;
+  }
   function pick(s,targets,previous=s.target){
     let best=null,score=Infinity;
     for(const v of targets){
       if(!available(v))continue;
-      const offset=Math.hypot(v.x-s.x,v.y-s.y),radius=s.radius+18;if(offset>radius)continue;
+      const offset=Math.hypot(v.x-(s.steering?s.aimX:s.x),v.y-(s.steering?s.aimY:s.y)),radius=s.radius+18;if(offset>radius)continue;
       const rank=offset/radius*.8+v.distance/range*.2;
       const sticky=previous?.d===v.d? .12:0;
       if(rank-sticky<score){score=rank-sticky;best=v;}
     }return best;
   }
-  function lock(s,targets){
-    // Follow the selected drone through the draw; riding and camera motion must not switch targets.
-    const held=s.target&&targets.find(v=>v.d===s.target.d&&available(v));return held||pick(s,targets);
+  function lock(s,targets,dt=0){
+    const held=s.target&&targets.find(v=>v.d===s.target.d&&available(v));
+    if(!s.steering){s.retarget=null;s.retargetT=0;return held||pick(s,targets);}
+    const next=pick(s,targets,null);
+    // A closer neighbour must win by a clear margin for 65ms; small jitter cannot chatter locks.
+    const margin=held&&next?clamp(Math.hypot(held.x-next.x,held.y-next.y)*.28,6,20):20;
+    if(!next||next.d===held?.d||held&&Math.hypot(held.x-s.aimX,held.y-s.aimY)<Math.hypot(next.x-s.aimX,next.y-s.aimY)+margin){s.retarget=null;s.retargetT=0;return held||next;}
+    if(!held)return next;
+    if(s.retarget!==next.d){s.retarget=next.d;s.retargetT=0;}
+    s.retargetT+=Math.max(0,dt);if(s.retargetT<.065)return held;
+    s.retarget=null;s.retargetT=0;return next;
   }
-  function advance(s,dt){s.cooldown=Math.max(0,s.cooldown-dt);s.recoil=Math.max(0,s.recoil-dt*5.5);s.flash=Math.max(0,s.flash-dt);}
-  globalThis.WindArchery=Object.freeze({create,begin,move,end,cancel,pick,lock,layout,advance,range,cooldown,minPull});
+  function advance(s,dt){const follow=1-Math.exp(-18*Math.max(0,dt));s.aimX+=(s.aimGoalX-s.aimX)*follow;s.aimY+=(s.aimGoalY-s.aimY)*follow;s.cooldown=Math.max(0,s.cooldown-dt);s.recoil=Math.max(0,s.recoil-dt*5.5);s.flash=Math.max(0,s.flash-dt);}
+  globalThis.WindArchery=Object.freeze({create,begin,move,end,cancel,pick,lock,layout,fitPose,advance,range,cooldown,minPull});
 })();

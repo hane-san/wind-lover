@@ -1,5 +1,7 @@
 # Recurved bow feel — research and implementation, 24 October 2026
 
+The 25 October [drawn-bow flow update](BOW-FLOW.md) supersedes the earlier draw, target switching, effects, patrol size and salvo values in this document.
+
 The owner's follow-up removes the large white aiming circle. A nearby touch should acquire the existing small marker, then a recognisable Central Asian bow should flex around that lock. Shooting should read as a swift air-cutting release followed by a firm impact, with an arrow wake. The additional request asks us to research regional bows and make the commitment to drawing fit simultaneous horseback evasion.
 
 ## Evidence and design decisions

@@ -1,4 +1,4 @@
-"""Ride four real routes through paired sky/ground patrols, then shoot whilst the second salvo is arriving."""
+"""Ride four real routes through three-salvo sky/ground patrols, then shoot whilst the third salvo is arriving."""
 import argparse,functools,http.server,json,threading
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -12,7 +12,7 @@ try:
   page.on('pageerror',lambda e:errors.append(str(e)));page.on('console',lambda m:errors.append(m.text) if m.type=='error' and 'Shader' in m.text else None)
   page.route('**/three.min.js*',lambda r:r.fulfill(path=str(args.three),content_type='application/javascript'));page.route('https://fonts.googleapis.com/**',lambda r:r.abort());page.add_init_script("localStorage.setItem('windlover.journey-music.v1.enabled','false')")
   def probe(r):
-   s=(root/'prototype/index.html').read_text().replace('function frame(now) {','function frame(now) { if(window.__skyCapture){requestAnimationFrame(frame);return;}').replace('window.__wl = {','''window.__skyQA={camera,renderer,updateVisuals,updatePalette,updateArchery,releaseBow,updateEncounters,updateThreat,updateDrones,updateBullets,clearDrones,drawBowSight,saddleScreen,bowTargets,assaultVolley,sentryMesh,missileTailGeo,missileTailF,bGravity,bTail,bLife,bKind,bPos,arrows,surfaceAt,forms,sfx,get time(){return t},set time(v){t=v},get paused(){return paused},set paused(v){paused=v}};window.__wl = {''');r.fulfill(body=s,content_type='text/html')
+   s=(root/'prototype/index.html').read_text().replace('function frame(now) {','function frame(now) { if(window.__skyCapture){requestAnimationFrame(frame);return;}').replace('window.__wl = {','''window.__skyQA={camera,renderer,updateVisuals,updatePalette,updateArchery,releaseBow,updateEncounters,updateThreat,updateDrones,updateBullets,clearDrones,drawBowSight,saddleScreen,bowTargets,assaultVolley,sentryMesh,missileTailGeo,missileTailF,bGravity,bCurveT,bCurveAge,bTail,bLife,bKind,bPos,shoot,arrows,surfaceAt,forms,sfx,get time(){return t},set time(v){t=v},get paused(){return paused},set paused(v){paused=v}};window.__wl = {''');r.fulfill(body=s,content_type='text/html')
   page.route('**/prototype/',probe);page.goto(f'http://127.0.0.1:{server.server_port}/',timeout=120000);page.wait_for_function('window.__wl');page.locator('#featuredTrips [data-journey-route="desert"]').click(timeout=120000)
   report=page.evaluate('''()=>{
    window.__skyCapture=true;const w=__wl,q=__skyQA,out=[];q.paused=true;if(q.sfx.on)q.sfx.toggle();
@@ -29,17 +29,27 @@ try:
      if(eligible.length&&w.combat.bullets)overlap+=.05;
      for(const d of f.drones)if(!d.sentry)maxHeight=Math.max(maxHeight,d.y-q.surfaceAt(d.x,d.z));
      maxOff=Math.max(maxOff,w.rideRoute(w.P.pos.x,w.P.pos.z,w.P.pos.y).d);
-     if(old>=2&&i*.05>salvos[1].time+1.25&&i*.05-lastShot>.65&&eligible.length){
+     if(old>=3&&i*.05>salvos[2].time+.5&&i*.05-lastShot>.65&&eligible.length){
       const target=eligible[0],horse=q.saddleScreen(),b=w.archery,before=b.shots;WindArchery.advance(b,1);q.paused=false;
-      WindArchery.begin(b,71,target.x,target.y,horse,innerWidth,innerHeight);WindArchery.move(b,71,target.x+80,target.y-8,horse);if(WindArchery.end(b,71))q.releaseBow();q.paused=true;
+      WindArchery.begin(b,71,target.x,target.y,horse,innerWidth,innerHeight);WindArchery.move(b,71,target.x+145,target.y-8,horse);if(WindArchery.end(b,71))q.releaseBow();q.paused=true;
       if(b.shots>before){shots.push({time:i*.05,ground:!!target.d.sentry,incoming:w.combat.bullets});lastShot=i*.05;}
      }
     }
     const result={route,cycle,initial,ground:site,salvos,shots,hits:w.archery.hits-startHits,overlapSeconds:overlap,maxHeight,maxOff};
-    if(salvos.length!==2||salvos[1].time-salvos[0].time<2||overlap<.5||result.hits<2||maxOff>14||maxHeight<75)throw Error('Broken sky/bow phrase '+JSON.stringify(result));out.push(result);
+    if(salvos.length!==3||salvos[1].time-salvos[0].time<1.8||overlap<.5||result.hits<2||maxOff>14||maxHeight<75)throw Error('Broken sky/bow phrase '+JSON.stringify(result));out.push(result);
    }w.inp.jx=0;
    if(!out.some(r=>r.ground.length&&r.shots.some(s=>s.ground)))throw Error('Ground sentries were never available to the bow');
    return {routes:out};}''')
+  report['trajectoryDodges']=page.evaluate('''()=>{const w=__wl,q=__skyQA,out=[];q.paused=true;
+   for(const fps of [20,60,120])for(const kind of ['direct','ballistic','cruise'])for(const dodge of [false,true]){
+    q.clearDrones();w.P.pos.set(8000,1000,0);w.P.vel.set(34,0,0);Object.assign(w.P,{invuln:0,hull:3,dead:false,inTunnel:false,grounded:false});
+    const T=3,origin=w.P.pos.clone().add(new THREE.Vector3(380,90,0)),target=w.P.pos.clone().addScaledVector(w.P.vel,T);target.y+=.45;
+    const v=target.clone().sub(origin).multiplyScalar(1/T),arc=kind==='ballistic'?WindPatrolScore.loft(T):{lift:0,gravity:0};v.y+=arc.lift;
+    q.shoot(origin,v,[1,.7,.4],2,arc.gravity,kind==='cruise'?{flight:T,height:36,sway:12,rx:0,rz:1}:null);
+    for(let i=0;i<fps*4;i++){const previous=w.P.pos.clone();w.P.pos.x+=34/fps;if(dodge&&i>=fps*1.4&&i<fps*2)w.P.pos.z+=8.6/fps;q.updateBullets(1/fps,previous);}
+    const result={fps,kind,dodge,hull:w.P.hull};if(w.P.hull!==(dodge?3:2))throw Error('Broken real missile trajectory dodge '+JSON.stringify(result));out.push(result);
+   }return out;
+  }''')
   print(json.dumps(report),flush=True)
   # A real render of the new high/low silhouettes and curved tails in each phone orientation.
   for width,height in [(390,844),(844,390),(320,568)]:
@@ -51,5 +61,5 @@ try:
     document.querySelector('#menuSheet').hidden=true;document.querySelector('#hint').hidden=true;document.querySelector('#toast').classList.remove('on');q.renderer.render(w.scene,q.camera);
     if(!q.missileTailGeo.drawRange.count||q.missileTailF[23]!==0)throw Error('Missing or opaque-ended missile tails');window.__skyCapture=false;}''');page.wait_for_timeout(150);page.screenshot(path=str(args.out/(str(width)+'-sky.png')))
   page.evaluate('''()=>{const q=__skyQA;q.clearDrones();q.updateDrones(0);if(q.sentryMesh.count||q.missileTailGeo.drawRange.count)throw Error('Ground/trails survived clearing');}''')
-  assert not errors,errors;report['pageErrors']=errors;(args.out/'result.json').write_text(json.dumps(report,indent=2));print('PASS: sky, grounded targets, paired fire, evasion/shooting overlap and bounded trails.',flush=True);browser.close()
+  assert not errors,errors;report['pageErrors']=errors;(args.out/'result.json').write_text(json.dumps(report,indent=2));print('PASS: sky, grounded targets, mixed fire, evasion/shooting overlap and bounded trails.',flush=True);browser.close()
 finally:server.shutdown();server.server_close()
