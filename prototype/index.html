@@ -372,7 +372,7 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 <script src="../world/flow-effects.js?v=20261024-bow"></script>
 <script src="../world/journey-climate.js?v=20261022-voyage"></script>
 <script src="../world/travel-camera.js?v=20261022-network"></script>
-<script src="../world/horse-archery.js?v=20261025-fixed-grip"></script>
+<script src="../world/horse-archery.js?v=20261025-bow-response"></script>
 <script src="../world/encounter-director.js?v=20261025-bow-flow"></script>
 <script src="../world/sweeper.js?v=20261025-fixed-grip"></script>
 <script src="../world/patrol-score.js?v=20261025-bow-flow"></script>
@@ -4605,7 +4605,7 @@ function updateSweeper(d,f,dt,previous,fx,fz,canQueue){
   if((f.phase==='leave'||!canQueue)&&['windup','dive'].includes(s.phase))WindSweeper.abortDive(s,d);
   const wasDiving=s.phase==='dive',active=f.phase==='hold'&&f.ahead<430;
   sweeperProjection.copy(d).project(camera);
-  const permit=active&&f.ahead>170&&canQueue&&encounter.fire&&Math.abs(sweeperProjection.x)<.95&&Math.abs(sweeperProjection.y)<.95&&defenceVisible(d);
+  const permit=active&&f.ahead>170&&canQueue&&encounter.fire&&!f.cue&&!f.pending?.length&&f.fireT>.22&&Math.abs(sweeperProjection.x)<.95&&Math.abs(sweeperProjection.y)<.95&&defenceVisible(d);
   WindSweeper.advance(s,dt,{active,permit});
   if(dt>0&&s.event==='lock'){
     const travel=WindSweeper.windup+WindSweeper.flight,target=P.pos.clone().addScaledVector(P.vel,travel);
@@ -4674,7 +4674,9 @@ function updateDrones(dt, previous = P.pos) {
     if(f.pending?.length)for(let q=f.pending.length-1;q>=0;q--){const pr=f.pending[q],valid=!pr.source||(f.drones.includes(pr.source)&&(pr.source.x-P.pos.x)*fx+(pr.source.z-P.pos.z)*fz>55);
       if(!valid){f.pending.splice(q,1);continue;}
       if(t>=pr.at){const late=t-pr.at;pr.p.addScaledVector(pr.v,late);pr.p.y+=.5*(pr.gravity||0)*late*late;pr.v.y+=(pr.gravity||0)*late;if(pr.curve){pr.curve.age=late;WindPatrolScore.cruise(late,pr.curve.flight,pr.curve.height,pr.curve.sway,curveAfter);pr.p.x+=curveAfter.side*pr.curve.rx;pr.p.y+=curveAfter.y;pr.p.z+=curveAfter.side*pr.curve.rz;}if(canQueue)shoot(pr.p,pr.v,pr.c,pr.kind||0,pr.gravity||0,pr.curve);f.pending.splice(q,1);}}
-    if(f.mode==='assault'&&f.phase==='hold'&&canFire&&f.drones.some(d=>!d.sweeper)&&f.ahead>55&&(f.weapon==='kinetic'||WindPatrolScore.mayLaunch({ahead:f.ahead,salvos:f.salvos}))){
+    const wingBusy=f.drones.some(d=>['windup','dive'].includes(d.sweeper?.phase));
+    if(wingBusy)f.fireT=Math.max(f.fireT,.22);
+    if(f.mode==='assault'&&f.phase==='hold'&&canFire&&!wingBusy&&f.drones.some(d=>!d.sweeper)&&f.ahead>55&&(f.weapon==='kinetic'||WindPatrolScore.mayLaunch({ahead:f.ahead,salvos:f.salvos}))){
       if(!f.cue&&f.fireT<=0){
         f.cue={weapon:f.weapon,remaining:f.weapon==='kinetic'?.8:WindPatrolScore.cueTime,clock:f.t};
         if(f.weapon==='missile'||f.lastCueWeapon!==f.weapon){sfx.weapon('acquire',{gain:.28,pan:weaponPan(f.pos)});f.lastCueWeapon=f.weapon;}
@@ -5100,18 +5102,18 @@ function clearArrows(){
 function releaseBow(){
   if(vehKey!=='horse'||paused||P.dead)return;
   const a=arrows.find(a=>a.life<=0);if(!a)return;
-  // Re-evaluate at release, so an already destroyed target never steals another arrow.
-  bow.target=WindArchery.lock(bow,bowTargets());a.target=bow.target;
+  // Keep the last visible selection; a disappearing foe must not redirect the release to its neighbour.
+  bow.target=WindArchery.releaseTarget(bow,bowTargets());a.target=bow.target;
   const pose=bow.pose;bow.releaseX=pose?.x??bow.x;bow.releaseY=pose?.y??bow.y;bow.releaseAngle=pose?.angle??0;bow.releaseScale=pose?.scale??0;
   a.p.copy(P.pos);a.p.y+=2.8;a.p.addScaledVector(fwd,.9);a.life=.85;
   if(a.target){a.target.d.bowIncoming=(a.target.d.bowIncoming||0)+1;a.dir.subVectors(a.target.d,a.p).normalize();}
-  else {bowScreen.set((bow.steering?bow.aimX:bow.x)/innerWidth*2-1,1-(bow.steering?bow.aimY:bow.y)/innerHeight*2,.5).unproject(camera);a.dir.subVectors(bowScreen,camera.position).normalize();}
+  else {bowScreen.set((bow.aimCaptured?bow.aimX:bow.x)/innerWidth*2-1,1-(bow.aimCaptured?bow.aimY:bow.y)/innerHeight*2,.5).unproject(camera);a.dir.subVectors(bowScreen,camera.position).normalize();}
   sfx.weapon('bow',{gain:.95});
   shake=Math.max(shake,.035);
   if(navigator.vibrate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)try{navigator.vibrate(12);}catch(_){}
 }
 function updateArchery(dt){
-  WindArchery.advance(bow,dt);if(vehKey!=='horse'||P.dead){clearArrows();return;}
+  WindArchery.advance(bow,dt);if(vehKey!=='horse'||P.dead){clearArrows();return;}cueBowReady();
   let count=0;
   for(const a of arrows){if(a.life<=0)continue;a.life-=dt;
     const target=a.target,alive=target&&target.f.drones.includes(target.d);
@@ -5971,6 +5973,13 @@ const stickBase = $('#stickBase'), stickKnob = $('#stickKnob'), flashEl = $('#fl
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setInterval(() => { el.style.transform = `translate(${(Math.random() * 20 | 0) - 10}px, ${(Math.random() * 20 | 0) - 10}px)`; }, 90);
 })();
 let stickId = null, sx0 = 0, sy0 = 0;
+function cueBowReady(){
+  if(bow.id===null||paused||P.dead)return;
+  if(bow.pull<WindArchery.minPull){bow.readyCue=false;return;}
+  if(bow.cooldown>0||bow.readyCue)return;
+  bow.readyCue=true;sfx.weapon('bowdraw',{gain:.16});
+  if(navigator.vibrate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)try{navigator.vibrate(7);}catch(_){}
+}
 function resetRidingInput(){
   WindArchery.cancel(bow);inp.jx=inp.jy=inp.kx=inp.ky=0;inp.keys={};inp.jumpHeld=inp.jumpPressed=false;
   stickId=null;stickBase.classList.remove('on');bowInk.clearRect(0,0,bowCanvas.width,bowCanvas.height);
@@ -5986,7 +5995,7 @@ renderer.domElement.addEventListener('pointerdown',e=>{
 window.addEventListener('pointermove',e=>{
   if(paused||P.dead)return;
   if(bow.id===e.pointerId){WindArchery.move(bow,e.pointerId,e.clientX,e.clientY,saddleScreen());
-    if(bow.pull>=WindArchery.minPull&&bow.cooldown<=0&&!bow.readyCue){bow.readyCue=true;sfx.weapon('bowdraw',{gain:.16});if(navigator.vibrate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)try{navigator.vibrate(7);}catch(_){} }
+    cueBowReady();
     drawBowSight(0,false);return;}
   if(e.pointerId!==stickId)return;
   let dx=e.clientX-sx0,dy=e.clientY-sy0;const R=56,l=Math.hypot(dx,dy);if(l>R){dx*=R/l;dy*=R/l;}

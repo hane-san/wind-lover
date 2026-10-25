@@ -101,7 +101,7 @@ try:
      const prev=w.P.pos.clone();for(let j=0;j<6;j++)w.stepPhysics(1/120);q.updateEncounters(.05);q.updateThreat(.05);q.updateDrones(.05,prev);q.updateArchery(.05);q.updateVisuals(.05);if(i%3===0)w.loadStep();
      const count=q.barrageBodies.count;if(count>lastCount+4)targetLane=targetLane>0?-7:7;lastCount=count;
      if(i*.05-shotAt>.6){const target=q.bowTargets().find(v=>!v.hidden&&!v.reserved&&v.distance<300&&v.y<q.saddleScreen().y);
-      if(target){const b=w.archery,horse=q.saddleScreen();q.paused=false;WindArchery.begin(b,71,target.x,target.y,horse,innerWidth,innerHeight);WindArchery.move(b,71,horse.x,target.y+150,horse);if(WindArchery.end(b,71))q.releaseBow();q.paused=true;shotAt=i*.05;}}
+      if(target){const b=w.archery,horse=q.saddleScreen();q.paused=false;WindArchery.begin(b,71,target.x,target.y,horse,innerWidth,innerHeight);b.target=WindArchery.lock(b,q.bowTargets());WindArchery.move(b,71,horse.x,target.y+150,horse);q.drawBowSight(0,false);if(WindArchery.end(b,71))q.releaseBow();q.paused=true;shotAt=i*.05;}}
      minHull=Math.min(minHull,w.P.hull);maxOff=Math.max(maxOff,w.rideRoute(w.P.pos.x,w.P.pos.z,w.P.pos.y).d);
      if(w.P.dead)throw Error('Riding combat killed the horse '+JSON.stringify({route,time:i*.05,hits:w.archery.hits-startHits,minHull,maxOff}));
     }

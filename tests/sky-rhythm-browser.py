@@ -29,9 +29,11 @@ try:
      if(eligible.length&&w.combat.bullets)overlap+=.05;
      for(const d of f.drones)if(!d.sentry)maxHeight=Math.max(maxHeight,d.y-q.surfaceAt(d.x,d.z));
      maxOff=Math.max(maxOff,w.rideRoute(w.P.pos.x,w.P.pos.z,w.P.pos.y).d);
-     if(old>=3&&i*.05>salvos[2].time+.5&&i*.05-lastShot>.65&&eligible.length){
-      const target=eligible[0],horse=q.saddleScreen(),b=w.archery,before=b.shots;WindArchery.advance(b,1);q.paused=false;
-      WindArchery.begin(b,71,target.x,target.y,horse,innerWidth,innerHeight);WindArchery.move(b,71,target.x+145,target.y-8,horse);if(WindArchery.end(b,71))q.releaseBow();q.paused=true;
+     // A stationary roadside target must be answered while it is ahead, even when the wing delays the third aerial salvo.
+     const earlySentry=old>=1?eligible.find(v=>v.d.sentry):null;
+     if((earlySentry||old>=3&&i*.05>salvos[2].time+.5)&&i*.05-lastShot>.65&&eligible.length){
+      const target=earlySentry||eligible[0],horse=q.saddleScreen(),b=w.archery,before=b.shots;WindArchery.advance(b,1);q.paused=false;
+      WindArchery.begin(b,71,target.x,target.y,horse,innerWidth,innerHeight);b.target=WindArchery.lock(b,q.bowTargets());WindArchery.move(b,71,target.x+145,target.y-8,horse);q.drawBowSight(0,false);if(WindArchery.end(b,71))q.releaseBow();q.paused=true;
       if(b.shots>before){shots.push({time:i*.05,ground:!!target.d.sentry,incoming:w.combat.bullets});lastShot=i*.05;}
      }
     }

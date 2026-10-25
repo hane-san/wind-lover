@@ -27,10 +27,11 @@
         s.pull=Math.max(minPull,s.pull);
         let cx=x-s.controlX,cy=y-s.controlY,lever=Math.hypot(cx,cy),delta=Math.atan2(Math.sin(Math.atan2(cx,cy)-s.drawAngle),Math.cos(Math.atan2(cx,cy)-s.drawAngle));
         // Let a longer straight pull settle without making sideways steering progressively heavier.
-        if(!s.steering&&Math.abs(delta)<.04&&lever>s.drawLength){s.controlX=x-Math.sin(s.drawAngle)*s.drawLength;s.controlY=y-Math.cos(s.drawAngle)*s.drawLength;cx=x-s.controlX;cy=y-s.controlY;lever=s.drawLength;delta=0;}
-        if(Math.abs(delta)>.04&&Math.abs(delta)*lever>20)s.steering=true;
+        const ax=Math.sin(s.drawAngle),ay=Math.cos(s.drawAngle),along=cx*ax+cy*ay;
+        if(!s.steering&&Math.abs(delta)<.04&&along>s.drawLength){s.controlX+=ax*(along-s.drawLength);s.controlY+=ay*(along-s.drawLength);cx=x-s.controlX;cy=y-s.controlY;lever=Math.hypot(cx,cy);delta=Math.atan2(Math.sin(Math.atan2(cx,cy)-s.drawAngle),Math.cos(Math.atan2(cx,cy)-s.drawAngle));}
+        if(!s.steering&&Math.abs(delta)>.025&&Math.abs(delta)*lever>8){s.aimAngle=Math.atan2(s.aimX-s.aimOriginX,s.aimOriginY-s.aimY);s.steering=true;}
         // Turn the nock around the original draw ray. Pulling farther along that ray cannot steer.
-        if(s.steering){const turn=Math.sign(delta)*Math.max(0,Math.abs(delta)-.025),angle=clamp(s.aimAngle-turn,-1.3,1.3);
+        if(s.steering){const raw=Math.max(0,Math.abs(delta)-.025),u=clamp(raw/.09,0,1),turn=Math.sign(delta)*raw*u*u*(3-2*u),angle=s.aimAngle-turn;
           s.aimGoalX=clamp(s.aimOriginX+Math.sin(angle)*s.aimRadius,16,s.width-16);
           s.aimGoalY=clamp(s.aimOriginY-Math.cos(angle)*s.aimRadius,32,s.height-24);}
       }
@@ -64,7 +65,8 @@
     }return null;
   }
   function captureAim(s,target,horse={x:s.x,y:s.y+150}){
-    s.aimCaptured=true;s.aimBaseX=s.aimX=s.aimGoalX=target.x;s.aimBaseY=s.aimY=s.aimGoalY=target.y;
+    if(!s.aimCaptured){s.aimX=target.x;s.aimY=target.y;}s.aimCaptured=true;
+    s.aimBaseX=s.aimGoalX=target.x;s.aimBaseY=s.aimGoalY=target.y;
     s.aimOriginX=s.grip?.x??horse.x;s.aimOriginY=s.grip?.y??horse.y;
     s.aimAngle=Math.atan2(target.x-s.aimOriginX,s.aimOriginY-target.y);s.aimRadius=Math.max(64,Math.hypot(target.x-s.aimOriginX,target.y-s.aimOriginY));
   }
@@ -84,7 +86,8 @@
     const x=s.aimCaptured?s.aimX:s.x,y=s.aimCaptured?s.aimY:s.y,goal=Math.atan2(x-s.grip.x,s.grip.y-y);
     const full=fitGrip(s.grip,goal,1.65,s.width,s.height,s.span),wanted=full?fitGrip(s.grip,goal,full.scale*(1+clamp(s.pull,0,1)*.65)/1.65,s.width,s.height,s.span):null;if(!wanted){s.pose=null;return null;}
     if(!s.pose)s.pose=wanted;else{
-      const k=1-Math.exp(-16*Math.max(0,dt)),angle=s.pose.angle+Math.atan2(Math.sin(goal-s.pose.angle),Math.cos(goal-s.pose.angle))*k;
+      // Aim has one filter in advance(); a second angle filter would add a visible rubber-band delay.
+      const k=1-Math.exp(-16*Math.max(0,dt)),angle=goal;
       const scale=s.pose.scale+(wanted.scale-s.pose.scale)*k;
       s.pose=fitGrip(s.grip,angle,scale,s.width,s.height,s.span);
     }return s.pose;
@@ -103,9 +106,11 @@
   }
   function pick(s,targets,previous=s.target){
     let best=null,score=Infinity;
+    // A deliberate touch on a small, distant foe must beat a neighbouring, nearer silhouette.
+    if(!s.steering){for(const v of targets){if(!available(v))continue;const d=Math.hypot(v.x-s.x,v.y-s.y);if(d<=22&&d<score){score=d;best=v;}}if(best)return best;score=Infinity;}
     for(const v of targets){
       if(!available(v))continue;
-      const offset=aimOffset(s,v),radius=s.radius+18;if(offset>radius)continue;
+      const offset=aimOffset(s,v),radius=s.steering?steerRadius(s,.24):s.radius+18;if(offset>radius)continue;
       const rank=offset/radius*.8+v.distance/range*.2;
       const sticky=previous?.d===v.d? .12:0;
       if(rank-sticky<score){score=rank-sticky;best=v;}
@@ -117,8 +122,9 @@
     const x=v.x-s.aimOriginX,y=v.y-s.aimOriginY,along=x*ux+y*uy;
     return along>8?Math.abs(x*uy-y*ux)*s.aimRadius/Math.max(64,along):Infinity;
   }
+  const steerRadius=(s,angle)=>Math.max(12,s.aimRadius*Math.tan(angle));
   function lock(s,targets,dt=0){
-    const held=(s.target&&targets.find(v=>v.d===s.target.d&&available(v)&&(!s.steering||aimOffset(s,v)<=s.radius+36)))||null;
+    const held=(s.target&&targets.find(v=>v.d===s.target.d&&available(v)&&(!s.steering||aimOffset(s,v)<=steerRadius(s,.34))))||null;
     if(!s.steering){s.retarget=null;s.retargetT=0;const chosen=held||pick(s,targets);if(chosen)captureAim(s,chosen);return chosen;}
     const next=pick(s,targets,null);
     // A closer neighbour must win by a clear margin for 65ms; small jitter cannot chatter locks.
@@ -128,6 +134,8 @@
     s.retargetT+=Math.max(0,dt);if(s.retargetT<.065)return held;
     s.retarget=null;s.retargetT=0;return next;
   }
-  function advance(s,dt){const follow=1-Math.exp(-18*Math.max(0,dt));s.aimX+=(s.aimGoalX-s.aimX)*follow;s.aimY+=(s.aimGoalY-s.aimY)*follow;s.cooldown=Math.max(0,s.cooldown-dt);s.recoil=Math.max(0,s.recoil-dt*5.5);s.flash=Math.max(0,s.flash-dt);}
-  globalThis.WindArchery=Object.freeze({create,begin,move,end,cancel,pick,lock,layout,fitGrip,pose,fitPose,advance,range,cooldown,minPull});
+  // Validate the lock the player actually saw. Release must never acquire an unseen replacement.
+  function releaseTarget(s,targets){return (s.target&&targets.find(v=>v.d===s.target.d&&available(v)&&(!s.steering||aimOffset(s,v)<=steerRadius(s,.34))))||null;}
+  function advance(s,dt){const follow=1-Math.exp(-32*Math.max(0,dt));s.aimX+=(s.aimGoalX-s.aimX)*follow;s.aimY+=(s.aimGoalY-s.aimY)*follow;s.cooldown=Math.max(0,s.cooldown-dt);s.recoil=Math.max(0,s.recoil-dt*5.5);s.flash=Math.max(0,s.flash-dt);}
+  globalThis.WindArchery=Object.freeze({create,begin,move,end,cancel,pick,lock,releaseTarget,layout,fitGrip,pose,fitPose,advance,range,cooldown,minPull});
 })();

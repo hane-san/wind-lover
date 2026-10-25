@@ -154,3 +154,44 @@ test('every fitted grip pose keeps the complete rotated bow inside the padded vi
   for(const X of [-104,104])for(const Y of [-40,96]){const px=p.x+(X*c-Y*s)*p.scale,py=p.y+(X*s+Y*c)*p.scale;assert.ok(px>=11.999&&px<=w-11.999&&py>=Math.min(64,h*.15)-.001&&py<=h-11.999);}
  }
 });
+
+test('a direct touch on a distant silhouette beats a closer neighbouring enemy',()=>{
+ const s=A.create();s.x=195;s.y=250;
+ const tapped={d:{},x:195,y:250,distance:410,ahead:1,z:.9},near={...tapped,d:{},x:215,y:250,distance:40};
+ assert.equal(A.pick(s,[near,tapped]),tapped);assert.equal(A.pick(s,[{...tapped,hidden:true},near]),near);
+});
+test('a displayed lock is validated at release without acquiring an unseen replacement',()=>{
+ const s=A.create(),a={d:{},x:195,y:250,distance:220,ahead:1,z:.8},b={...a,d:{},x:200};s.target=a;
+ assert.equal(A.releaseTarget(s,[{...a,x:220},b]).d,a.d);
+ for(const invalid of [{hidden:true},{reserved:true},{ahead:-.01},{distance:421},{visible:false}])assert.equal(A.releaseTarget(s,[{...a,...invalid},b]),null);
+ assert.equal(A.releaseTarget(s,[b]),null);s.target=null;assert.equal(A.releaseTarget(s,[b]),null);
+});
+test('one aiming filter reaches the new direction promptly and the graphic shares that ray',()=>{
+ for(const fps of [20,60,120]){
+  const s=A.create(),horse={x:195,y:650};A.begin(s,1,290,250,horse,390,844);s.target=A.lock(s,[{d:{},x:290,y:250,distance:230,ahead:1,z:.8}]);A.move(s,1,190,800,horse);A.pose(s,0);
+  s.steering=true;s.aimGoalX=95;s.aimGoalY=250;const start=s.aimX;
+  for(let i=0;i<fps*.1;i++){A.advance(s,1/fps);const p=A.pose(s,1/fps),ray=Math.atan2(s.aimX-s.grip.x,s.grip.y-s.aimY);assert.ok(Math.abs(p.angle-ray)<1e-9);}
+  assert.ok(Math.abs(s.aimX-95)/Math.abs(start-95)<.042);
+ }
+});
+test('a moving assisted target uses the same filter instead of snapping the bow',()=>{
+ const s=A.create(),horse={x:195,y:650},a={d:{},x:240,y:250,distance:230,ahead:1,z:.8};A.begin(s,1,a.x,a.y,horse,390,844);s.target=A.lock(s,[a]);const old=s.aimX;
+ s.target=A.lock(s,[{...a,x:290}]);assert.equal(s.aimX,old);A.advance(s,1/60);assert.ok(s.aimX>old&&s.aimX<290);
+});
+test('the steering onset is gradual and does not turn small hand jitter into a jump',()=>{
+ const s=A.create(),horse={x:195,y:650};A.begin(s,1,195,250,horse,390,844);A.move(s,1,195,750,horse);const angles=[];
+ for(let x=195;x<=235;x++){A.move(s,1,x,750,horse);angles.push(Math.atan2(s.aimGoalX-s.grip.x,s.grip.y-s.aimGoalY));}
+ for(let i=1;i<angles.length;i++)assert.ok(Math.abs(angles[i]-angles[i-1])<.012);
+ assert.ok(angles.at(-1)<-.12);
+});
+test('manual assistance distinguishes a close ray from a tempting off-angle foe',()=>{
+ const s=A.create();Object.assign(s,{steering:true,aimOriginX:195,aimOriginY:600,aimRadius:300,aimX:195,aimY:300});
+ const at=angle=>({d:{},x:195+Math.sin(angle)*300,y:600-Math.cos(angle)*300,distance:220,ahead:1,z:.8});
+ const aligned=at(.1),stray=at(.4);assert.equal(A.pick(s,[stray]),null);assert.equal(A.pick(s,[stray,aligned]),aligned);
+ s.target=stray;assert.equal(A.releaseTarget(s,[stray]),null);s.target=aligned;assert.equal(A.releaseTarget(s,[aligned]),aligned);
+});
+test('a low forward target keeps its angle when steering begins instead of hitting a sky-only clamp',()=>{
+ const s=A.create(),horse={x:422,y:360},a={d:{},x:620,y:345,distance:45,ahead:.1,z:.8};A.begin(s,1,a.x,a.y,horse,844,390);s.target=A.lock(s,[a]);A.move(s,1,450,370,horse);
+ const before=Math.atan2(s.aimX-s.grip.x,s.grip.y-s.aimY);assert.ok(before>1.6);
+ A.move(s,1,480,385,horse);assert.equal(s.steering,true);const after=Math.atan2(s.aimGoalX-s.grip.x,s.grip.y-s.aimGoalY);assert.ok(after>1.3&&Math.abs(after-before)<.4);
+});
