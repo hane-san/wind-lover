@@ -79,13 +79,13 @@ test('a drawn bow may reach the bottom, steer to a neighbour after hysteresis an
  const s=A.create(),horse={x:195,y:590},a={d:{},x:130,y:280,distance:220,ahead:1,z:.8},b={...a,d:{},x:270};
  A.begin(s,1,130,280,horse,390,844);s.target=A.lock(s,[a,b]);A.move(s,1,130,820,horse);assert.equal(s.pull,1);assert.equal(s.drawn,true);
  for(const x of [134,127,140,130]){A.move(s,1,x,820,horse);A.advance(s,.05);s.target=A.lock(s,[a,b],.05);assert.equal(s.target,a);}
- A.move(s,1,250,820,horse);const before=s.aimX;A.advance(s,0);assert.equal(s.aimX,before);
+ A.move(s,1,-110,820,horse);const before=s.aimX;A.advance(s,0);assert.equal(s.aimX,before);
  A.advance(s,.15);s.target=A.lock(s,[a,b],.04);assert.equal(s.target,a);s.target=A.lock(s,[a,b],.04);assert.equal(s.target,b);assert.ok(s.pull>=A.minPull);
  A.move(s,1,130,280,horse);assert.equal(s.pull,0);assert.equal(A.end(s,1),false);
 });
 test('steering excludes hidden neighbours and cancellation resets its complete state',()=>{
  const s=A.create(),horse={x:195,y:590},a={d:{},x:130,y:280,distance:220,ahead:1,z:.8},b={...a,d:{},x:270,hidden:true};
- A.begin(s,1,130,280,horse,390,844);s.target=A.lock(s,[a,b]);A.move(s,1,130,460,horse);A.move(s,1,250,460,horse);A.advance(s,.2);
+ A.begin(s,1,130,280,horse,390,844);s.target=A.lock(s,[a,b]);A.move(s,1,130,460,horse);A.move(s,1,10,460,horse);A.advance(s,.2);
  s.target=A.lock(s,[a,b],.2);assert.equal(s.target,a);A.cancel(s);assert.equal(s.steering,false);assert.equal(s.drawn,false);assert.equal(s.pose,null);assert.equal(A.end(s,1),false);
 });
 
@@ -95,4 +95,36 @@ test('smoothed bow poses remain inside every padded viewport during a turn',()=>
   const fit=A.fitPose(p,w,h,span);if(!fit)continue;const c=Math.cos(fit.angle),s=Math.sin(fit.angle);
   for(const x of [-span-8,span+8])for(const y of [-40,96]){const px=fit.x+(x*c-y*s)*fit.scale,py=fit.y+(x*s+y*c)*fit.scale;assert.ok(px>=11.999&&px<=w-11.999&&py>=Math.min(64,h*.15)-.001&&py<=h-11.999);}
  }
+});
+
+test('an upper-right to lower-left draw aims upper-left when the hand moves right',()=>{
+ for(const [width,height]of [[390,844],[844,390],[320,568]]){
+  const s=A.create(),horse={x:width*.5,y:height*.75},right={d:{},x:width*.72,y:height*.25,distance:230,ahead:1,z:.8},left={...right,d:{},x:width*.28};
+  A.begin(s,1,right.x,right.y,horse,width,height);s.target=A.lock(s,[right,left]);
+  A.move(s,1,width*.18,height*.94,horse);assert.equal(s.target,right);assert.ok(s.pull>=A.minPull);
+  const initial=A.layout(right,horse,width,height,s.span,1);assert.ok(Math.sin(initial.angle)>0);
+  const desired=Math.atan2(left.x-s.aimOriginX,s.aimOriginY-left.y),turn=s.aimAngle-desired,dy=height*.94-s.y;
+  let angle=s.drawAngle+turn;for(let i=0;i<8;i++)angle=s.drawAngle+turn+Math.sign(turn)*.025;
+  A.move(s,1,s.x+Math.tan(angle)*dy,height*.94,horse);assert.ok(s.aimGoalX<horse.x);assert.ok(s.aimGoalY<horse.y);
+  for(let i=0;i<30;i++){A.advance(s,1/120);s.target=A.lock(s,[right,left],1/120);}
+  assert.equal(s.target,left);const aimed=A.layout({x:s.aimX,y:s.aimY},horse,width,height,s.span,1);assert.ok(Math.sin(aimed.angle)<0);
+  assert.equal(A.end(s,1),true);
+ }
+});
+test('lengthening a diagonal draw keeps its aim, then a lateral angle change turns oppositely',()=>{
+ const s=A.create(),horse={x:195,y:650},target={d:{},x:285,y:250,distance:230,ahead:1,z:.8};A.begin(s,1,285,250,horse,390,844);s.target=target;
+ A.move(s,1,225,400,horse);const aim={x:s.aimGoalX,y:s.aimGoalY};
+ for(const k of [1.3,1.8,2.4,3]){A.move(s,1,285-60*k,250+150*k,horse);assert.equal(s.steering,false);assert.equal(s.aimGoalX,aim.x);assert.equal(s.aimGoalY,aim.y);}
+ A.move(s,1,330,700,horse);assert.equal(s.steering,true);assert.ok(s.aimGoalX<horse.x);assert.ok(s.pull>=A.minPull);
+});
+test('a steered ray can acquire a target higher along the same direction without radial cursor bias',()=>{
+ const s=A.create(),horse={x:195,y:650},right={d:{},x:270,y:350,distance:220,ahead:1,z:.8},left={...right,d:{},x:115,y:200};
+ A.begin(s,1,270,350,horse,390,844);s.target=right;A.move(s,1,195,500,horse);A.move(s,1,330,800,horse);
+ for(let i=0;i<30;i++){A.advance(s,1/120);s.target=A.lock(s,[right,left],1/120);}assert.equal(s.target,left);
+});
+
+test('lengthening an already steered ray keeps the same aim and resists camera movement',()=>{
+ const s=A.create(),horse={x:195,y:650};A.begin(s,1,285,250,horse,390,844);A.move(s,1,225,400,horse);A.move(s,1,305,500,horse);
+ assert.equal(s.steering,true);const aim={x:s.aimGoalX,y:s.aimGoalY},dx=s.dx,dy=s.dy;
+ for(const k of [1.3,1.8,2.3]){A.move(s,1,s.x+dx*k,s.y+dy*k,{x:100,y:750});assert.ok(Math.abs(s.aimGoalX-aim.x)<1e-8&&Math.abs(s.aimGoalY-aim.y)<1e-8);}
 });

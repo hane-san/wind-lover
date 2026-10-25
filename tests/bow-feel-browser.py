@@ -12,7 +12,7 @@ try:
   page.on('pageerror',lambda e:errors.append(str(e)));page.on('console',lambda m:errors.append(m.text) if m.type=='error' and 'Shader' in m.text else None)
   page.route('**/three.min.js*',lambda r:r.fulfill(path=str(args.three),content_type='application/javascript'));page.route('https://fonts.googleapis.com/**',lambda r:r.abort());page.add_init_script("localStorage.setItem('windlover.journey-music.v1.enabled','false')")
   def probe(r):
-   s=(root/'prototype/index.html').read_text().replace('function frame(now) {','function frame(now) { if(window.__freezeBowFrame){requestAnimationFrame(frame);return;}').replace('window.__wl = {', '''window.__feelQA={camera,renderer,updateVisuals,updateDrones,updateTurret,updateArchery,clearDrones,clearArrows,saddleScreen,bowTargets,drawBowSight,bowInk,arrowWake,arrowWakeGeo,arrowGeo,arrowWakeLines,arrows,bowShards,bowShardMesh,updateBowShards,breakBowTarget,get paused(){return paused},set paused(v){paused=v}};window.__wl = {''');r.fulfill(body=s,content_type='text/html')
+   s=(root/'prototype/index.html').read_text().replace('function frame(now) {','function frame(now) { if(window.__freezeBowFrame){requestAnimationFrame(frame);return;}').replace('window.__wl = {', '''window.__feelQA={camera,renderer,updateVisuals,updateDrones,updateTurret,updateArchery,clearDrones,clearArrows,saddleScreen,bowTargets,drawBowSight,bowInk,arrowWake,arrowWakeGeo,arrowGeo,arrowWakeLines,arrows,bowShards,bowShardMesh,bowSparks,bowSparkGeo,booms,bowBoomFx,updateBowShards,breakBowTarget,get paused(){return paused},set paused(v){paused=v}};window.__wl = {''');r.fulfill(body=s,content_type='text/html')
   page.route('**/prototype/',probe);page.goto(f'http://127.0.0.1:{server.server_port}/',timeout=120000);page.wait_for_function('window.__wl');page.locator('#featuredTrips [data-journey-route="desert"]').click(timeout=120000)
   page.evaluate('window.__freezeBowFrame=true');report={'views':[]}
   # Real canvas rendering, not a screenshot-only mock: inspect the small marker and physical arrows too.
@@ -50,7 +50,7 @@ try:
    for _ in range(6):page.evaluate('__feelQA.updateArchery(1/60);__feelQA.drawBowSight(1/60)')
    assert page.evaluate('__wl.archery.target?.d===__feelTarget.d'),'A tiny sideways hand movement changed target'
    next_target=page.evaluate('''()=>{const t=__feelQA.bowTargets().filter(t=>t.visible&&!t.hidden&&!t.reserved&&t.d!==__feelTarget.d).sort((a,b)=>b.x-a.x)[0];window.__feelNext=t;return {x:t.x,y:t.y};}''')
-   shift=(next_target['x']-setup['target']['x'])/1.35+12
+   desired_hand=page.evaluate('''([tx,ty,y])=>{const b=__wl.archery,desired=Math.atan2(tx-b.aimOriginX,b.aimOriginY-ty),turn=b.aimAngle-desired,dy=y-b.y;let a=b.drawAngle+turn;for(let i=0;i<8;i++)a=b.drawAngle+turn+Math.sign(turn)*.025;return b.x+Math.tan(a)*dy;}''',[next_target['x'],next_target['y'],bottom]);shift=desired_hand-x
    pointer('pointermove',83,x+shift,bottom)
    for _ in range(20):page.evaluate('__feelQA.updateArchery(1/60);__feelQA.drawBowSight(1/60)')
    assert page.evaluate('__wl.archery.target?.d===__feelNext.d && __wl.archery.pull>=WindArchery.minPull && __wl.inp.jx===0'),'A held draw failed to select the next target independently of the reins'
@@ -67,13 +67,19 @@ try:
    hits=page.evaluate('__wl.archery.hits')
    page.evaluate('(before)=>{const q=__feelQA;for(let i=0;i<60&&__wl.archery.hits===before;i++)q.updateArchery(1/60);q.updateDrones(0);q.updateTurret(1/60);q.drawBowSight(0);q.renderer.render(__wl.scene,q.camera)}',hits)
    assert page.evaluate('(before)=>__wl.archery.hits===before+1 && __feelQA.arrowWakeGeo.drawRange.count>0',hits),'The impact lost its arrow wake'
-   assert page.evaluate('__feelQA.bowShardMesh.count===6'),'The drone did not break into visible parts'
+   assert page.evaluate('__feelQA.bowShardMesh.count===12'),'The drone did not break into visible parts'
    page.screenshot(path=str(args.out/(str(width)+'-hit.png')))
+   assert page.evaluate('__feelQA.bowSparkGeo.drawRange.count===72 && __feelQA.booms.filter(b=>b.bow).length===13'),'The impact did not emit its layered blast and sparks'
+   if width==390:
+    for i,dt in enumerate([.09,.16,.22]):
+     page.evaluate('(dt)=>{const q=__feelQA;q.updateArchery(dt);q.updateTurret(dt);q.drawBowSight(0);q.renderer.render(__wl.scene,q.camera)}',dt)
+     page.screenshot(path=str(args.out/('390-burst-'+str(i)+'.png')))
+
    assert page.evaluate('(before)=>__wl.P.vel.length()===before',speed),'Bow changed the travelling speed'
    page.evaluate('__feelQA.updateArchery(.46)');assert page.evaluate('__feelQA.arrowWakeGeo.drawRange.count===0'),'Arrow wake outlived its short pool life'
    # Pause freezes the debris; the same pool clears on travel.
    page.evaluate('''()=>{const q=__feelQA,before=q.bowShards.filter(s=>s.life>0).map(s=>s.p.toArray());q.updateBowShards(0);const after=q.bowShards.filter(s=>s.life>0).map(s=>s.p.toArray());if(!before.length||JSON.stringify(before)!==JSON.stringify(after))throw Error('Paused fragments moved');}''')
-   page.evaluate('''()=>{const q=__feelQA;for(let i=0;i<100;i++)q.breakBowTarget(__feelTarget.d,__feelTarget.f.vel,new THREE.Vector3(1,0,0));q.updateBowShards(0);if(q.bowShardMesh.count!==48||q.bowShards.length!==48)throw Error('Unbounded shatter pool');q.updateBowShards(1);if(q.bowShardMesh.count!==0)throw Error('Fragments did not expire');q.breakBowTarget(__feelTarget.d,__feelTarget.f.vel,new THREE.Vector3(1,0,0));q.updateBowShards(0);q.clearArrows();WindArchery.cancel(__wl.archery);if(q.bowShardMesh.count||q.bowShards.some(s=>s.life>0))throw Error('Fragments survived cleanup');}''')
+   page.evaluate('''()=>{const q=__feelQA;for(let i=0;i<100;i++)q.breakBowTarget(__feelTarget.d,__feelTarget.f.vel,new THREE.Vector3(1,0,0));q.updateBowShards(0);if(q.bowShardMesh.count!==96||q.bowShards.length!==96)throw Error('Unbounded shatter pool');q.updateBowShards(1.3);if(q.bowShardMesh.count!==0)throw Error('Fragments did not expire');q.breakBowTarget(__feelTarget.d,__feelTarget.f.vel,new THREE.Vector3(1,0,0));q.updateBowShards(0);q.clearArrows();WindArchery.cancel(__wl.archery);if(q.bowShardMesh.count||q.bowShards.some(s=>s.life>0)||q.bowSparks.some(s=>s.life>0)||q.bowSparkGeo.drawRange.count||q.booms.some(b=>b.bow))throw Error('Bow effects survived cleanup');}''')
    assert page.evaluate('__feelQA.arrowWake.every(s=>s.life===0) && __feelQA.arrowWakeGeo.drawRange.count===0')
    # Inspect actual overlay pixels at the viewport edges, keeping the reticle separate from the bow.
    page.evaluate('''()=>{const q=__feelQA,w=innerWidth,h=innerHeight,horse=q.saddleScreen(),b=__wl.archery;
@@ -82,6 +88,8 @@ try:
      const d=q.bowInk.getImageData(0,0,w,h).data;for(let y=0;y<h;y++)for(let x=0;x<w;x++)if((x<8||x>w-9||y<8||y>h-9)&&Math.hypot(x-target.x,y-target.y)>38&&d[(y*w+x)*4+3]>8)throw Error('Bow clipped at screen edge');WindArchery.cancel(b);
     }q.drawBowSight(0,false);
    }''')
+   page.evaluate('''()=>{const q=__feelQA;for(let i=0;i<30;i++)q.bowBoomFx(__feelTarget.d,__feelTarget.f.vel);if(q.booms.length>120)throw Error('Unbounded blast sprites');
+    const before=q.booms.map(b=>[b.life,b.delay,b.o.position.toArray()]);q.updateTurret(0);const after=q.booms.map(b=>[b.life,b.delay,b.o.position.toArray()]);if(JSON.stringify(before)!==JSON.stringify(after))throw Error('Paused blast changed');q.clearArrows();if(q.booms.some(b=>b.bow))throw Error('Blast survived clearing');}''')
    report['views'].append(state)
   # Move a real hostile from a forward quarter to the rider's side. A rear view still requires visibility.
   page.set_viewport_size({'width':844,'height':390})
@@ -101,22 +109,22 @@ try:
   fixture=page.evaluate('''()=>{const w=__wl,q=__feelQA;w.travelFeatured('desert');q.paused=false;WindArchery.advance(w.archery,1);w.spawnF('assault');const f=w.forms.find(f=>!f.peace),dir=new THREE.Vector3(Math.sin(w.P.yaw),0,Math.cos(w.P.yaw));
    f.phase='hold';f.pos.copy(w.P.pos).addScaledVector(dir,235);f.pos.y=w.P.pos.y+22;f.vel.copy(w.P.vel);f.drones.forEach((d,i)=>d.copy(f.pos).add(new THREE.Vector3(-dir.z*(i-2)*20,0,dir.x*(i-2)*20)));
    Object.assign(w.combat.encounter,{phase:'combat',elapsed:1,duration:32,fire:false});q.updateDrones(0);for(let i=0;i<100;i++)q.updateVisuals(1/60);
-   document.querySelector('#menuSheet').hidden=true;const targets=q.bowTargets().filter(t=>t.visible&&!t.hidden).sort((a,b)=>a.x-b.x);window.__nativeNext=targets.at(-1);window.__nativeOld=targets[0];
-   return {x:targets[0].x,y:targets[0].y,nextX:__nativeNext.x,hits:w.archery.hits,shots:w.archery.shots};}''')
-  session=page.context.new_cdp_session(page);lower={'id':41,'x':90,'y':800};upper={'id':42,'x':fixture['x'],'y':fixture['y']}
+   document.querySelector('#menuSheet').hidden=true;const targets=q.bowTargets().filter(t=>t.visible&&!t.hidden).sort((a,b)=>a.x-b.x);window.__nativeNext=targets[0];window.__nativeOld=targets.at(-1);
+   return {x:__nativeOld.x,y:__nativeOld.y,nextX:__nativeNext.x,hits:w.archery.hits,shots:w.archery.shots};}''')
+  session=page.context.new_cdp_session(page);lower={'id':41,'x':90,'y':760};upper={'id':42,'x':fixture['x'],'y':fixture['y']}
   session.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[lower]});session.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[lower,upper]})
-  moved_lower={**lower,'x':125};drawn={**upper,'y':826}
+  moved_lower={**lower,'x':125};drawn={**upper,'x':60,'y':826}
   session.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[moved_lower,drawn]})
   assert page.evaluate('__wl.archery.pull>=WindArchery.minPull && __wl.inp.jx>.5')
-  steered={**drawn,'x':upper['x']+(fixture['nextX']-fixture['x'])/1.35+12}
+  hand_x=page.evaluate('''(y)=>{const b=__wl.archery,n=__nativeNext,desired=Math.atan2(n.x-b.aimOriginX,b.aimOriginY-n.y),turn=b.aimAngle-desired,dy=y-b.y;let a=b.drawAngle+turn;for(let i=0;i<8;i++)a=b.drawAngle+turn+Math.sign(turn)*.025;return b.x+Math.tan(a)*dy;}''',drawn['y']);steered={**drawn,'x':hand_x}
   session.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[moved_lower,steered]})
   for _ in range(20):page.evaluate('__feelQA.updateArchery(1/60);__feelQA.drawBowSight(1/60)')
-  assert page.evaluate('__wl.archery.target?.d===__nativeNext.d && __wl.inp.jx>.5'),'Native bottom draw did not retain independent steering/retarget'
-  page.screenshot(path=str(args.out/'native-bottom-retarget.png'))
+  assert steered['x']>drawn['x'] and page.evaluate('Math.sin(__wl.archery.pose.angle)<0 && __wl.archery.aimX<innerWidth/2 && __wl.archery.target?.d===__nativeNext.d && __wl.inp.jx>.5'),'Native bottom draw did not retain independent steering/retarget'
+  page.evaluate("document.querySelector('#toast').classList.remove('on');document.querySelector('#hint').hidden=true;__feelQA.renderer.render(__wl.scene,__feelQA.camera)");page.screenshot(path=str(args.out/'native-bottom-retarget.png'))
   session.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[steered]})
   assert page.evaluate('(n)=>__wl.archery.shots===n+1 && __wl.inp.jx>.5',fixture['shots'])
   session.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]})
   for _ in range(60):page.evaluate('__feelQA.updateArchery(1/60);__feelQA.drawBowSight(1/60)')
   assert page.evaluate('(n)=>__wl.archery.hits===n+1 && !__nativeNext.f.drones.includes(__nativeNext.d) && __nativeOld.f.drones.includes(__nativeOld.d) && __wl.inp.jx===0',fixture['hits']),'The released arrow did not destroy exactly the newly selected enemy'
-  assert not errors,errors;report.update(pageErrors=errors,sideHits=side_hits,lateralAndSlightlyUpwardDraw=True,bottomDrawAndRetarget=True,nativeBottomSteerRetargetHit=True,separatedBow=True,shatteredDrones=True,immediateNearbyLock=True,noLargeCircle=True,committedDraw=True,releaseWithoutTimer=True,hitWake=True,travelSpeedPreserved=True);(args.out/'result.json').write_text(json.dumps(report,indent=2));print(json.dumps(report),flush=True);browser.close()
+  assert not errors,errors;report.update(pageErrors=errors,sideHits=side_hits,lateralAndSlightlyUpwardDraw=True,bottomDrawAndRetarget=True,nativeBottomSteerRetargetHit=True,oppositeNockDirection=True,layeredBlastAndSparks=True,separatedBow=True,shatteredDrones=True,immediateNearbyLock=True,noLargeCircle=True,committedDraw=True,releaseWithoutTimer=True,hitWake=True,travelSpeedPreserved=True);(args.out/'result.json').write_text(json.dumps(report,indent=2));print(json.dumps(report),flush=True);browser.close()
 finally:server.shutdown();server.server_close()

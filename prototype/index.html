@@ -372,10 +372,10 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 <script src="../world/flow-effects.js?v=20261024-bow"></script>
 <script src="../world/journey-climate.js?v=20261022-voyage"></script>
 <script src="../world/travel-camera.js?v=20261022-network"></script>
-<script src="../world/horse-archery.js?v=20261025-bow-flow"></script>
+<script src="../world/horse-archery.js?v=20261025-nock-burst"></script>
 <script src="../world/encounter-director.js?v=20261025-bow-flow"></script>
 <script src="../world/patrol-score.js?v=20261025-bow-flow"></script>
-<script src="../world/weapon-audio.js?v=20261025-bow-flow"></script>
+<script src="../world/weapon-audio.js?v=20261025-nock-burst"></script>
 <script src="../world/missiles.js?v=20261023-defence"></script>
 <script>
 'use strict';
@@ -4814,6 +4814,11 @@ function pickTarget() {
 // explosions: a hot core, a fireball that swells, a pale shock ring, falling debris and a smudge of smoke.
 // Kills that follow each other quickly climb a scale, so a run of them rings out as one rising chain.
 const ringTex = canvasTex(64, 64, (g, w) => { g.strokeStyle = 'rgba(255,255,255,1)'; g.lineWidth = 5; g.beginPath(); g.arc(w / 2, w / 2, w / 2 - 5, 0, TAU); g.stroke(); });
+const bowFlameTex=canvasTex(128,128,(g,w)=>{
+  const grad=g.createRadialGradient(64,59,2,64,64,62);grad.addColorStop(0,'#fffce1');grad.addColorStop(.16,'#ffe68b');grad.addColorStop(.39,'#ffb33d');grad.addColorStop(.66,'rgba(223,78,13,.92)');grad.addColorStop(.87,'rgba(237,104,18,.55)');grad.addColorStop(1,'rgba(55,33,24,0)');
+  g.fillStyle=grad;g.beginPath();for(let i=0;i<=96;i++){const a=i/96*TAU,r=55+5*Math.sin(a*7)+3*Math.sin(a*13+.8);const x=64+Math.cos(a)*r,y=64+Math.sin(a)*r;if(i)g.lineTo(x,y);else g.moveTo(x,y);}g.closePath();g.fill();
+});
+const bowShockTex=canvasTex(128,128,(g,w)=>{g.strokeStyle='#fff';g.lineWidth=1.8;g.beginPath();g.arc(64,64,59,0,TAU);g.stroke();});
 const booms = [], chainQ = [];
 const DEB_N = 260, debP = new Float32Array(DEB_N * 3).fill(-9999), debV = new Float32Array(DEB_N * 3), debL = new Float32Array(DEB_N);
 const debGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(debP, 3));
@@ -4822,13 +4827,30 @@ const CAS_N = 90, casP = new Float32Array(CAS_N * 3).fill(-9999), casV = new Flo
 const casGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(casP, 3));
 const casPts = new THREE.Points(casGeo, new THREE.PointsMaterial({ size: 0.13, color: 0xe2b85a })); casPts.frustumCulled = false; scene.add(casPts);
 let debI = 0, casI = 0;
+function bowBoomFx(p,velocity){
+  const scale=clamp(p.distanceTo(P.pos)/180,.28,2.1),right=new V3().setFromMatrixColumn(camera.matrixWorld,0),up=new V3().setFromMatrixColumn(camera.matrixWorld,1);
+  const add=(map,colour,size,life,grow,opacity,{x=0,y=0,vx=0,vy=0,delay=0,smoke=false,rotation=0,stretch=1}={})=>{
+    const material=new THREE.SpriteMaterial({map,color:colour,transparent:true,opacity:delay?0:opacity,blending:map===bowFlameTex||smoke?THREE.NormalBlending:THREE.AdditiveBlending,depthWrite:false,fog:false,rotation});
+    const o=new THREE.Sprite(material);o.position.copy(p).addScaledVector(right,x*scale).addScaledVector(up,y*scale);o.scale.set(size*scale*stretch,size*scale,1);scene.add(o);
+    booms.push({o,bow:true,delay,life,max:life,grow:grow*scale,op:opacity,v:velocity.clone().multiplyScalar(.22).addScaledVector(right,vx*scale).addScaledVector(up,vy*scale),rise:smoke?4:0});
+  };
+  // Crack -> lumpy fire -> a second roll and expanding rings, without a full-screen flash.
+  add(dotTex,0xfff8da,19,.13,30,1);
+  add(bowFlameTex,0xffffff,32,.70,24,.98);
+  for(let i=0;i<6;i++){const a=i*TAU/6+.25,c=Math.cos(a),q=Math.sin(a);
+    add(bowFlameTex,0xffffff,23+(i%3)*5,.50+(i%3)*.09,22,.96,{x:c*9,y:q*9,vx:c*(43+i*2),vy:q*(43+i*2),delay:.025+(i%3)*.035,rotation:a,stretch:1.15+(i%2)*.16});}
+  add(bowFlameTex,0xffc477,30,.76,35,.86,{x:5,y:4,vx:7,vy:10,delay:.14});
+  add(bowShockTex,0xfff2c6,10,.46,195,.68);
+  add(bowShockTex,0xffac57,9,.63,150,.55,{delay:.10});
+  for(const x of [-7,6])add(dotTex,0x433c36,17,1.15,25,.52,{x,y:3,vx:x,vy:8,delay:.13,smoke:true});
+  while(booms.length>120){const old=booms.shift();old.o.material.dispose();scene.remove(old.o);}
+}
 function boomFx(p, vel, big) {
+  if(big==='bow'){bowBoomFx(p,vel);return;}
   const mk = (map, col, sc, life, grow, op) => { const o = new THREE.Sprite(new THREE.SpriteMaterial({ map, color: col, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); o.position.copy(p); o.scale.setScalar(sc); scene.add(o); booms.push({ o, life, max: life, grow, op, v: vel.clone().multiplyScalar(0.4) }); };
-  const bowBlast=big==='bow';
-  mk(dotTex, 0xfff4dc, bowBlast?14:big?7:4.5, bowBlast?.16:.12, 6, 1);
-  mk(dotTex, 0xff9a40, bowBlast?36:big?14:10, bowBlast?.62:.42, bowBlast?36:22, .95);
-  mk(ringTex, 0xffe6c0, bowBlast?9:4, bowBlast?.55:.32, bowBlast?125:70, .7);
-  if(bowBlast){mk(dotTex,0xf1b862,20,.78,28,.48);}
+  mk(dotTex,0xfff4dc,big?7:4.5,.12,6,1);
+  mk(dotTex,0xff9a40,big?14:10,.42,22,.95);
+  mk(ringTex,0xffe6c0,4,.32,70,.7);
   while(booms.length>120){const old=booms.shift();old.o.material.dispose();scene.remove(old.o);}
   const smoke = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0x4a4440, transparent: true, opacity: 0.45, depthWrite: false })); smoke.position.copy(p); smoke.scale.setScalar(6); scene.add(smoke); booms.push({ o: smoke, life: 1.4, max: 1.4, grow: 9, op: 0.45, v: vel.clone().multiplyScalar(0.25).setY(2.5) });
   for (let i = 0; i < 12; i++) { const k = debI = (debI + 1) % DEB_N, o = k * 3; debP[o] = p.x; debP[o + 1] = p.y; debP[o + 2] = p.z; debV[o] = vel.x * 0.4 + (Math.random() - 0.5) * 22; debV[o + 1] = Math.random() * 14; debV[o + 2] = vel.z * 0.4 + (Math.random() - 0.5) * 22; debL[k] = 1 + Math.random(); }
@@ -4926,8 +4948,11 @@ function updateTurret(dt) {
   // the chain, the fireballs, the debris and the brass
   for (let i = chainQ.length - 1; i >= 0; i--) { const c = chainQ[i]; if (t >= c.at) { chainQ.splice(i, 1); if (c.f.drones.includes(c.d)) killDrone(c.f, c.d, true); } }
   for (let i = booms.length - 1; i >= 0; i--) {
-    const b = booms[i]; b.life -= dt; const u = 1 - b.life / b.max;
-    b.o.position.addScaledVector(b.v, dt); b.o.scale.addScalar(b.grow * dt); b.o.material.opacity = b.op * Math.pow(Math.max(0, 1 - u), 1.4);
+    const b = booms[i];let step=dt;
+    if(b.delay>0){const wait=Math.min(step,b.delay);b.delay-=wait;step-=wait;if(b.delay>1e-8)continue;}
+    b.life-=step;const u=1-b.life/b.max;
+    if(b.bow){b.v.multiplyScalar(Math.exp(-1.7*step));b.v.y+=(b.rise||0)*step;}
+    b.o.position.addScaledVector(b.v,step);b.o.scale.addScalar(b.grow*step);b.o.material.opacity=b.op*Math.pow(Math.max(0,1-u),b.bow?1.05:1.4);
     if (b.life <= 0) { b.o.material.dispose(); scene.remove(b.o); booms.splice(i, 1); }
   }
   for (let k = 0; k < DEB_N; k++) { if (debL[k] <= 0) continue; const o = k * 3; debL[k] -= dt; debV[o + 1] -= 22 * dt; debP[o] += debV[o] * dt; debP[o + 1] += debV[o + 1] * dt; debP[o + 2] += debV[o + 2] * dt; if (debL[k] <= 0) debP[o + 1] = -9999; }
@@ -4974,13 +4999,21 @@ arrowWakeMat.onBeforeCompile=s=>{s.vertexShader='attribute float arrowFade; vary
 const arrowWakeLines=new THREE.LineSegments(arrowWakeGeo,arrowWakeMat);arrowWakeLines.frustumCulled=false;scene.add(arrowWakeLines);
 const arrowBefore=new V3(),wakeA=new V3(),wakeB=new V3();
 // Broken arms and shell plates carry the hit beyond the flash, in one bounded draw.
-const BOW_SHARD_N=48,bowShards=Array.from({length:BOW_SHARD_N},()=>({p:new V3(),v:new V3(),r:new V3(),spin:new V3(),life:0,max:1,size:1,colour:0}));let bowShardI=0;
-const bowShardMesh=new THREE.InstancedMesh(new THREE.BoxGeometry(1,.28,.65),new THREE.MeshPhongMaterial({color:0xffffff,emissive:0x17110c,flatShading:true,shininess:18}),BOW_SHARD_N);
+const BOW_SHARD_N=96,bowShards=Array.from({length:BOW_SHARD_N},()=>({p:new V3(),v:new V3(),r:new V3(),spin:new V3(),life:0,max:1,size:1,colour:0}));let bowShardI=0;
+const bowShardMesh=new THREE.InstancedMesh(new THREE.BoxGeometry(1,.28,.65),new THREE.MeshPhongMaterial({color:0xffffff,emissive:0x2a1708,flatShading:true,shininess:18}),BOW_SHARD_N);
 bowShardMesh.count=0;bowShardMesh.frustumCulled=false;scene.add(bowShardMesh);const bowShardPose=new THREE.Object3D(),bowShardColours=[new THREE.Color(0x454944),new THREE.Color(0x897760),new THREE.Color(0xc5bda8)];
+const BOW_SPARK_N=192,bowSparks=Array.from({length:BOW_SPARK_N},()=>({p:new V3(),v:new V3(),life:0,max:1}));let bowSparkI=0;
+const bowSparkP=new Float32Array(BOW_SPARK_N*6),bowSparkF=new Float32Array(BOW_SPARK_N*2),bowSparkGeo=new THREE.BufferGeometry();bowSparkGeo.setAttribute('position',new THREE.BufferAttribute(bowSparkP,3));bowSparkGeo.setAttribute('sparkFade',new THREE.BufferAttribute(bowSparkF,1));bowSparkGeo.setDrawRange(0,0);
+const bowSparkMat=new THREE.LineBasicMaterial({color:0xffc46d,transparent:true,opacity:.96,depthWrite:false,fog:false});
+bowSparkMat.onBeforeCompile=s=>{s.vertexShader='attribute float sparkFade; varying float vSparkFade;\n'+s.vertexShader;s.vertexShader=s.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvSparkFade=sparkFade;');s.fragmentShader='varying float vSparkFade;\n'+s.fragmentShader;s.fragmentShader=s.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.a *= vSparkFade;');};
+const bowSparkLines=new THREE.LineSegments(bowSparkGeo,bowSparkMat);bowSparkLines.frustumCulled=false;scene.add(bowSparkLines);
 function breakBowTarget(position,velocity,direction){
-  for(let i=0;i<6;i++){const q=bowShards[bowShardI++%BOW_SHARD_N],a=i*TAU/6;
-    q.p.copy(position);q.v.copy(velocity).multiplyScalar(.4).addScaledVector(direction,5);q.v.x+=Math.cos(a)*(12+i);q.v.z+=Math.sin(a)*(12+i);q.v.y+=4+(i%3)*4;
-    q.r.set(a,a*.7,a*.4);q.spin.set(4+i,-3+i*.4,2-i*.6);q.life=q.max=.48+(i%3)*.12;q.size=.8+(i%3)*.28;q.colour=i%3;
+  for(let i=0;i<12;i++){const q=bowShards[bowShardI++%BOW_SHARD_N],a=i*TAU/12;
+    q.p.copy(position);q.v.copy(velocity).multiplyScalar(.4).addScaledVector(direction,5);q.v.x+=Math.cos(a)*(22+i);q.v.z+=Math.sin(a)*(22+i);q.v.y+=7+(i%4)*5;
+    q.r.set(a,a*.7,a*.4);q.spin.set(4+i,-3+i*.4,2-i*.6);q.life=q.max=.75+(i%4)*.12;q.size=1.5+(i%3)*.8;q.colour=i%3;
+  }
+  for(let i=0;i<36;i++){const q=bowSparks[bowSparkI++%BOW_SPARK_N],a=i*2.399963,z=(i%9)/4-1,r=Math.sqrt(Math.max(0,1-z*z));
+    q.p.copy(position);q.v.copy(velocity).multiplyScalar(.3).addScaledVector(direction,7);q.v.x+=Math.cos(a)*r*(72+i%7*8);q.v.y+=z*55+17;q.v.z+=Math.sin(a)*r*(72+i%7*8);q.life=q.max=.55+(i%5)*.09;
   }
 }
 function updateBowShards(dt){let count=0;
@@ -4989,6 +5022,10 @@ function updateBowShards(dt){let count=0;
     bowShardPose.position.copy(q.p);bowShardPose.rotation.set(q.r.x,q.r.y,q.r.z);bowShardPose.scale.setScalar(q.size*Math.min(1,q.life/.16));bowShardPose.updateMatrix();
     bowShardMesh.setMatrixAt(count,bowShardPose.matrix);bowShardMesh.setColorAt(count,bowShardColours[q.colour]);count++;
   }bowShardMesh.count=count;if(count){bowShardMesh.instanceMatrix.needsUpdate=true;bowShardMesh.instanceColor.needsUpdate=true;}
+  let sparks=0;for(const q of bowSparks){if(q.life<=0)continue;q.life=Math.max(0,q.life-dt);if(!q.life)continue;q.v.multiplyScalar(Math.exp(-1.4*dt));q.v.y-=12*dt;q.p.addScaledVector(q.v,dt);
+    const o=sparks*6;bowSparkP[o]=q.p.x;bowSparkP[o+1]=q.p.y;bowSparkP[o+2]=q.p.z;bowSparkP[o+3]=q.p.x-q.v.x*.055;bowSparkP[o+4]=q.p.y-q.v.y*.055;bowSparkP[o+5]=q.p.z-q.v.z*.055;
+    bowSparkF[sparks*2]=Math.min(1,q.life/.18);bowSparkF[sparks*2+1]=0;sparks++;
+  }bowSparkGeo.setDrawRange(0,sparks*2);if(sparks)bowSparkGeo.attributes.position.needsUpdate=bowSparkGeo.attributes.sparkFade.needsUpdate=true;
 }
 function markArrowWake(a,b){const slot=arrowWake[arrowWakeI++%ARROW_WAKE_N];slot.a.copy(a);slot.b.copy(b);slot.life=.42;}
 function updateArrowWake(dt){let count=0;
@@ -5015,7 +5052,8 @@ function bowTargets(){
 function clearArrows(){
   for(const a of arrows){if(a.target)a.target.d.bowIncoming=Math.max(0,(a.target.d.bowIncoming||0)-1);a.target=null;a.life=0;}
   arrowGeo.setDrawRange(0,0);for(const slot of arrowWake)slot.life=0;arrowWakeGeo.setDrawRange(0,0);bow.flash=0;bow.recoil=0;bow.releaseScale=0;
-  for(const q of bowShards)q.life=0;bowShardMesh.count=0;
+  for(const q of bowShards)q.life=0;bowShardMesh.count=0;for(const q of bowSparks)q.life=0;bowSparkGeo.setDrawRange(0,0);
+  for(let i=booms.length-1;i>=0;i--)if(booms[i].bow){booms[i].o.material.dispose();scene.remove(booms[i].o);booms.splice(i,1);}
 }
 function releaseBow(){
   if(vehKey!=='horse'||paused||P.dead)return;
@@ -5881,7 +5919,7 @@ function begin(randomStart) {
   else placeHome(S.cruise * 0.45);
   last = performance.now();
   const hint = $('#hint'); hint.hidden = false;
-  hint.innerHTML = vehKey==='horse'?(isTouch?'馬より下から触って左右移動<br>敵を長く引き、左右で狙い替え。離して射る':'A・D 左右へ　W 前傾　S ブレーキ　Space 跳躍<br>敵を長く引き、左右で狙い替え。離して射る'):
+  hint.innerHTML = vehKey==='horse'?(isTouch?'馬より下から触って左右移動<br>敵を長く引き、手と反対へ狙い替え。離して射る':'A・D 左右へ　W 前傾　S ブレーキ　Space 跳躍<br>敵を長く引き、手と反対へ狙い替え。離して射る'):
     (isTouch ? 'ドラッグで操作　上で前傾・下でブレーキ・下＋左右でドリフト' : 'A・D 曲がる　W 前傾　S ブレーキ　S＋A・D ドリフト　R 立て直す') + '<br>段差は最高速で滑空、越えられる障害物は自動で跳ぶ';
   renderer.domElement.tabIndex=0;renderer.domElement.focus({preventScroll:true});
   setTimeout(() => { hint.style.opacity = 0; }, 7000);
