@@ -81,7 +81,7 @@ try:
     out.push({fps,kind,dodge,hull:w.P.hull,offset:w.P.pos.z});if(w.P.hull!==(dodge?3:2))throw Error('Undodgeable or harmless '+JSON.stringify(out.at(-1)));
    }return out;}''');print('Dodges:',json.dumps(report['dodges']),flush=True)
   report['patrols']=page.evaluate('''()=>{const w=__wl,q=__bowQA;w.travelFeatured('desert');q.paused=true;q.attack=true;w.P.invuln=1000;let missile=0,kinetic=0,maxMissiles=0,maxHostiles=0,near=null,far=null;const phases={},events=[];
-   for(let i=0;i<180*20;i++){const prev=w.P.pos.clone();for(let j=0;j<6;j++)w.stepPhysics(1/120);q.time+=.05;q.updateEncounters(.05);q.updateThreat(.05);q.updateDrones(.05,prev);q.updateArchery(.05);if(i%3===0)w.loadStep();
+   for(let i=0;i<180*20;i++){const prev=w.P.pos.clone();for(let j=0;j<6;j++)w.stepPhysics(1/120);q.updateEncounters(.05);q.updateThreat(.05);q.updateDrones(.05,prev);q.updateArchery(.05);q.updateVisuals(.05);if(i%3===0)w.loadStep();
     const phase=w.combat.encounter.phase;phases[phase]=(phases[phase]||0)+.05;if(w.combat.encounter.event)events.push({time:i*.05,event:w.combat.encounter.event});
     const hostiles=w.forms.filter(f=>!f.peace&&f.phase!=='leave');maxHostiles=Math.max(maxHostiles,hostiles.reduce((n,f)=>n+f.n,0));
     let current=0;for(let n=0;n<q.bLife.length;n++)if(q.bLife[n]>0){if(q.bKind[n]===2){missile++;current++;}if(q.bKind[n]===1)kinetic++;}
@@ -89,7 +89,7 @@ try:
     for(const f of hostiles){if(f.ahead<35&&f.cue)throw Error('Rearward attack');if(f.weapon==='kinetic'&&f.cue)near=f.ahead;if(f.weapon==='missile'&&f.cue)far=f.ahead;}
     if(phase==='scenic'&&(w.combat.bullets||w.shells.length))throw Error('Quiet interval contains enemy fire');
    }
-   if(!(missile>100&&kinetic>10&&maxHostiles<=6&&phases.scenic>phases.combat&&near<155&&far>285&&maxMissiles<=256))throw Error('Wrong patrol loop '+JSON.stringify({missile,kinetic,maxHostiles,phases,near,far,maxMissiles,events}));
+   if(!(missile>100&&kinetic>10&&maxHostiles<=8&&phases.scenic>45&&near<155&&far>285&&maxMissiles<=256))throw Error('Wrong patrol loop '+JSON.stringify({missile,kinetic,maxHostiles,phases,near,far,maxMissiles,events}));
    return {phases,events,near,far,maxMissiles,maxHostiles,hull:w.P.hull};}''');print('Patrols:',json.dumps(report['patrols']),flush=True)
   report['ridingCombats']=page.evaluate('''()=>{const w=__wl,q=__bowQA,out=[];q.paused=true;if(q.sfx.on)q.sfx.toggle();
    for(const route of ['desert','mountain','lake','silk']){

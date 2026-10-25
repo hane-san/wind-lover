@@ -30,11 +30,11 @@ try:
     check(fraction<.6&&clipped<12,'Camera crossed the blocking wall '+JSON.stringify({clipped,fraction}));
     w.colliders.splice(w.colliders.indexOf(wall),1);for(let i=0;i<180;i++)q.updateVisuals(1/60);
     check(q.travelCam.boom>.99&&q.camera.position.distanceTo(w.P.pos)>14,'Camera failed to recover');
-    const path=w.tours.paths.find(p=>p.id==='mountain'),seg=path.segments.find(s=>s.a.x>36700),a=w.tours.at(path,seg.s);
+    const path=w.tours.paths.find(p=>p.id==='mountain'),seg=path.segments.find(s=>s.a.x>36750),a=w.tours.at(path,seg.s);
     w.P.pos.set(a.x,a.y+1,a.z);w.rebuildAll();w.placeAt(a.x,a.z,Math.atan2(a.tx,a.tz),64);w.P.inTunnel=w.P.onRoad=w.P.grounded=true;w.P.invuln=0;
     for(let i=0;i<120;i++)q.updateVisuals(1/60);
     const road=w.rideRoute(w.P.pos.x,w.P.pos.z,w.P.pos.y),off=(q.camera.position.x-road.cx)*road.nx+(q.camera.position.z-road.cz)*road.nz;
-    check(Math.abs(off)<road.half-1&&q.camera.position.y<road.y+9.4,'Camera left the tunnel envelope');
+    check(Math.abs(off)<road.half-1&&q.camera.position.y<road.y+w.tours.shelterHeight-1,'Camera left the tunnel envelope');
     return {maximumRoll,enemyRecentring:true,blockedBoomFraction:fraction,blockedDistance:clipped,recovered:true,tunnelLateral:off,tunnelCameraHeight:q.camera.position.y-road.y};
   }''')
   assert not errors,errors;report['pageErrors']=errors;print(json.dumps(report),flush=True);browser.close()

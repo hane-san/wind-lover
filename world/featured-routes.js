@@ -17,7 +17,7 @@
     for(let i=0;i<points.length;i++){const a=points[i===0&&closed?points.length-2:Math.max(0,i-1)],b=points[i===points.length-1&&closed?1:Math.min(points.length-1,i+1)],l=Math.hypot(b.x-a.x,b.z-a.z);points[i].nx=-(b.z-a.z)/l;points[i].nz=(b.x-a.x)/l;}
     for(let i=0;i<points.length-1;i++) {
       const a=points[i],b=points[i+1],dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);
-      const seg={path,a,b,dx,dz,length,index:i,s:path.length,half:id==='astana'?32:id==='lake'?21:22,tx:dx/length,tz:dz/length,grade:(b.y-a.y)/length};
+      const seg={path,a,b,dx,dz,length,index:i,s:path.length,half:id==='astana'?32:id==='mountain'?28:id==='lake'?21:22,tx:dx/length,tz:dz/length,grade:(b.y-a.y)/length};
       path.segments.push(seg);path.length+=length;
       for(let x=Math.floor((Math.min(a.x,b.x)-170)/CELL);x<=Math.floor((Math.max(a.x,b.x)+170)/CELL);x++)
         for(let z=Math.floor((Math.min(a.z,b.z)-170)/CELL);z<=Math.floor((Math.max(a.z,b.z)+170)/CELL);z++) {
@@ -72,7 +72,10 @@
     return {x:lerp(a.a.x,a.b.x,u),z:lerp(a.a.z,a.b.z,u),y:lerp(a.a.y,a.b.y,u),tx:a.tx,tz:a.tz,s,path};
   }
   function mountainAtX(x){let lo=0,hi=mp.length-2;while(lo<hi){const m=(lo+hi+1)>>1;if(mp[m].x<=x)lo=m;else hi=m-1;}const a=mp[lo],b=mp[lo+1],u=clamp((x-a.x)/(b.x-a.x),0,1);return{z:lerp(a.z,b.z,u),y:lerp(a.y,b.y,u)};}
-  function tunnel(x){return x>=35280&&x<36240?'gallery':x>=36500&&x<37120?'tunnel':x>=41840&&x<42520?'gallery':null;}
+  const shelterHeight=26;
+  function tunnel(x){return x>=35280&&x<36240?'gallery':x>=36500&&x<37120?(x>=36720&&x<36920?'tunnel':'gallery'):x>=41840&&x<42520?'gallery':null;}
+  function hasPanel(seg){const mode=seg.path.id==='mountain'?tunnel((seg.a.x+seg.b.x)*.5):null;return mode==='tunnel'||mode==='gallery'&&Math.floor(seg.s/24)%4!==0;}
+  function covered(seg,lateral=0){const mode=seg.path.id==='mountain'?tunnel((seg.a.x+seg.b.x)*.5):null;return hasPanel(seg)&&(mode==='tunnel'||lateral< -seg.half*.30&&lateral> -seg.half-4);}
   function relief(x,z){if(x<31000||x>49600)return -Infinity;const p=mountainAtX(x),d=Math.abs(z-p.z),gate=smooth(31000,32600,x)*(1-smooth(48000,49600,x));return (p.y-12+800*Math.pow(smooth(48,1100,d),.7)+((x>35150&&x<37250)||(x>41700&&x<42650)?120*(1-smooth(40,220,d)):0))*gate-200*(1-gate);}
-  globalThis.WindRoutes={definitions,paths,nearest,at,tunnel,relief,addConnection,mountainAtX,indexReach,junctions:[]};
+  globalThis.WindRoutes={definitions,paths,nearest,at,tunnel,relief,addConnection,mountainAtX,indexReach,shelterHeight,hasPanel,covered,junctions:[]};
 })();

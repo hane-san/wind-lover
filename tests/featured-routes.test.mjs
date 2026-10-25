@@ -19,5 +19,5 @@ test('the lake is closed and both roads remain gentle, finite and searchable',()
 test('all custom tunnel bands have a connected, correctly sampled road',()=>{
   const path=routes.paths.find(p=>p.id==='mountain');let tunnel=0,gallery=0;
   for(const s of path.segments){const mode=routes.tunnel((s.a.x+s.b.x)/2);if(mode==='tunnel')tunnel+=s.length;if(mode==='gallery')gallery+=s.length;}
-  assert.ok(tunnel>600);assert.ok(gallery>1400);assert.equal(routes.nearest(0,0),null);
+  assert.ok(tunnel>150&&tunnel<350);assert.ok(path.segments.some(s=>routes.tunnel((s.a.x+s.b.x)/2)==='gallery'&&!routes.covered(s)));assert.equal(routes.shelterHeight,26);assert.ok(gallery>1400);assert.equal(routes.nearest(0,0),null);
 });

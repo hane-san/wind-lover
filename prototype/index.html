@@ -364,7 +364,7 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 </section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="../world/featured-routes.js?v=20261025-roaming"></script>
+<script src="../world/featured-routes.js?v=20261026-open-pass"></script>
 <script src="../world/horse-riding.js?v=20261024-bow"></script>
 <script src="../world/horse-gait.js?v=20261024-phrase"></script>
 <script src="../world/horse-sound.js?v=20261024-phrase"></script>
@@ -692,8 +692,17 @@ function rawHeight(x, z) {
   if (le < 2.4) { hh = lerp(hh, WATER + 1.6 + Math.max(0, le - 1) * 16, (1 - smooth(1.0, 2.4, le)) * 0.88); hh = lerp(hh, WATER - 26, 1 - smooth(0.8, 1.0, le)); }
   if(le>=1&&le<4.2)hh=lerp(hh,WATER+1.5+(le-1)*10,1-smooth(2.8,4.2,le));
   let terrain=Math.max(hh + relief(x, z) - bridgeValley(x, z), biomeMode === 'journey' ? TOURS.relief(x, z) : -Infinity);
+  if(biomeMode==='journey'&&x>32000&&x<48700){
+    const a=TOURS.mountainAtX(x),d=z-a.z,open=x>37200&&x<41400,reach=d>0||open?1100:500;
+    const gate=smooth(32000,32600,x)*(1-smooth(48000,48700,x));
+    terrain=lerp(terrain,a.y+3,gate*(1-smooth(110,reach,Math.abs(d))));
+  }
   const roam=biomeMode==='journey'?TOURS.nearest(x,z,null,1100,true):null;
   if(roam?.path.roaming)terrain=lerp(roam.y+3,terrain,smooth(roam.half+100,1100,roam.d));
+  if(biomeMode==='journey'&&x>34950&&x<42900){
+    const a=TOURS.mountainAtX(x),gate=Math.max(smooth(34950,35280,x)*(1-smooth(37120,37450,x)),smooth(41500,41840,x)*(1-smooth(42520,42900,x)));
+    if(z>a.z)terrain=lerp(terrain,a.y+3,gate*(1-smooth(65,700,z-a.z)));
+  }
   return terrain;
 }
 // the massif lifts the middle belt as you go east; edge ranges close the world to the north, south and behind
@@ -767,7 +776,7 @@ const surfaceAt = (x, z) => Math.max(heightAt(x, z), WATER);
 const RS = 1440;
 const roadZ = (j, x) => j * RS + 70 * Math.sin(x / 650 + j * 1.7) + 26 * Math.sin(x / 233 + j);
 const roadX = (i, z) => i * RS + 70 * Math.sin(z / 610 + i * 2.3) + 26 * Math.sin(z / 251 + i);
-const minorOn = (x, z) => biomeMode !== 'journey' || (x > EDGE_BACK + 400 && x < X_GOAL - 1800 && Math.abs(z) < halfW(x) - 900 && lakeE(x, z) > 1.18);
+const minorOn = (x, z) => biomeMode !== 'journey' || (x > EDGE_BACK + 400 && x < X_GOAL - 1800 && Math.abs(z) < halfW(x) - 900 && lakeE(x, z) > 1.18 && !(x>32000&&x<48700&&Math.abs(z-TOURS.mountainAtX(x).z)<1400));
 function roadDist(x, z) { return minorOn(x, z) ? Math.min(Math.abs(z - roadZ(Math.round(z / RS), x)), Math.abs(x - roadX(Math.round(x / RS), z))) : Infinity; }
 
 // ---------------------------------------------------------------- the abandoned line
@@ -873,6 +882,11 @@ function tintLand(colour, offset, x, z, weights, height) {
     const weather=WindJourneyClimate.mountain(x,z,height??heightAt(x,z)),snow=weather.snow*(.89+.07*patch);
     for(let k=0;k<3;k++){colour[offset+k]=lerp(colour[offset+k],[.43,.60,.35][k],weather.region*(1-weather.snow)*.60);colour[offset+k]=lerp(colour[offset+k],[.87,.91,.94][k],snow);}
   }
+  if(biomeMode==='journey'){
+    const k=smooth(53500,55500,x)*(1-smooth(62500,64700,x))*(1-smooth(700,1800,Math.abs(z-railZ(x)-350)))*.42;
+    for(let j=0;j<3;j++)colour[offset+j]=lerp(colour[offset+j],[.67,.62,.44][j],k);
+  }
+
 }
 function ageLand(colour, offset) {
   if (biomeMode !== 'journey') return;
@@ -2187,6 +2201,7 @@ function buildChunkWinds(ch, rng) {
 }
 
 // ---------------------------------------------------------------- featured roads and remembered skylines
+const shelterMat=new THREE.MeshLambertMaterial({vertexColors:true,emissive:0x252a30});SHARED.add(shelterMat);
 function buildFeaturedRoad(ch) {
   if (biomeMode !== 'journey') return;
   const road = new Merger(), stone = new Merger(), paint = new THREE.Color(0xcfc6ad), asphalt = new THREE.Color(0x646461),snowRoad=new THREE.Color(0xb0b9bd);
@@ -2194,7 +2209,7 @@ function buildFeaturedRoad(ch) {
   for (const path of TOURS.paths) for (const seg of path.segments) {
     const a = seg.a, b = seg.b, x = (a.x + b.x) / 2, z = (a.z + b.z) / 2;
     if (Math.floor(x / CH) !== ch.cx || Math.floor(z / CH) !== ch.cz) continue;
-    const h = seg.half, yaw = Math.atan2(seg.tx, seg.tz), y = (a.y + b.y) / 2, mode = path.id === 'mountain' ? TOURS.tunnel(x) : null;
+    const h = seg.half, yaw = Math.atan2(seg.tx, seg.tz), y = (a.y + b.y) / 2, mode = path.id === 'mountain' ? TOURS.tunnel(x) : null,roof=TOURS.hasPanel(seg),roofY=TOURS.shelterHeight;
     const strip = (off, width, up, colour) => { const p = vertex(a,off+width,up), q = vertex(a,off-width,up), r = vertex(b,off+width,up), s = vertex(b,off-width,up); road.tri(p,r,q,colour); road.tri(q,r,s,colour); };
     const ice=path.id==='mountain'?WindJourneyClimate.mountain(x,z,y).snow:0;asphalt.setHex(0x646461).lerp(snowRoad,ice*.25);
     strip(0,h,.14,asphalt); for(const off of [-h+1,h-1]) strip(off,.11,.17,paint);
@@ -2206,21 +2221,22 @@ function buildFeaturedRoad(ch) {
         const px=x-seg.tz*side*(h+1.8),pz=z+seg.tx*side*(h+1.8);
         stone.add(G.box,M(px,y+.7,pz,yaw,.22,1.4,.22),0xa9a597);
       }
-      if(mode && (mode==='tunnel'||side<0||Math.floor(seg.s/24)%2===0)) {
-        const px=x-seg.tz*side*(h+1.2),pz=z+seg.tx*side*(h+1.2);
-        stone.add(G.box,M(px,y+5,pz,yaw,1.4,10,mode==='gallery'&&side>0?2.2:seg.length+.3),0x8c8b82);
+      if(mode && (mode==='tunnel'||side<0||Math.floor(seg.s/24)%3===0)) {
+        const px=x-seg.tz*side*(h+3),pz=z+seg.tx*side*(h+3);
+        stone.add(G.box,M(px,y+roofY/2,pz,yaw,1.4,roofY,mode==='gallery'&&side>0?2.6:seg.length+.3),0x8c8b82);
+        addCollider(px,pz,yaw,.7,mode==='gallery'&&side>0?1.3:seg.length/2+.15,y,y+roofY);
       }
     }
-    if(mode) {
-      stone.add(G.box,M(x,y+10.7,z,yaw,h*2+4,1.3,seg.length+.4),0x888980);
-      if(Math.floor(seg.s/24)%3===0) stone.add(G.box,M(x,y+9.92,z,yaw,4,.12,.55),0xd8c999);
-      addCollider(x,z,yaw,h+2,seg.length/2,y+10.05,y+11.35);
-      if(mode==='tunnel'&&Math.floor(seg.s/24)%2===0)stone.add(G.scenicArch,M(x,y+2,z,yaw,h+1.2,8,1.2),0x6d706b);
+    if(roof) {
+      const left=-h-4,right=mode==='gallery'?-h*.30:h+4,off=(left+right)/2,half=(right-left)/2,rx=x-seg.tz*off,rz=z+seg.tx*off;
+      stone.add(G.box,M(rx,y+roofY+.7,rz,yaw,half*2,1.3,seg.length+.4),0xa5a69b);
+      if(Math.floor(seg.s/24)%3===0)stone.add(G.box,M(rx,y+roofY-.08,rz,yaw,4,.12,.55),0xd8c999);
+      addCollider(rx,rz,yaw,half,seg.length/2+.2,y+roofY+.05,y+roofY+1.35);
       const previousMode=TOURS.tunnel((prev.a.x+prev.b.x)/2);
       const nextMode=TOURS.tunnel(b.x+12*seg.tx);
-      if(previousMode!==mode||nextMode!==mode) {
-        stone.add(G.box,M(x,y+12.5,z,yaw,h*2+10,3,3),0xada99d);
-        for(const side of [-1,1]) stone.add(G.box,M(x-seg.tz*side*(h+3),y+6,z+seg.tx*side*(h+3),yaw,3,13,3),0xa29d90);
+      if(mode==='tunnel'&&(previousMode!==mode||nextMode!==mode)) {
+        stone.add(G.box,M(x,y+roofY+2.5,z,yaw,h*2+12,3,3),0xada99d);
+        for(const side of [-1,1]) stone.add(G.box,M(x-seg.tz*side*(h+3),y+roofY/2,z+seg.tx*side*(h+3),yaw,1.4,roofY,3),0xa29d90);
       }
     }
     const floor=heightAt(x,z), high=y-floor;
@@ -2248,18 +2264,18 @@ function buildFeaturedRoad(ch) {
     addCollider(point.x,point.z,yaw,.2,.2,y,y+4.3);
   }
   if(road.p.length) {const mesh=new THREE.Mesh(road.build(),roadMat);mesh.userData.surface='featured-road';ch.group.add(mesh);}
-  if(stone.p.length) ch.group.add(new THREE.Mesh(stone.build(),propMat));
+  if(stone.p.length) ch.group.add(new THREE.Mesh(stone.build(),shelterMat));
 }
 function featuredWalls() {
   const r=tourAt(P.pos.x,P.pos.z);
   if(!r||r.d>r.half+3||Math.abs(P.pos.y-r.y-HOVER)>9) return false;
-  const mode=r.path.id==='mountain'?TOURS.tunnel(r.cx):null;
+  const mode=r.path.id==='mountain'?TOURS.tunnel((r.segment.a.x+r.segment.b.x)/2):null;
   if(!mode) return false;
-  P.inTunnel=true;
   const off=(P.pos.x-r.cx)*r.nx+(P.pos.z-r.cz)*r.nz, side=Math.sign(off)||1;
-  const solid=mode==='tunnel'||side<0||Math.floor(r.segment.s/24)%2===0;
-  if(solid&&Math.abs(off)>r.half-.25){const push=off-side*(r.half-.25);P.pos.x-=r.nx*push;P.pos.z-=r.nz*push;wallImpact(-side*r.nx,-side*r.nz);}
-  if(P.pos.y>r.y+9.9){P.pos.y=r.y+9.9;if(P.vel.y>0)P.vel.y=0;}
+  P.inTunnel=TOURS.covered(r.segment,off);
+  const solid=mode==='tunnel'||side<0||(Math.floor(r.segment.s/24)%3===0&&Math.abs(r.s-r.segment.s-r.segment.length/2)<1.65);
+  if(solid&&Math.abs(off)>r.half+2.15){const push=off-side*(r.half+2.15);P.pos.x-=r.nx*push;P.pos.z-=r.nz*push;wallImpact(-side*r.nx,-side*r.nz);}
+  if(P.inTunnel&&P.pos.y>r.y+TOURS.shelterHeight-.15){P.pos.y=r.y+TOURS.shelterHeight-.15;if(P.vel.y>0)P.vel.y=0;}
   return true;
 }
 let featuredVista=null;
@@ -2294,10 +2310,10 @@ function buildFeaturedVista() {
       m.part(B,G.cyl,74,34,0,4,68,4,0x948976);m.part(B,G.cyl,74,72,0,9,9,9,0x75837e);
     } else if(style==='jailoo') {
       for(let i=0;i<5;i++) {
-        const xx=(i-2)*29,zz=Math.sin(i*2.1)*24;
-        m.part(B,G.cyl,xx,4.5,zz,10,9,10,0xded6c0);m.part(B,G.cone,xx,12,zz,11,7,11,0xf0e8d5);
-        m.part(B,G.cyl,xx,7.8,zz,10.2,.8,10.2,0x9b4940);m.part(B,G.cyl,xx,15.7,zz,2,.6,2,0x4d5149);
-        m.part(B,G.box,xx,3.6,zz-10.1,3.8,7.2,.3,0x664437);
+        const xx=(i-2)*29,zz=Math.sin(i*2.1)*24,base=(heightAt(x+xx*scale,z+zz*scale)-y)/scale;
+        m.part(B,G.cyl,xx,base+4.5,zz,10,9,10,0xded6c0);m.part(B,G.cone,xx,base+12,zz,11,7,11,0xf0e8d5);
+        m.part(B,G.cyl,xx,base+7.8,zz,10.2,.8,10.2,0x9b4940);m.part(B,G.cyl,xx,base+15.7,zz,2,.6,2,0x4d5149);
+        m.part(B,G.box,xx,base+3.6,zz-10.1,3.8,7.2,.3,0x664437);
       }
     } else if(style==='balbal') {
       m.part(B,G.cyl,0,22,0,7,44,7,0xa88d6e);m.part(B,G.cyl,0,45,0,8,2,8,0x7f796a);
@@ -2313,7 +2329,7 @@ function buildFeaturedVista() {
     }
     const mat=new THREE.MeshLambertMaterial({vertexColors:true}),mesh=new THREE.Mesh(m.build(),mat);mesh.userData.vista={x,z,style,scale};featuredVista.add(mesh);
     const block=(lx,lz,hw,hd,lo,hi)=>HOME.colliders.push({x:x+lx*scale,z:z+lz*scale,c:1,s:0,hw:hw*scale,hd:hd*scale,bottom:y+lo*scale,top:y+hi*scale});
-    if(style==='jailoo')for(let i=0;i<5;i++)block((i-2)*29,Math.sin(i*2.1)*24,10,10,0,15.8);
+    if(style==='jailoo')for(let i=0;i<5;i++){const xx=(i-2)*29,zz=Math.sin(i*2.1)*24,base=(heightAt(x+xx*scale,z+zz*scale)-y)/scale;block(xx,zz,10,10,base,base+15.8);}
     else if(style==='balbal'){block(0,0,8,8,0,46);for(let i=0;i<11;i++)block((i-5)*17,33+Math.sin(i)*9,2,2,0,11);}
     else if(style==='caravan'){for(const side of [-1,1]){block(side*37,0,7,40,0,24);block(side*28,-40,5,5,0,34);}block(0,-40,32,6,23,31);block(0,40,42,6,0,27);}
     else if(style==='aqueduct')for(let i=0;i<10;i++){block((i-4.5)*24,0,2.5,3.5,0,34);if(i!==4&&i!==7)block((i-4.5)*24+12,0,12,4,33,37);}
@@ -2367,6 +2383,10 @@ function buildFeaturedVista() {
     }
   }
   const mat=new THREE.MeshBasicMaterial({vertexColors:true,fog:false,side:THREE.DoubleSide}),foldedRange=new THREE.Mesh(peaks.build(),mat);foldedRange.userData.foldedRange=true;featuredVista.add(foldedRange);
+  // The Suusamyr rhythm: a pass opening onto pasture camps, then the next ridge.
+  for(const [fraction,side,style]of [[.12,260,'jailoo'],[.35,310,'jailoo'],[.48,-400,'balbal'],[.62,300,'caravan'],[.80,-300,'jailoo']]){
+    const a=TOURS.at('mountain',TOURS.paths.find(p=>p.id==='mountain').length*fraction);addSite(a.x-a.tz*side,a.z+a.tx*side,style,.9);
+  }
   buildAstanaVista(featuredVista);
   rebuildGlobals();
 }
@@ -2386,17 +2406,17 @@ function buildAstanaVista(parent){
   let towers=0,crown=false,tent=false;
   for(let i=0;i<16;i++){
     const p=TOURS.at(path,900+i*(path.length-1800)/15),envelope=Math.sin((i+.5)/16*Math.PI);
-    for(const side of [-1,1])for(let row=0;row<3;row++){
+    for(const side of [-1,1])for(let row=0;row<2;row++){
       const offset=side*(155+row*330),x=p.x-p.tz*offset,z=p.z+p.tx*offset;
       const w=36+hash(i,row,1001)*38,d=30+hash(i,side,1002)*30,h=(100+envelope*330)*(1-row*.13)+hash(i,row+side,1003)*90;
       if(reserve(x,z,Math.hypot(w,d)/2))continue;
-      const y=heightAt(x,z),B=M(x,y,z);city.part(B,G.box,0,h/2,0,w,h,d,0xc7d5de);
+      const y=heightAt(x,z),foot=Math.min(y,heightAt(x-w/2,z-d/2),heightAt(x+w/2,z-d/2),heightAt(x-w/2,z+d/2),heightAt(x+w/2,z+d/2))-1,depth=y-foot,B=M(x,y,z);city.part(B,G.box,0,(h-depth)/2,0,w,h+depth,d,0xc7d5de);
       glass.part(B,G.box,0,h*.49,-d/2-.08,w*.82,h*.88,.2,0x4b7b9b);
       glass.part(B,G.box,w/2+.08,h*.49,0,.2,h*.88,d*.82,0x8aabbf);
       city.part(B,G.box,0,h+2,0,w*.72,4,d*.72,0xc7c7b3);
       for(let floor=14;floor<h-8;floor+=18)glass.part(B,G.box,0,floor,-d/2-.22,w*.84,.7,.25,0xb8b88b);
       if(i%3===0)city.part(B,G.prism,0,h+14,0,w*.6,25,d*.6,0xb8bfb5);
-      block(x,z,w/2+.3,d/2+.3,y,y+h+27);towers++;
+      block(x,z,w/2+.3,d/2+.3,foot,y+h+27);towers++;
     }
   }
   // A golden observation crown and a vast tent recall Astana without reproducing a building.
@@ -2421,6 +2441,19 @@ function buildAstanaVista(parent){
     const b=M(tx,ty,tz);glass.part(b,G.cone,0,135,0,285,270,285,0x92b0b2);city.part(b,G.cyl,0,154,0,3,308,3,0xc9ccbc);
     city.part(b,G.cyl,0,5,0,290,10,290,0xb9bcae);block(tx,tz,290,290,ty,ty+300);
   }
+  // Nur Alem's blue sphere and the Palace of Peace's pyramid, reimagined as quiet relics.
+  const regionalForms=[];
+  for(const [fraction,style,radius]of [[.23,'sphere',76],[.81,'pyramid',90]]){
+    const a=TOURS.at(path,path.length*fraction);let site=null;
+    for(const offset of [-620,620,-950,950]){const x=a.x-a.tz*offset,z=a.z+a.tx*offset;
+      if(!reserve(x,z,radius)&&!HOME.colliders.some(c=>Math.hypot(c.x-x,c.z-z)<radius+Math.hypot(c.hw,c.hd))){site={x,z};break;}}
+    if(!site)continue;const y=heightAt(site.x,site.z),b=M(site.x,y,site.z);
+    if(style==='sphere'){
+      city.part(b,G.cyl,0,9,0,80,18,80,0xb7b8a8);glass.part(b,sphere,0,87,0,76,76,76,0x537e9e);
+      for(let i=0;i<9;i++){const angle=i*Math.PI/9,ring=new THREE.TorusGeometry(76.8,.7,4,64);city.part(b,ring,0,87,0,1,1,1,0xb7c2bf,0,angle,0);ring.dispose();}
+    }else{const pyramid=new THREE.ConeGeometry(1,1,4);glass.part(b,pyramid,0,65,0,90,130,90,0x6d9fa9,0,Math.PI/4,0);pyramid.dispose();city.part(b,G.box,0,3,0,135,6,135,0xc1b89c);}
+    block(site.x,site.z,radius,radius,y,y+(style==='sphere'?164:133));regionalForms.push(style);
+  }
   for(const fraction of [.30,.74]){
     const p=TOURS.at(path,path.length*fraction),yaw=Math.atan2(p.tx,p.tz),B=M(p.x,p.y,p.z,yaw);
     city.part(B,G.scenicArch,0,2,0,64,82,6,0xc6ceca);
@@ -2428,7 +2461,7 @@ function buildAstanaVista(parent){
   }
   for(const [merger,colour]of [[city,0xffffff],[glass,0xffffff]]){
     const material=new THREE.MeshLambertMaterial({vertexColors:true,color:colour,fog:false,emissive:0x0b121a});
-    const mesh=new THREE.Mesh(merger.build(),material);mesh.userData.astana={towers,crown,tent,tentSite};parent.add(mesh);
+    const mesh=new THREE.Mesh(merger.build(),material);mesh.userData.astana={towers,crown,tent,tentSite,regionalForms};parent.add(mesh);
   }sphere.dispose();
 }
 function featuredCards() {
@@ -4210,7 +4243,8 @@ const routeHeat = () => biomeMode === 'journey' ? lowlandZone(P.pos.z / funnel(P
 function updateEncounters(dt){
   const road=rideRoute(P.pos.x,P.pos.z,P.pos.y);let bend=0;
   if(road.path){const dir=P.vel.x*road.tx+P.vel.z*road.tz>=0?1:-1,a=TOURS.at(road.path,road.s+dir*clamp(P.vel.length()*.75,45,110));bend=Math.atan2(road.tx*a.tz-road.tz*a.tx,road.tx*a.tx+road.tz*a.tz);}
-  WindEncounters.advance(encounter,dt,{enabled:shellsOn,dead:P.dead,sheltered:P.inTunnel,region:musicRegion(),hull:P.hull,bend,cleared:encounter.phase==='combat'&&!forms.some(f=>!f.peace&&f.phase!=='leave')});
+  WindEncounters.advance(encounter,dt,{enabled:shellsOn,dead:P.dead,sheltered:P.inTunnel,region:musicRegion(),hull:P.hull,bend,cleared:encounter.phase==='combat'&&!forms.some(f=>!f.peace&&!f.scout&&f.phase!=='leave')});
+  if(encounter.phase==='scenic'&&encounter.elapsed>5&&encounter.scoutCycle!==encounter.cycle&&!P.inTunnel&&shellsOn&&!P.dead){spawnFormation('scout');encounter.scoutCycle=encounter.cycle;}
   if(encounter.event==='warning'){
     toast('無人警戒網、起動','機械だけが、道を見張っている',1900);sfx.weapon('acquire',{gain:.40});
     if(!forms.some(f=>f.mode==='assault'))spawnFormation('assault');
@@ -4471,11 +4505,11 @@ const EYE_PEACES = [0xa8f0e8, 0xf4e2a8, 0xd6c4ff, 0xc8f0b0, 0xffd0dc].map((h) =>
 function spawnFormation(forceMode) {
   const hs = Math.hypot(P.vel.x, P.vel.z) || 1, fx = hs>1?P.vel.x / hs:fwd.x, fz = hs>1?P.vel.z / hs:fwd.z;
   const mode = forceMode || 'pass';
-  const score=mode==='assault'?WindPatrolScore.plan(encounter.cycle,true,innerWidth/innerHeight):null;
-  const type = mode==='assault'?'patrol':FORM_TYPES[Math.random() * FORM_TYPES.length | 0], n = mode==='assault'?score.total:FORM_N[type];
+  const score=mode==='scout'?{total:2,sky:2,altitude:55,skyScale:1,slots:[{side:-28,height:-16,depth:0},{side:28,height:12,depth:25}]}:mode==='assault'?WindPatrolScore.plan(encounter.cycle,true,innerWidth/innerHeight):null;
+  const type = score?'patrol':FORM_TYPES[Math.random() * FORM_TYPES.length | 0], n = score?score.total:FORM_N[type];
   // scenic approach: rise over the horizon far ahead, slightly off your line, and come on slowly
   const side = mode === 'flyby' ? (Math.random() < 0.5 ? -1 : 1) * (700 + Math.random() * 300) : (Math.random() - 0.5) * 24;
-  const dist = mode === 'assault' ? 690 : mode === 'pass' ? 1400 : mode === 'flyby' ? 450 + Math.random() * 700 : -420;
+  const dist = mode==='scout'?390:mode === 'assault' ? 690 : mode === 'pass' ? 1400 : mode === 'flyby' ? 450 + Math.random() * 700 : -420;
   const pos = new V3(P.pos.x + fx * dist - fz * side, 0, P.pos.z + fz * dist + fx * side);
   pos.y = surfaceAt(pos.x, pos.z) + (score?score.altitude:mode === 'pass' ? 70 + Math.random() * 30 : mode === 'flyby' ? 60 + Math.random() * 90 : 34 + Math.random() * 20);
   // flybys cross your path far off, slowly, like birds; they never fire
@@ -4483,7 +4517,7 @@ function spawnFormation(forceMode) {
   const morph = MORPHABLE.includes(type) && Math.random() < 0.55 ? MORPHABLE[Math.random() * MORPHABLE.length | 0] : null;
   if (mode === 'assault') vel.set(-fx * 40, 0, -fz * 40);
   const f = { mode, type, n, pos, vel, t: Math.random() * 4, age: 0, phase: 'approach', gap: 1.15, pat: encounterPattern, fireT: 1.5, volley: 0, weapon:'missile',cue:null,flash:0,turned: false, peace: mode === 'flyby', drones: [], seq: 0, seqT: 0, morph: morph === type ? null : morph, eye: EYE_PEACES[Math.random() * EYE_PEACES.length | 0] };
-  if(mode==='assault'){f.score=score;f.salvos=0;}
+  if(score){f.score=score;f.salvos=0;f.scout=mode==='scout';}
   for (let i = 0; i < n; i++) {const d=slotOf(f,i,new V3());
     // Slot axes follow the road on initial creation too, rather than jumping in from global XYZ.
     const x=d.x,y=d.y,z=d.z;d.set(pos.x-fz*x+fx*z,pos.y+y,pos.z+fx*x+fz*z);d.slot=i;f.drones.push(d);}
@@ -4502,6 +4536,7 @@ function spawnFormation(forceMode) {
     }else f.score=WindPatrolScore.plan(encounter.cycle,false,innerWidth/innerHeight);
   }
   if(mode==='assault'){const wing=f.drones.filter(d=>!d.sentry).at(-1);if(wing){wing.sweeper=WindSweeper.create(encounter.cycle%2?1:-1);wing.flightVelocity=new V3();}f.launchers=f.drones.filter(d=>!d.sweeper);}
+  for(const d of f.drones)if(!d.sentry)clearEnemyBody(d);
   forms.push(f);
 }
 // One patrol closes from ahead: geometric missile salvos, a bow window, then short close-range bursts.
@@ -4517,11 +4552,18 @@ function assaultMove(f,dt,fx,fz,hs){
   // Close along the road, including its curves; never orbit or fire from the rider's rear.
   const road=rideRoute(P.pos.x,P.pos.z,P.pos.y);let tx=P.pos.x+fx*Math.max(55,f.ahead),tz=P.pos.z+fz*Math.max(55,f.ahead);
   if(road.path&&road.d<road.half+8){const dir=P.vel.x*road.tx+P.vel.z*road.tz>=0?1:-1,a=TOURS.at(road.path,road.s+dir*Math.max(55,f.ahead));tx=a.x;tz=a.z;}
-  const closing=vehKey==='horse'?23:48,forward=Math.max(0,hs-closing);
+  const closing=f.scout?15:vehKey==='horse'?23:48,forward=Math.max(0,hs-closing);
   tmp.set(fx*forward+(tx-f.pos.x)*2,(surfaceAt(tx,tz)+(f.score?.altitude??22)-f.pos.y)*2,fz*forward+(tz-f.pos.z)*2);
   f.vel.lerp(tmp,1-Math.exp(-3*dt));
 }
-function defenceVisible(d){
+function clearEnemyBody(d){
+  d.y=Math.max(d.y,surfaceAt(d.x,d.z)+9,surfaceAt(d.x-7,d.z)+4,surfaceAt(d.x+7,d.z)+4,surfaceAt(d.x,d.z-7)+4,surfaceAt(d.x,d.z+7)+4);
+  for(const c of colliders){const x=(d.x-c.x)*c.c-(d.z-c.z)*c.s,z=(d.x-c.x)*c.s+(d.z-c.z)*c.c;
+    if(Math.abs(x)<c.hw+9&&Math.abs(z)<c.hd+9&&d.y>c.bottom-9&&d.y<c.top+9)d.y=c.top+10;
+  }
+}
+function defenceVisible(d,onScreen=false){
+  if(onScreen){camera.updateMatrixWorld();const p=d.clone().project(camera);if(Math.abs(p.x)>1.02||Math.abs(p.y)>1.02||p.z< -1||p.z>1)return false;}
   const eye={x:P.pos.x,y:P.pos.y+2.8,z:P.pos.z};if(WindTravelCamera.boomFraction(eye,d,colliders)<.98)return false;
   for(const u of [.2,.4,.6,.8])if(surfaceAt(lerp(eye.x,d.x,u),lerp(eye.z,d.z,u))>lerp(eye.y,d.y,u)-.2)return false;
   return true;
@@ -4544,14 +4586,14 @@ function assaultVolley(f){
       if(Math.abs(x-gap)>5.5||Math.abs(y)>2.5)add(x,y);}}
   if(pat===6||pat===7){for(const a of [...points]){const x=a.x*.68,y=a.y*.68;if(Math.abs(x-gap)>5.5||Math.abs(y)>2.5)add(x,y,.48);}}
   const density=(f.n??3)/(3+encounter.cycle%2);f.pending=f.pending||[];
-  const sourceSight=new Map((f.drones||[]).map(d=>[d,defenceVisible(d)]));
-  points.forEach((a,i)=>{
+  const sourceSight=new Map((f.drones||[]).map(d=>[d,defenceVisible(d,true)]));
+  let emissions=0;points.forEach((a,i)=>{
     // Destroying launchers thins subsequent salvos, but missiles already in flight remain real.
     if(!f.launchers&&(i%4)/4>density)return;
     const node=f.launchers?.[i%f.launchers.length]||f.drones?.[i%f.drones.length]||null;
     if(node&&(!f.drones.includes(node)||(node.x-P.pos.x)*fx+(node.z-P.pos.z)*fz<95))return;
     if(node&&!sourceSight.get(node))return;
-    const origin=node?node.clone():f.pos.clone().addScaledVector(new V3(rx,0,rz),a.x*.48);if(!node)origin.y+=a.y*.55;
+    emissions++;const origin=node?node.clone():f.pos.clone().addScaledVector(new V3(rx,0,rz),a.x*.48);if(!node)origin.y+=a.y*.55;
     if(!node?.sentry)origin.addScaledVector(f.vel||P.vel,a.delay);
     const target=aim.clone().addScaledVector(P.vel,a.delay).addScaledVector(new V3(rx,0,rz),a.x);target.y=aim.y+a.y;
     const v=target.sub(origin).multiplyScalar(1/flight),profile=((f.salvos||0)+i%3)%3,scale=f.score?.skyScale??1;
@@ -4559,7 +4601,7 @@ function assaultVolley(f){
     const curve=profile===2&&!node?.sentry?{flight,height:36*scale,sway:(i%2?1:-1)*12,rx,rz,age:0}:null;
     v.y+=arc.lift;
     if(a.delay)f.pending.push({p:origin,v,c:col,kind:2,gravity:arc.gravity,curve,source:node,at:t+a.delay});else shoot(origin,v,col,2,arc.gravity,curve);
-  });f.salvos=(f.salvos||0)+1;sfx.weapon('launch',{gain:.6,pan:weaponPan(f.pos)});
+  });f.salvos=(f.salvos||0)+1;if(emissions)sfx.weapon('launch',{gain:.6,pan:weaponPan(f.pos)});
 }
 function clearDrones(reset=true) { if(reset)forms.length=0;else for(let i=forms.length-1;i>=0;i--)if(!forms[i].peace)forms.splice(i,1); for (let i = 0; i < BUL; i++) { bLife[i] = 0; bPos[i * 3 + 1] = -9999; } droneMesh.count = eyeMesh.count = sentryMesh.count = sweeperMesh.count = 0; missileTailGeo.setDrawRange(0,0); bulI = -1; bulDrawCount = 0; bulGeo.setDrawRange(0, 0);slugGeo.setDrawRange(0,0);slugLines.visible=false;barrageBodies.count=barrageExhaust.count=0;barrageLive=0;missiles.clear();sfx.stopWeapons();assaultRest=5;if(reset)Object.assign(encounter,WindEncounters.create()); }
 function shoot(p, v, c,kind=0,gravity=0,curve=null) {
@@ -4576,7 +4618,7 @@ function shoot(p, v, c,kind=0,gravity=0,curve=null) {
 }
 function kineticVolley(f){
   const hs=Math.hypot(P.vel.x,P.vel.z)||1,fx=hs>1?P.vel.x/hs:fwd.x,fz=hs>1?P.vel.z/hs:fwd.z,rx=-fz,rz=fx,relative=230;
-  const nodes=f.drones?.filter(d=>!d.sweeper&&(d.x-P.pos.x)*fx+(d.z-P.pos.z)*fz>55&&defenceVisible(d));
+  const nodes=f.drones?.filter(d=>!d.sweeper&&(d.x-P.pos.x)*fx+(d.z-P.pos.z)*fz>55&&defenceVisible(d,true));
   if(nodes&&!nodes.length)return;
   const muzzle=nodes?.reduce((a,b)=>a.distanceToSquared(P.pos)<b.distanceToSquared(P.pos)?a:b)||f.pos;
   const flight=Math.max(.42,((muzzle.x-P.pos.x)*fx+(muzzle.z-P.pos.z)*fz)/relative),floor=ground(P.pos.x+P.vel.x*flight,P.pos.z+P.vel.z*flight,P.pos.y+20).h+HOVER+HIT_HEIGHT;
@@ -4644,15 +4686,19 @@ function updateSweeper(d,f,dt,previous,fx,fz,canQueue){
   }
   if(s.phase==='cross'){
     WindSweeper.cross(s,sweeperLocal);const x=f.pos.x-fz*sweeperLocal.side+fx*sweeperLocal.depth,z=f.pos.z+fx*sweeperLocal.side+fz*sweeperLocal.depth;
-    const y=surfaceAt(x,z)+sweeperLocal.height*(f.score?.skyScale??1),k=1-Math.exp(-8*dt);d.addScaledVector(f.vel,dt);d.x+=(x-d.x)*k;d.y+=(y-d.y)*k;d.z+=(z-d.z)*k;
+    const y=surfaceAt(x,z)+sweeperLocal.height*(f.score?.skyScale??1),k=1-Math.exp(-8*dt);d.addScaledVector(f.vel,dt);d.x+=(x-d.x)*k;d.y+=(y-d.y)*k;d.z+=(z-d.z)*k;clearEnemyBody(d);
   }else if(s.phase!=='gone'){
     WindSweeper.position(s,sweeperPosition);d.set(sweeperPosition.x,sweeperPosition.y,sweeperPosition.z);
     if((s.phase==='dive'||wasDiving)&&dt>0){
+      let blocked=WindTravelCamera.boomFraction(sweeperBefore,d,colliders)<.999;
+      for(const u of [.25,.5,.75,1])if(surfaceAt(lerp(sweeperBefore.x,d.x,u),lerp(sweeperBefore.z,d.z,u))+.8>lerp(sweeperBefore.y,d.y,u))blocked=true;
+      if(blocked){d.copy(sweeperBefore);WindSweeper.abortDive(s,d);return true;}
       const hit=WindMissiles.swept(sweeperBefore.x-previous.x,sweeperBefore.y-previous.y-HIT_HEIGHT,sweeperBefore.z-previous.z,d.x-P.pos.x,d.y-P.pos.y-HIT_HEIGHT,d.z-P.pos.z);
       if(!s.hit&&hit<WindSweeper.radius**2&&!P.dead&&!P.inTunnel&&P.invuln<=0){s.hit=true;takeEnemyHit('突進');}
       if(d.y<surfaceAt(d.x,d.z)+.2)WindSweeper.abortDive(s,d);
     }
   }
+  if(s.phase==='climb')clearEnemyBody(d);
   if(dt>0)d.flightVelocity.copy(d).sub(sweeperBefore).multiplyScalar(1/dt);
   if(dt>0&&s.event==='dive')sfx.weapon('flyby',{gain:.65,pan:weaponPan(d)});
   return s.phase!=='gone';
@@ -4677,7 +4723,7 @@ function updateDrones(dt, previous = P.pos) {
     }
     if(!canFire)f.cue=null;
     if(!canQueue){if(f.pending?.length)f.pending.length=0;f.seq=0;}
-    if(!f.peace&&['scenic','release'].includes(encounter.phase)){f.phase='leave';}
+    if(!f.peace&&(!f.scout||encounter.phase!=='scenic')&&['scenic','release'].includes(encounter.phase)){f.phase='leave';}
 
     if (!f.peace && f.mode === 'pass' && !f.turned && (P.pos.x - f.pos.x) * f.vel.x + (P.pos.z - f.pos.z) * f.vel.z < 0) f.turned = true;
     if (f.mode === 'chase' || f.turned) {
@@ -4688,7 +4734,7 @@ function updateDrones(dt, previous = P.pos) {
       // Add vertical weaving for chase formations
       if (f.mode === 'chase') f.pos.y += Math.sin(f.t * 3) * dt * 8;
     }
-    if (f.mode === 'assault') assaultMove(f, dt, fx, fz, hs);
+    if (f.mode === 'assault'||f.scout) assaultMove(f, dt, fx, fz, hs);
     if(f.phase==='leave'){f.cue=null;if(f.pending)f.pending.length=0;f.seq=0;}
     if (f.mode === 'pass' && !f.turned) {
       const dd = Math.hypot(f.pos.x - P.pos.x, f.pos.z - P.pos.z), ty = surfaceAt(f.pos.x, f.pos.z) + 26 + 50 * clamp(dd / 1500, 0, 1);
@@ -4703,7 +4749,7 @@ function updateDrones(dt, previous = P.pos) {
     if(f.seq>0&&(f.seqT-=dt)<=0&&canFire)volley(f);
     if(f.pending?.length)for(let q=f.pending.length-1;q>=0;q--){const pr=f.pending[q],valid=!pr.source||(f.drones.includes(pr.source)&&(pr.source.x-P.pos.x)*fx+(pr.source.z-P.pos.z)*fz>55);
       if(!valid){f.pending.splice(q,1);continue;}
-      if(t>=pr.at){const late=t-pr.at;pr.p.addScaledVector(pr.v,late);pr.p.y+=.5*(pr.gravity||0)*late*late;pr.v.y+=(pr.gravity||0)*late;if(pr.curve){pr.curve.age=late;WindPatrolScore.cruise(late,pr.curve.flight,pr.curve.height,pr.curve.sway,curveAfter);pr.p.x+=curveAfter.side*pr.curve.rx;pr.p.y+=curveAfter.y;pr.p.z+=curveAfter.side*pr.curve.rz;}if(canQueue)shoot(pr.p,pr.v,pr.c,pr.kind||0,pr.gravity||0,pr.curve);f.pending.splice(q,1);}}
+      if(t>=pr.at){if(pr.source&&(!defenceVisible(pr.source,true)||!defenceVisible(pr.p))){f.pending.splice(q,1);continue;}const late=t-pr.at;pr.p.addScaledVector(pr.v,late);pr.p.y+=.5*(pr.gravity||0)*late*late;pr.v.y+=(pr.gravity||0)*late;if(pr.curve){pr.curve.age=late;WindPatrolScore.cruise(late,pr.curve.flight,pr.curve.height,pr.curve.sway,curveAfter);pr.p.x+=curveAfter.side*pr.curve.rx;pr.p.y+=curveAfter.y;pr.p.z+=curveAfter.side*pr.curve.rz;}if(canQueue)shoot(pr.p,pr.v,pr.c,pr.kind||0,pr.gravity||0,pr.curve);f.pending.splice(q,1);}}
     const wingBusy=f.drones.some(d=>['windup','dive'].includes(d.sweeper?.phase));
     if(wingBusy)f.fireT=Math.max(f.fireT,.22);
     if(f.mode==='assault'&&f.phase==='hold'&&canFire&&!wingBusy&&f.drones.some(d=>!d.sweeper)&&f.ahead>55&&(f.weapon==='kinetic'||WindPatrolScore.mayLaunch({ahead:f.ahead,salvos:f.salvos}))){
@@ -4716,7 +4762,7 @@ function updateDrones(dt, previous = P.pos) {
         f.cue=null;f.flash=.09;f.fireT=(f.weapon==='kinetic'?1.7:WindPatrolScore.salvoGap)*(P.hull<2?1.35:1);
       }
     }
-    if ((d > 1700 && f.t > 20 && f.mode !== 'assault') || (f.mode === 'assault' && f.phase === 'leave' && d > 650) || f.t > 90 || (!shellsOn && !f.peace)) { forms.splice(i, 1); continue; }
+    if ((d > 1700 && f.t > 20 && f.mode !== 'assault') || ((f.mode === 'assault'||f.scout) && f.phase === 'leave' && d > 650) || f.t > 90 || (!shellsOn && !f.peace)) { forms.splice(i, 1); continue; }
     for(let j=f.drones.length-1;j>=0;j--){const dp=f.drones[j];if(dp.sweeper&&!updateSweeper(dp,f,dt,previous,fx,fz,canQueue)){f.drones.splice(j,1);f.n=f.drones.length;}}
     if(!f.n){forms.splice(i,1);continue;}
     // drones ease into their slots; the formation faces where it flies
@@ -4724,6 +4770,7 @@ function updateDrones(dt, previous = P.pos) {
     for (let j = 0; j < f.n && k < MAXD; j++, k++) {
       const dp=f.drones[j];slotOf(f,dp.slot??j,tmp2,f.cue?.clock??f.t); const tx = f.pos.x + _r.x * tmp2.x + _u.x * tmp2.y + _f.x * tmp2.z, ty = f.pos.y + _r.y * tmp2.x + _u.y * tmp2.y + _f.y * tmp2.z, tz = f.pos.z + _r.z * tmp2.x + _u.z * tmp2.y + _f.z * tmp2.z;
       const kk=1-Math.exp(-(f.cue?18:8)*dt);if(!dp.sentry&&!dp.sweeper){dp.addScaledVector(f.vel,dt);dp.x += (tx - dp.x) * kk; dp.y += (ty - dp.y) * kk; dp.z += (tz - dp.z) * kk;}
+      if(!f.peace&&!dp.sentry&&!dp.sweeper)clearEnemyBody(dp);
       // More dynamic drone animations
       _dm.position.copy(dp); 
       _dm.rotation.set(Math.sin(t * 3 + j * 0.5) * 0.07, Math.atan2(_f.x, _f.z), Math.cos(t * 2.6 + j * 0.3) * 0.07);
@@ -5240,12 +5287,12 @@ const PALC = BKEYS.map((k) => { const b = BIOMES[k]; return { top: new THREE.Col
 const COLK = ['top', 'hor', 'bot', 'sunCol', 'hemiSky', 'hemiGround', 'sunLight', 'cloud', 'dust'];
 const _wp = newW(); let curDom = -1, domHold = 0;
 const MOODS = [
-  { top: new THREE.Color(0x9299aa), hor: new THREE.Color(0xd6c8c0), sun: new THREE.Color(0xffd0bc) }, // rose dawn
-  { top: new THREE.Color(0x8b9da6), hor: new THREE.Color(0xdad4bf), sun: new THREE.Color(0xfff0c8) }, // pale gold
-  { top: new THREE.Color(0x99939f), hor: new THREE.Color(0xd8c6af), sun: new THREE.Color(0xffc49a) }, // amber dusk
-  { top: new THREE.Color(0x9392a6), hor: new THREE.Color(0xd1c9d0), sun: new THREE.Color(0xf0d8ff) }, // lilac
-  { top: new THREE.Color(0x788797), hor: new THREE.Color(0xc3cbd0), sun: new THREE.Color(0xdfe8ff) }, // blue hour
-  { top: new THREE.Color(0x879f9e), hor: new THREE.Color(0xccd7ce), sun: new THREE.Color(0xe0fff4) }, // teal mist
+  { top: new THREE.Color(0x9d89ac), hor: new THREE.Color(0xd6c8c0), sun: new THREE.Color(0xffd0bc) }, // rose dawn
+  { top: new THREE.Color(0x6498b9), hor: new THREE.Color(0xdad4bf), sun: new THREE.Color(0xfff0c8) }, // pale gold
+  { top: new THREE.Color(0xa47c91), hor: new THREE.Color(0xd8c6af), sun: new THREE.Color(0xffc49a) }, // amber dusk
+  { top: new THREE.Color(0x8d80b3), hor: new THREE.Color(0xd1c9d0), sun: new THREE.Color(0xf0d8ff) }, // lilac
+  { top: new THREE.Color(0x526e9f), hor: new THREE.Color(0xc3cbd0), sun: new THREE.Color(0xdfe8ff) }, // blue hour
+  { top: new THREE.Color(0x679d9f), hor: new THREE.Color(0xccd7ce), sun: new THREE.Color(0xe0fff4) }, // teal mist
   { top: new THREE.Color(0x8fa3a0), hor: new THREE.Color(0xe2e6da), sun: new THREE.Color(0xf4f2e0) }, // green-grey haze
   { top: new THREE.Color(0x7f8fa8), hor: new THREE.Color(0xf0d6c4), sun: new THREE.Color(0xffe2cc) }, // faded peach over slate
   { top: new THREE.Color(0x9aa8bc), hor: new THREE.Color(0xe8ecf0), sun: new THREE.Color(0xf4f8ff) }, // cold silver
@@ -5278,9 +5325,9 @@ function updatePalette(dt, snap) {
   // mood cycle (about 8 minutes): rose dawn, pale gold, lilac, teal mist
   // each stretch of land keeps its own sky, drifting slowly with the hour: ride on and the light changes with the place
   const place = vnoise(P.pos.x / 6500 + 3.7, P.pos.z / 6500 - 1.3, 97) * MOODS.length * 1.6 + vnoise(P.pos.x / 2200, P.pos.z / 2200, 98) * 1.2;
-  const mp = ((place + t / 240) % MOODS.length + MOODS.length) % MOODS.length, mi = Math.floor(mp), mf = smooth(0, 1, mp - mi), A = MOODS[mi], B = MOODS[(mi + 1) % MOODS.length];
+  const mp = ((place + t / 52) % MOODS.length + MOODS.length) % MOODS.length, mi = Math.floor(mp), mf = smooth(0, 1, mp - mi), A = MOODS[mi], B = MOODS[(mi + 1) % MOODS.length];
   moodTop.copy(A.top).lerp(B.top, mf); moodHor.copy(A.hor).lerp(B.hor, mf); moodSun.copy(A.sun).lerp(B.sun, mf);
-  const mk = 0.36 + 0.24 * vnoise(P.pos.x / 4000 - 8.1, P.pos.z / 4000 + 2.2, 99);
+  const mk = 0.57 + 0.22 * vnoise(P.pos.x / 4000 - 8.1, P.pos.z / 4000 + 2.2, 99);
   skyMat.uniforms.top.value.copy(pal.top).lerp(moodTop, mk); skyMat.uniforms.hor.value.copy(pal.hor).lerp(moodHor, mk); skyMat.uniforms.bot.value.copy(pal.bot).lerp(moodHor, mk * 0.6);
   skyMat.uniforms.sunCol.value.copy(pal.sunCol).lerp(moodSun, mk); skyMat.uniforms.sunDir.value.copy(pal.sunDir).normalize();
   skyMat.uniforms.top.value.lerp(HIGH_TOP, altK * 0.55); skyMat.uniforms.hor.value.lerp(HIGH_HOR, altK * 0.4);
@@ -5289,7 +5336,7 @@ function updatePalette(dt, snap) {
   if(lakeBlend>0){
     for(const [key,target]of [['top','top'],['hor','hor'],['bot','bot'],['sunCol','sun']]){
       lakeSkyMix.copy(journeySkyColours.day[target]).lerp(journeySkyColours.dusk[target],lakeSky.sunset).lerp(journeySkyColours.night[target],lakeSky.night);
-      skyMat.uniforms[key].value.lerp(lakeSkyMix,lakeBlend);
+      skyMat.uniforms[key].value.lerp(lakeSkyMix,lakeBlend*(.78+.22*lakeSky.night));
     }
     tmp.set(-Math.cos(lakeSky.elevation),Math.sin(lakeSky.elevation),-.15).normalize();pal.sunDir.lerp(tmp,lakeBlend);skyMat.uniforms.sunDir.value.copy(pal.sunDir);
   }
@@ -5355,7 +5402,7 @@ function updateVisuals(dt) {
     travelCam.boom=fraction<travelCam.boom?fraction:lerp(travelCam.boom,fraction,1-Math.exp(-2.5*cameraDt));
     camera.position.set(lerp(anchor.x,camera.position.x,travelCam.boom),lerp(anchor.y,camera.position.y,travelCam.boom),lerp(anchor.z,camera.position.z,travelCam.boom));
     if(P.inTunnel&&cameraRoad?.path){const off=(camera.position.x-cameraRoad.cx)*cameraRoad.nx+(camera.position.z-cameraRoad.cz)*cameraRoad.nz;
-      const excess=off-clamp(off,-cameraRoad.half+1.6,cameraRoad.half-1.6);camera.position.x-=cameraRoad.nx*excess;camera.position.z-=cameraRoad.nz*excess;camera.position.y=Math.min(camera.position.y,cameraRoad.y+9.3);}
+      const excess=off-clamp(off,-cameraRoad.half+1.6,cameraRoad.half-1.6);camera.position.x-=cameraRoad.nx*excess;camera.position.z-=cameraRoad.nz*excess;camera.position.y=Math.min(camera.position.y,cameraRoad.y+TOURS.shelterHeight-1.7);}
     shake = Math.max(0, shake - dt * 1.5);
     const lAng = Math.atan2(camDir.x, camDir.z) + lookAng;
     lookSm.set(P.pos.x + Math.sin(lAng) * 52 + camDir.z*viewPlay.look, camBaseY + (vehKey==='horse'?1.05:.8), P.pos.z + Math.cos(lAng) * 52 - camDir.x*viewPlay.look);
