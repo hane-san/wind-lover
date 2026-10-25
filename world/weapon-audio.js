@@ -1,6 +1,6 @@
 /* Short cached weapon transients: sharp attacks, smooth edges and bounded audio-clock voices. */
 (() => {
-  const lengths={geometry:.18,kinetic:.13,launch:.55,flyby:.16,impact:.32,acquire:.24,bowdraw:.26,bow:.26,bowhit:.65};
+  const lengths={geometry:.18,kinetic:.13,launch:.55,flyby:.16,impact:.32,acquire:.24,bowdraw:.26,bow:.26,bowhit:.95};
   const fracturePulse=u=>u>0?Math.min(1,u/.002)*Math.exp(-u*95):0;
   function create(context,destination){
     const cache=new Map(),voices=new Set();let serial=0,lastFly=-10;
@@ -22,9 +22,11 @@
         // A short broad crack, low body and breaking metal: bash, rather than an electronic chirp.
         else if(kind==='bowhit'){
           body+=.025*(n-body);air+=.19*(n-air);
-          const fracture=fracturePulse(t-.034)+fracturePulse(t-.067)+fracturePulse(t-.106);
-          v=hi*.4*Math.exp(-t*90)+(air-body)*1.55*Math.exp(-t*24)+body*2.5*Math.exp(-t*11)
-            +Math.sin(t*2*Math.PI*(76+variant*5))*.48*Math.exp(-t*18)+(air-lo)*fracture*.48;
+          const fracture=fracturePulse(t-.034)+fracturePulse(t-.067)+fracturePulse(t-.106)+fracturePulse(t-.17)*.8+fracturePulse(t-.245)*.6;
+          phase+=2*Math.PI*(43+variant*3+74*Math.exp(-t*25))/context.sampleRate;
+          const secondary=t>.13?Math.min(1,(t-.13)/.012)*Math.exp(-(t-.13)*13):0;
+          v=hi*.46*Math.exp(-t*105)+(air-body)*1.85*Math.exp(-t*29)+body*3.6*Math.exp(-t*6.5)
+            +Math.sin(phase)*.98*Math.min(1,t/.007)*Math.exp(-t*8)+(air-lo)*fracture*.8+(lo-body)*secondary*1.25;
         }
         else if(kind==='kinetic')v=hi*.54*Math.exp(-t*75)+lo*.80*Math.exp(-t*32)+Math.sin(t*650)*.20*Math.exp(-t*48);
         else if(kind==='geometry')v=hi*.40*Math.exp(-t*49)+Math.sin(t*1740)*.19*Math.exp(-t*36)+lo*.65*Math.exp(-t*28);
@@ -35,7 +37,7 @@
         d[i]=v*attack*release;
       }
       // The longer blast adds body without clipping when several fragments overlap.
-      const ceiling=kind==='bowhit'?1.3:.9;let peak=0;for(const v of d)peak=Math.max(peak,Math.abs(v));if(peak>ceiling)for(let i=0;i<d.length;i++)d[i]*=ceiling/peak;
+      const ceiling=kind==='bowhit'?1.7:.9;let peak=0;for(const v of d)peak=Math.max(peak,Math.abs(v));if(peak>ceiling)for(let i=0;i<d.length;i++)d[i]*=ceiling/peak;
       cache.set(key,b);return b;
     }
     function play(kind,{gain=1,pan=0,at=context.currentTime}={}){

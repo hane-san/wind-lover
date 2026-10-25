@@ -2,11 +2,11 @@
 (() => {
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const range=420,cooldown=.24,minPull=.8;
-  function create(){return {id:null,x:0,y:0,dx:0,dy:0,axisX:0,axisY:1,pull:0,drawLength:86,span:70,radius:110,target:null,recoil:0,releasePull:0,releaseX:0,releaseY:0,releaseAngle:0,releaseScale:0,drawn:false,steering:false,steerX:0,steerY:0,aimBaseX:0,aimBaseY:0,aimX:0,aimY:0,aimGoalX:0,aimGoalY:0,width:0,height:0,retarget:null,retargetT:0,pose:null,readyCue:false,flash:0,shots:0,hits:0,cooldown:0};}
+  function create(){return {id:null,x:0,y:0,dx:0,dy:0,axisX:0,axisY:1,pull:0,drawLength:86,span:70,radius:110,target:null,recoil:0,releasePull:0,releaseX:0,releaseY:0,releaseAngle:0,releaseScale:0,drawAngle:0,aimAngle:0,aimRadius:0,aimOriginX:0,aimOriginY:0,drawn:false,steering:false,steerX:0,steerY:0,aimBaseX:0,aimBaseY:0,aimX:0,aimY:0,aimGoalX:0,aimGoalY:0,width:0,height:0,retarget:null,retargetT:0,pose:null,readyCue:false,flash:0,shots:0,hits:0,cooldown:0};}
   function begin(s,id,x,y,horse,width,height){
     if(s.id!==null||y>=horse.y)return false;
     const side=Math.min(width,height),hx=horse.x-x,hy=Math.max(20,horse.y-y),length=Math.hypot(hx,hy);
-    Object.assign(s,{id,x,y,dx:0,dy:0,axisX:hx/length,axisY:hy/length,pull:0,drawLength:clamp(side*.4,110,170),span:clamp(side*.23,70,96),radius:clamp(side*.28,88,150),target:null,recoil:0,releasePull:0,releaseScale:0,drawn:false,steering:false,aimBaseX:x,aimBaseY:y,aimX:x,aimY:y,aimGoalX:x,aimGoalY:y,width,height,retarget:null,retargetT:0,pose:null,readyCue:false});return true;
+    Object.assign(s,{id,x,y,dx:0,dy:0,axisX:hx/length,axisY:hy/length,pull:0,drawLength:clamp(side*.4,110,170),span:clamp(side*.23,70,96),radius:clamp(side*.28,88,150),target:null,recoil:0,releasePull:0,releaseScale:0,drawAngle:0,aimAngle:0,aimRadius:0,aimOriginX:0,aimOriginY:0,drawn:false,steering:false,aimBaseX:x,aimBaseY:y,aimX:x,aimY:y,aimGoalX:x,aimGoalY:y,width,height,retarget:null,retargetT:0,pose:null,readyCue:false});return true;
   }
   function move(s,id,x,y,horse){
     if(s.id!==id)return false;s.dx=x-s.x;s.dy=y-s.y;
@@ -17,14 +17,19 @@
     s.pull=clamp((stroke-3)/(s.drawLength-3),0,1);
     if(!s.drawn&&s.pull>=minPull){
       s.drawn=true;s.steerX=x;s.steerY=y;s.aimBaseX=s.aimX=s.aimGoalX=s.target?.x??s.x;s.aimBaseY=s.aimY=s.aimGoalY=s.target?.y??s.y;
+      s.drawAngle=Math.atan2(s.dx,s.dy);s.aimOriginX=horse.x;s.aimOriginY=horse.y;
+      s.aimAngle=Math.atan2(s.aimBaseX-horse.x,horse.y-s.aimBaseY);s.aimRadius=Math.max(64,Math.hypot(s.aimBaseX-horse.x,s.aimBaseY-horse.y));
     }
     if(s.drawn){
       if(length<s.drawLength*.35){s.drawn=false;s.steering=false;s.retarget=null;s.retargetT=0;}
       else{
-        s.pull=Math.max(minPull,s.pull);const shift=x-s.steerX;
-        if(Math.abs(shift)>20)s.steering=true;
-        if(s.steering){s.aimGoalX=clamp(s.aimBaseX+Math.sign(shift)*Math.max(0,Math.abs(shift)-12)*1.35,16,s.width-16);
-          s.aimGoalY=clamp(s.aimBaseY+(y-s.steerY)*.35,32,s.height-24);}
+        s.pull=Math.max(minPull,s.pull);
+        const delta=Math.atan2(Math.sin(Math.atan2(s.dx,s.dy)-s.drawAngle),Math.cos(Math.atan2(s.dx,s.dy)-s.drawAngle));
+        if(Math.abs(delta)>.04&&Math.abs(delta)*length>20)s.steering=true;
+        // Turn the nock around the original draw ray. Pulling farther along that ray cannot steer.
+        if(s.steering){const turn=Math.sign(delta)*Math.max(0,Math.abs(delta)-.025),angle=clamp(s.aimAngle-turn,-1.3,1.3);
+          s.aimGoalX=clamp(s.aimOriginX+Math.sin(angle)*s.aimRadius,16,s.width-16);
+          s.aimGoalY=clamp(s.aimOriginY-Math.cos(angle)*s.aimRadius,32,s.height-24);}
       }
     }return true;
   }
@@ -71,11 +76,17 @@
     let best=null,score=Infinity;
     for(const v of targets){
       if(!available(v))continue;
-      const offset=Math.hypot(v.x-(s.steering?s.aimX:s.x),v.y-(s.steering?s.aimY:s.y)),radius=s.radius+18;if(offset>radius)continue;
+      const offset=aimOffset(s,v),radius=s.radius+18;if(offset>radius)continue;
       const rank=offset/radius*.8+v.distance/range*.2;
       const sticky=previous?.d===v.d? .12:0;
       if(rank-sticky<score){score=rank-sticky;best=v;}
     }return best;
+  }
+  function aimOffset(s,v){
+    if(!s.steering)return Math.hypot(v.x-s.x,v.y-s.y);
+    const dx=s.aimX-s.aimOriginX,dy=s.aimY-s.aimOriginY,length=Math.hypot(dx,dy)||1,ux=dx/length,uy=dy/length;
+    const x=v.x-s.aimOriginX,y=v.y-s.aimOriginY,along=x*ux+y*uy;
+    return along>8?Math.abs(x*uy-y*ux)*s.aimRadius/Math.max(64,along):Infinity;
   }
   function lock(s,targets,dt=0){
     const held=s.target&&targets.find(v=>v.d===s.target.d&&available(v));
@@ -83,7 +94,7 @@
     const next=pick(s,targets,null);
     // A closer neighbour must win by a clear margin for 65ms; small jitter cannot chatter locks.
     const margin=held&&next?clamp(Math.hypot(held.x-next.x,held.y-next.y)*.28,6,20):20;
-    if(!next||next.d===held?.d||held&&Math.hypot(held.x-s.aimX,held.y-s.aimY)<Math.hypot(next.x-s.aimX,next.y-s.aimY)+margin){s.retarget=null;s.retargetT=0;return held||next;}
+    if(!next||next.d===held?.d||held&&aimOffset(s,held)<aimOffset(s,next)+margin){s.retarget=null;s.retargetT=0;return held||next;}
     if(!held)return next;
     if(s.retarget!==next.d){s.retarget=next.d;s.retargetT=0;}
     s.retargetT+=Math.max(0,dt);if(s.retargetT<.065)return held;
