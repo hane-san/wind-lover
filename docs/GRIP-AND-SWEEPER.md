@@ -1,5 +1,7 @@
 # A fixed bow grip and a crossing interceptor — 25 October 2026
 
+The later [bow response refinement](BOW-RESPONSE.md) supersedes the double aim filter, full-position settling and simultaneous attack-cue behaviour described here.
+
 The owner's latest request is to research which part of the approved bow graphic should stay fixed during the draw, then implement a more intuitive action and a distinctly different enemy. This extends BOW-FLOW. The pale journey, horse pace, independent reins, one-arrow kills, staged destruction and quiet regional score remain.
 
 ## Evidence and the design inference
