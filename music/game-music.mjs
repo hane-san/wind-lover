@@ -1,5 +1,5 @@
-import { createJourneyMusic, TRACKS } from './journey-music.mjs?v=20261024-phrase';
-import { createRoutePlaylist } from './route-playlist.mjs?v=20261024-phrase';
+import { createJourneyMusic, TRACKS } from './journey-music.mjs?v=20261026-variety';
+import { createRoutePlaylist } from './route-playlist.mjs?v=20261026-variety';
 
 const settings = document.querySelector('#musicSettings');
 const toggle = document.querySelector('#musicToggle');
@@ -22,10 +22,10 @@ function show(state) {
 }
 
 const autoOption = document.createElement('option');
-autoOption.value = 'auto'; autoOption.textContent = 'おまかせ：旅に合わせて曲が移り変わる'; select.append(autoOption);
+autoOption.value = 'auto'; autoOption.textContent = 'おまかせ：静けさと疾走、旅に合わせて'; select.append(autoOption);
 for (const track of TRACKS) {
   const option = document.createElement('option');
-  option.value = track.id; option.textContent = track.title;
+  option.value = track.id; option.textContent = track.title+(track.energy==='brave'?' · 疾走':'');
   select.append(option);
 }
 const music = createJourneyMusic({ getContext: () => window.__wlAudio?.getContext(), getDestination: () => window.__wlAudio?.getDestination(), onChange: show });

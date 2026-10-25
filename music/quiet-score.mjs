@@ -1,4 +1,4 @@
-import { TRACKS as originals } from './scores.mjs?v=20261022';
+import { TRACKS as originals, buildScore as buildOriginal } from './scores.mjs?v=20261022';
 
 // Original chamber arrangements: modal falling phrases, held strings and unfilled bars.
 // IDs and regional choices stay stable, including a manually saved song.
@@ -10,12 +10,28 @@ const phrases = [
   [19,24,22,19,17,14], [24,26,24,22,19,17], [19,17,14,15,14,12],
   [24,22,19,15,17,14], [12,19,17,15,14,12], [19,22,24,19,17,14],
 ];
-export const TRACKS = Object.freeze(originals.map((t,i) => Object.freeze({
+const chamber = originals.map((t,i) => Object.freeze({
   ...t, bpm:tempi[i], bars:t.meter===3?24:16, arrangement:'quiet',
   taste:tempi[i]+' BPM · 遠い弦と笛、余白のある旅',
-})));
+}));
+
+// Separate journey arrangements retain all twelve quiet selections and their saved IDs.
+export const RIDING_TRACKS=Object.freeze([
+ {id:'dune-riders',title:'砂丘を越える騎兵',source:'last-caravan',bpm:104,energy:'brave',lead:'lute',taste:'104 BPM · 乾いた太鼓と駆ける撥弦'},
+ {id:'railbound-heart',title:'廃線の先へ',source:'rust-horizon',bpm:116,energy:'brave',lead:'warm',taste:'116 BPM · 郷愁を帯びたシンセの疾走'},
+ {id:'tian-shan-charge',title:'天山に響く角笛',source:'tian-shan-pass',bpm:112,energy:'brave',lead:'horn',taste:'112 BPM · 角笛と弦、峠を越える三拍子'},
+ {id:'skyward-current',title:'星を追う航跡',source:'glass-current',bpm:148,energy:'brave',lead:'keys',taste:'148 BPM · 浮遊する旋律と軽いブレイクビーツ'},
+].map(t=>Object.freeze({...originals.find(o=>o.id===t.source),...t,arrangement:'riding'})));
+export const TRACKS=Object.freeze([...chamber,...RIDING_TRACKS]);
 
 export function buildScore(id) {
+  const riding=RIDING_TRACKS.find(t=>t.id===id);
+  if(riding){
+    const source=buildOriginal(riding.source);
+    const events=source.events.map(e=>({...e,voice:e.voice===source.lead?riding.lead:e.voice,
+      velocity:e.velocity*(['kick','snare','hat','tom'].includes(e.voice)?.60:e.voice==='bass'?.75:1.15)}));
+    return {...source,...riding,events,seconds:source.totalBeats*60/riding.bpm};
+  }
   const index=TRACKS.findIndex(t=>t.id===id);
   if(index<0)throw new RangeError('Unknown Wind Lover composition: '+id);
   const track=TRACKS[index],root=roots[index],events=[];

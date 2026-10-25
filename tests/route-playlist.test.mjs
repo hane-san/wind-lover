@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ROUTE_POOLS, chooseRouteTrack, createRoutePlaylist } from '../music/route-playlist.mjs';
-import { TRACKS } from '../music/scores.mjs';
+import { TRACKS } from '../music/quiet-score.mjs';
 
-test('every landscape has four playable candidates; re-entry avoids the previous song', () => {
+test('every landscape has six playable candidates; re-entry avoids the previous song', () => {
   for (const [region, pool] of Object.entries(ROUTE_POOLS)) {
-    assert.equal(new Set(pool).size, 4);
+    assert.equal(new Set(pool).size, 6);
     for (const previous of pool) for(let i=0;i<100;i++) {
       const next = chooseRouteTrack(region, previous, () => i/100);
       assert.ok(pool.includes(next)); assert.notEqual(next, previous);
@@ -41,4 +41,13 @@ test('complete phrases rotate without repeats only in a playing, quiet journey; 
  for(let i=0;i<songs.length-3;i++)assert.equal(new Set(songs.slice(i,i+4)).size,4);
  assert.ok(calls.every(c=>c.options.fade===2.4));
  await list.setAutomatic(false);elapsed=120;assert.equal(await list.tick(),false);assert.equal(list.history.length,4);
+});
+
+test('regional automatic selection mixes quiet and brave music without consecutive brave pieces',async()=>{
+ const brave=new Set(TRACKS.filter(t=>t.energy==='brave').map(t=>t.id));
+ for(const region of Object.keys(ROUTE_POOLS)){
+  const ids=[],music={state:{track:'rust-horizon'},select(id){this.state.track=id;ids.push(id);return Promise.resolve(true);}};
+  const list=createRoutePlaylist(music,{storage:null,random:()=>.97});for(let i=0;i<20;i++)await list.enter(region,true);
+  assert.equal(brave.has(ids[0]),false);assert.ok(ids.filter(id=>brave.has(id)).length>=6);for(let i=1;i<ids.length;i++)assert.ok(!(brave.has(ids[i-1])&&brave.has(ids[i])));
+ }
 });

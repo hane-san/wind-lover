@@ -43,8 +43,8 @@ try:
     page.wait_for_function('window.__wl && window.__wlMusic',timeout=120000)
     assert page.evaluate('__wlMusic.state.enabled && audioProbe.contexts.length===0')
     assert len(requests)==0,'Default-on BGM must wait for a user gesture'
-    assert page.locator('#musicTrack option').count()==13
-    page.route('**/assets/music/quiet/*.ogg',lambda r:r.fulfill(body=b'invalid codec',content_type='audio/ogg'))
+    assert page.locator('#musicTrack option').count()==17
+    page.route('**/assets/music/quiet/*.ogg',lambda r:r.continue_() if any(id in r.request.url for id in ['dune-riders','railbound-heart','tian-shan-charge','skyward-current']) else r.fulfill(body=b'invalid codec',content_type='audio/ogg'))
     page.locator('#btnGo').click(timeout=120000)
     page.wait_for_function('__wl.P.dist>2',timeout=60000)
     page.locator('#btnMenu').click()
@@ -81,7 +81,7 @@ try:
     page.evaluate('''()=>{const chunks=[];const r=new MediaRecorder(audioProbe.contexts[0].capture.stream,{mimeType:'audio/webm;codecs=opus'});r.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};window.musicRecording={r,chunks,stopped:new Promise(resolve=>r.onstop=resolve)};r.start();}''')
     page.wait_for_timeout(600)
     page.evaluate('''()=>{const end=performance.now()+1600;while(performance.now()<end){};}''')
-    for track in ['blue-viaduct','glass-current','last-caravan','rust-horizon']:
+    for track in ['dune-riders','tian-shan-charge','railbound-heart','skyward-current','blue-viaduct','rust-horizon']:
       page.select_option('#musicTrack',track)
       page.wait_for_function('(id)=>__wlMusic.inspect().playingTrack===id',arg=track,timeout=60000)
       page.wait_for_timeout(1100)
@@ -131,7 +131,7 @@ try:
     page.wait_for_function('(distance)=>__wl.P.dist>distance+2',arg=distance,timeout=60000)
     assert page.evaluate('Number.isFinite(__wl.P.pos.x+__wl.P.pos.y+__wl.P.pos.z)')
     assert not errors,errors
-    result={'automaticRotationInQuietJourney':True,'menuDoesNotRotate':True,'automaticFadeSeconds':2.4,'defaultOn':True,'loopWrapsRecorded':True,'windSeamMatched':True,'maximumOutputStep':float(np.max(np.abs(np.diff(measured,axis=0)))),'quietArrangements':True,'sharedContext':True,'menuDoesNotRestart':True,'outgoingContinuesDuringLoad':True,'offDuringLoad':True,'persistentSettings':True,'drivingWithMusic':True,'recordedSeconds':len(pcm)/24000,'minimum100msRMS':min(rms),'mainThreadStallSeconds':1.6,'pageErrors':errors}
+    result={'automaticRotationInQuietJourney':True,'menuDoesNotRotate':True,'automaticFadeSeconds':2.4,'defaultOn':True,'loopWrapsRecorded':True,'windSeamMatched':True,'maximumOutputStep':float(np.max(np.abs(np.diff(measured,axis=0)))),'mixedJourneyArrangements':True,'sharedContext':True,'menuDoesNotRestart':True,'outgoingContinuesDuringLoad':True,'offDuringLoad':True,'persistentSettings':True,'drivingWithMusic':True,'recordedSeconds':len(pcm)/24000,'minimum100msRMS':min(rms),'mainThreadStallSeconds':1.6,'pageErrors':errors}
     (args.out/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
     print('PASS:',json.dumps(result),flush=True)
     browser.close()

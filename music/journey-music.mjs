@@ -1,4 +1,4 @@
-import { TRACKS, buildScore } from './quiet-score.mjs?v=20261022-quiet';
+import { TRACKS, buildScore } from './quiet-score.mjs?v=20261026-variety';
 import { buildScore as buildArchiveScore } from './scores.mjs?v=20261022';
 export { TRACKS, buildScore };
 
@@ -44,10 +44,10 @@ function drum(context, destination, event, at, noise) {
 function note(context, destination, event, at, secondsPerBeat) {
   if (['reed','bowed','lute','drone'].includes(event.voice)) return quietNote(context,destination,event,at,secondsPerBeat);
   const pad = event.voice === 'pad', bass = event.voice === 'bass', pluck = ['glass','pluck','keys'].includes(event.voice);
-  const duration = event.duration * secondsPerBeat, attack = pad ? 0.65 : pluck ? 0.008 : 0.045, release = pad ? 1.6 : bass ? 0.095 : pluck ? 0.75 : 0.35;
+  const duration = event.duration * secondsPerBeat, attack = event.voice==='horn'?.09:pad ? 0.65 : pluck ? 0.008 : 0.045, release = pad ? 1.6 : bass ? 0.095 : pluck ? 0.75 : 0.35;
   const env = envelope(context, at, duration, attack, release, event.velocity, pluck);
   const filter = context.createBiquadFilter(); filter.type = 'lowpass';
-  filter.frequency.value = pad ? 1600 : bass ? 500 : event.voice === 'pluck' ? 3300 : 6500;
+  filter.frequency.value = event.voice==='horn'?1800:pad ? 1600 : bass ? 500 : event.voice === 'pluck' ? 3300 : 6500;
   filter.Q.value = event.voice === 'pluck' ? 0.9 : 0.5;
   filter.connect(env.gain);
   const pan = context.createStereoPanner(); pan.pan.value = event.pan;
@@ -59,7 +59,8 @@ function note(context, destination, event, at, secondsPerBeat) {
     gain.gain.value = level; osc.connect(gain); gain.connect(filter);
     osc.start(at); osc.stop(env.end + 0.02); return osc;
   };
-  if (pad) { oscillator('triangle', 1, 0.42, -7); oscillator('triangle', 1, 0.42, 7); oscillator('sine', 2, 0.08); }
+  if(event.voice==='horn'){oscillator('triangle',1,.65,-3);oscillator('sawtooth',1,.14,3);oscillator('sine',2,.09);}
+  else if (pad) { oscillator('triangle', 1, 0.42, -7); oscillator('triangle', 1, 0.42, 7); oscillator('sine', 2, 0.08); }
   else if (bass) { oscillator('sine', 1, 0.78); oscillator('triangle', 1, 0.22); }
   else if (event.voice === 'keys' || event.voice === 'glass') {
     const carrier = oscillator('sine', 1, 0.8), modulator = context.createOscillator(), depth = context.createGain();
@@ -98,7 +99,11 @@ export async function renderTrack(id, { sampleRate = 24000, Offline = globalThis
   // Render two complete cycles. The second already contains the preceding cycle's delay and note tails.
   const context = new Offline(2, frames * 2 + sampleRate * 3, sampleRate), mix = context.createGain();
   const highpass = context.createBiquadFilter(); highpass.type = 'highpass'; highpass.frequency.value = 28;
-  mix.connect(highpass); highpass.connect(context.destination);
+  if(score.arrangement==='riding'){
+    const warmth=context.createBiquadFilter();warmth.type='lowpass';warmth.frequency.value=2900;warmth.Q.value=.5;
+    mix.connect(warmth);warmth.connect(highpass);
+  }else mix.connect(highpass);
+  highpass.connect(context.destination);
   for (const [time, level, panValue] of [[0.91,0.21,-0.48],[1.63,0.14,0.48]]) {
     const delay = context.createDelay(2), filter = context.createBiquadFilter(), feedback = context.createGain(), wet = context.createGain(), pan = context.createStereoPanner();
     delay.delayTime.value = time; filter.type = 'lowpass'; filter.frequency.value = 1800;

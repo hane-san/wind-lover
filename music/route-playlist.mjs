@@ -1,10 +1,12 @@
+import { RIDING_TRACKS } from './quiet-score.mjs?v=20261026-variety';
+const brave=new Set(RIDING_TRACKS.map(t=>t.id));
 // Visits and complete musical phrases choose songs; menus and boundary noise never churn playback.
 export const ROUTE_POOLS = Object.freeze({
-  desert: ['rust-horizon','last-caravan','copper-mirage','forgotten-siding'],
-  mountain: ['blue-viaduct','last-caravan','tian-shan-pass','snowlight'],
-  lake: ['glass-current','blue-viaduct','issyk-dawn','shoreline-afterglow'],
-  steppe: ['last-caravan','blue-viaduct','jailoo-wind','felt-and-stars'],
-  city: ['rust-horizon','glass-current','forgotten-siding','shoreline-afterglow'],
+  desert: ['rust-horizon','last-caravan','copper-mirage','forgotten-siding','dune-riders','railbound-heart'],
+  mountain: ['blue-viaduct','last-caravan','tian-shan-pass','snowlight','tian-shan-charge','dune-riders'],
+  lake: ['glass-current','blue-viaduct','issyk-dawn','shoreline-afterglow','skyward-current','tian-shan-charge'],
+  steppe: ['last-caravan','blue-viaduct','jailoo-wind','felt-and-stars','dune-riders','tian-shan-charge'],
+  city: ['rust-horizon','glass-current','forgotten-siding','shoreline-afterglow','railbound-heart','skyward-current'],
 });
 export function chooseRouteTrack(region, previous, random = Math.random) {
   const pool = ROUTE_POOLS[region] || ROUTE_POOLS.steppe;
@@ -20,7 +22,10 @@ export function createRoutePlaylist(music, { storage, random = Math.random } = {
   function nextTrack(){
     const pool=ROUTE_POOLS[region]||ROUTE_POOLS.steppe;
     const recent=new Set(history.slice(-3).concat(music.state.track));
-    const choices=pool.filter(id=>!recent.has(id));
+    let choices=pool.filter(id=>!recent.has(id));
+    const lastBrave=brave.has(music.state.track),quietPair=history.length>=2&&history.slice(-2).every(id=>!brave.has(id));
+    const balanced=choices.filter(id=>(lastBrave||history.length===1)?!brave.has(id):quietPair?brave.has(id):true);
+    if(balanced.length)choices=balanced;
     const id=choices.length?choices[Math.min(choices.length-1,Math.max(0,Math.floor(random()*choices.length)))]:chooseRouteTrack(region,music.state.track,random);
     history.push(id);if(history.length>4)history.shift();return id;
   }
