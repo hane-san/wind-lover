@@ -49,12 +49,18 @@
     }
     points.push({...knots.at(-1)});const path=addPath(id,points);path.connection=true;path.region=region;return path;
   }
-  function nearest(x,z,preferred=null) {
+  function indexReach(path,reach){
+    for(const seg of path.segments)for(let x=Math.floor((Math.min(seg.a.x,seg.b.x)-reach)/CELL);x<=Math.floor((Math.max(seg.a.x,seg.b.x)+reach)/CELL);x++)
+      for(let z=Math.floor((Math.min(seg.a.z,seg.b.z)-reach)/CELL);z<=Math.floor((Math.max(seg.a.z,seg.b.z)+reach)/CELL);z++){
+        const key=x+','+z;if(!grid.has(key))grid.set(key,[]);const entries=grid.get(key);if(!entries.includes(seg))entries.push(seg);
+      }
+  }
+  function nearest(x,z,preferred=null,radius=170,roamingOnly=false) {
     const candidates=grid.get(Math.floor(x/CELL)+','+Math.floor(z/CELL));if(!candidates)return null;
     let best=null,d2=Infinity,u0=0,score=Infinity;
-    for(const seg of candidates){const u=clamp(((x-seg.a.x)*seg.dx+(z-seg.a.z)*seg.dz)/(seg.length*seg.length),0,1),dx=x-seg.a.x-seg.dx*u,dz=z-seg.a.z-seg.dz*u,q=dx*dx+dz*dz;
+    for(const seg of candidates){if(roamingOnly&&!seg.path.roaming)continue;const u=clamp(((x-seg.a.x)*seg.dx+(z-seg.a.z)*seg.dz)/(seg.length*seg.length),0,1),dx=x-seg.a.x-seg.dx*u,dz=z-seg.a.z-seg.dz*u,q=dx*dx+dz*dz;
       const rank=preferred?Math.sqrt(q)-(seg.path.id===preferred?1.5:0):q;if(rank<score){score=rank;d2=q;best=seg;u0=u;}}
-    if(!best||d2>170*170)return null;
+    if(!best||d2>radius*radius)return null;
     const cx=lerp(best.a.x,best.b.x,u0),cz=lerp(best.a.z,best.b.z,u0);
     return {d:Math.sqrt(d2),cx,cz,nx:-best.tz,nz:best.tx,tx:best.tx,tz:best.tz,y:lerp(best.a.y,best.b.y,u0),grade:best.grade,half:best.half,s:best.s+u0*best.length,path:best.path,segment:best};
   }
@@ -68,5 +74,5 @@
   function mountainAtX(x){let lo=0,hi=mp.length-2;while(lo<hi){const m=(lo+hi+1)>>1;if(mp[m].x<=x)lo=m;else hi=m-1;}const a=mp[lo],b=mp[lo+1],u=clamp((x-a.x)/(b.x-a.x),0,1);return{z:lerp(a.z,b.z,u),y:lerp(a.y,b.y,u)};}
   function tunnel(x){return x>=35280&&x<36240?'gallery':x>=36500&&x<37120?'tunnel':x>=41840&&x<42520?'gallery':null;}
   function relief(x,z){if(x<31000||x>49600)return -Infinity;const p=mountainAtX(x),d=Math.abs(z-p.z),gate=smooth(31000,32600,x)*(1-smooth(48000,49600,x));return (p.y-12+800*Math.pow(smooth(48,1100,d),.7)+((x>35150&&x<37250)||(x>41700&&x<42650)?120*(1-smooth(40,220,d)):0))*gate-200*(1-gate);}
-  globalThis.WindRoutes={definitions,paths,nearest,at,tunnel,relief,addConnection,mountainAtX,junctions:[]};
+  globalThis.WindRoutes={definitions,paths,nearest,at,tunnel,relief,addConnection,mountainAtX,indexReach,junctions:[]};
 })();

@@ -9,13 +9,11 @@
     // A long centred view, then one slow glance from behind, then centred again.
     // Readiness resets on input/danger, so glances never resume halfway through an avoidance.
     if(calm)s.clock+=dt;else s.clock=0;
-    const cycle=Math.floor(s.clock/38),phase=s.clock%38;
-    const u=clamp((phase-14)/12,0,1),glance=calm&&phase<26?Math.sin(Math.PI*u)**2:0;
-    const side=(cycle%2?-1:1)*2.2*glance-clamp(yawRate,-.10,.10)*5.5*(calm?1:0);
-    const k=1-Math.exp(-(calm?.7:4.5)*dt);
+    // The mounted view stays centred through long journeys and encounter transitions.
+    const k=1-Math.exp(-3*dt);
     s.focus+=(clamp(threat,0,1)-s.focus)*(1-Math.exp(-4*dt));
-    s.bend+=(clamp(bend,-.20,.20)-s.bend)*(1-Math.exp(-3*dt));
-    s.side+=(side-s.side)*k;s.pull+=(1.65*glance+1.4*s.focus-s.pull)*k;s.rise+=(.28*glance+.15*s.focus-s.rise)*k;s.look+=(.22*side-s.look)*k;
+    s.bend+=(clamp(bend,-.08,.08)-s.bend)*(1-Math.exp(-1.8*dt));
+    s.side+=(0-s.side)*k;s.pull+=(0-s.pull)*k;s.rise+=(0-s.rise)*k;s.look+=(0-s.look)*k;
     return s;
   }
   function boomFraction(target,eye,colliders){

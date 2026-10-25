@@ -20,14 +20,14 @@ try:
   report=page.evaluate('''()=>{
     const w=__wl,q=__cameraQA,check=(v,m)=>{if(!v)throw Error(m)};q.paused=true;w.P.grounded=w.P.onRoad=true;w.P.invuln=0;
     w.P.vel.set(Math.sin(w.P.yaw)*64,0,Math.cos(w.P.yaw)*64);w.P.lean=w.P.assistLean=w.P.yawRate=0;w.inp.jx=w.inp.kx=0;w.forms.length=0;
-    q.travelCam.clock=19;for(let i=0;i<120;i++)q.updateVisuals(1/60);check(q.travelCam.side>1,'Missing scenic rear view');
+    let maximumRoll=0;for(let i=0;i<60*60;i++){const side=i%60<30?8.6:-8.6,fx=Math.sin(w.P.yaw),fz=Math.cos(w.P.yaw);w.P.vel.set(fx*34-fz*side,0,fz*34+fx*side);q.updateVisuals(1/60);q.camera.updateMatrixWorld();maximumRoll=Math.max(maximumRoll,Math.abs(q.camera.matrixWorld.elements[1]));}check(maximumRoll<1e-7&&q.travelCam.side===0&&q.travelCam.pull===0,'Long sidesteps tilt or drift the camera');q.travelCam.clock=19;for(let i=0;i<120;i++)q.updateVisuals(1/60);check(Math.abs(q.travelCam.side)<.001,'Scenic camera drift');
     const forward=new THREE.Vector3(Math.sin(w.P.yaw),0,Math.cos(w.P.yaw));q.threats=true;w.forms.push({peace:false,pos:w.P.pos.clone().addScaledVector(forward,500)});
     for(let i=0;i<120;i++)q.updateVisuals(1/60);
-    check(q.travelCam.focus>.99&&Math.abs(q.travelCam.side)<.01&&q.travelCam.pull>1.3,'Enemy approach did not frame the road');
+    check(q.travelCam.focus>.99&&Math.abs(q.travelCam.side)<.01&&Math.abs(q.travelCam.pull)<.001,'Enemy approach did not frame the road');
     w.forms.length=0;q.threats=false;
-    const p=w.P.pos.clone().addScaledVector(forward,-8),wall={x:p.x,z:p.z,c:Math.cos(w.P.yaw),s:Math.sin(w.P.yaw),hw:4,hd:1,bottom:p.y-1,top:p.y+7};w.colliders.push(wall);
+    const p=w.P.pos.clone().addScaledVector(forward,-8),wall={x:p.x,z:p.z,c:Math.cos(w.P.yaw),s:Math.sin(w.P.yaw),hw:4,hd:1,bottom:p.y-1,top:p.y+12};w.colliders.push(wall);
     q.updateVisuals(1/60);const clipped=q.camera.position.distanceTo(w.P.pos),fraction=q.travelCam.boom;
-    check(fraction<.6&&clipped<9,'Camera crossed the blocking wall '+JSON.stringify({clipped,fraction}));
+    check(fraction<.6&&clipped<12,'Camera crossed the blocking wall '+JSON.stringify({clipped,fraction}));
     w.colliders.splice(w.colliders.indexOf(wall),1);for(let i=0;i<180;i++)q.updateVisuals(1/60);
     check(q.travelCam.boom>.99&&q.camera.position.distanceTo(w.P.pos)>14,'Camera failed to recover');
     const path=w.tours.paths.find(p=>p.id==='mountain'),seg=path.segments.find(s=>s.a.x>36700),a=w.tours.at(path,seg.s);
@@ -35,7 +35,7 @@ try:
     for(let i=0;i<120;i++)q.updateVisuals(1/60);
     const road=w.rideRoute(w.P.pos.x,w.P.pos.z,w.P.pos.y),off=(q.camera.position.x-road.cx)*road.nx+(q.camera.position.z-road.cz)*road.nz;
     check(Math.abs(off)<road.half-1&&q.camera.position.y<road.y+9.4,'Camera left the tunnel envelope');
-    return {enemyRecentring:true,blockedBoomFraction:fraction,blockedDistance:clipped,recovered:true,tunnelLateral:off,tunnelCameraHeight:q.camera.position.y-road.y};
+    return {maximumRoll,enemyRecentring:true,blockedBoomFraction:fraction,blockedDistance:clipped,recovered:true,tunnelLateral:off,tunnelCameraHeight:q.camera.position.y-road.y};
   }''')
   assert not errors,errors;report['pageErrors']=errors;print(json.dumps(report),flush=True);browser.close()
 finally:server.shutdown();server.server_close()

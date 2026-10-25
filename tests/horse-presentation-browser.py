@@ -28,13 +28,13 @@ try:
    }
    check(footError<.025,'Taller hooves detached from their planted target');check(headHigh-headLow<.13,'Traveller is bouncing rigidly');
    WindTravelCamera.reset(q.travelCam);for(let i=0;i<240;i++)q.updateVisuals(1/60);check(Math.abs(q.travelCam.side)<.001,'Starting view is not directly behind');
-   q.travelCam.clock=19;for(let i=0;i<120;i++)q.updateVisuals(1/60);check(q.travelCam.side>1.6&&q.travelCam.side<2.3,'Missing bounded rear-quarter glance');
+   q.travelCam.clock=19;for(let i=0;i<120;i++)q.updateVisuals(1/60);check(Math.abs(q.travelCam.side)<.001&&q.travelCam.pull===0,'Unwanted travelling camera drift');
    const f=new THREE.Vector3(Math.sin(w.P.yaw),0,Math.cos(w.P.yaw)),offset=q.camera.position.clone().sub(w.P.pos);check(offset.dot(f)<-10,'Camera left the rear of the horse');
    w.inp.jx=1;for(let i=0;i<60;i++)q.updateVisuals(1/60);check(Math.abs(q.travelCam.side)<.03,'Steering did not recenter');w.inp.jx=0;
    for(const reason of ['tunnel','air','enemy']){q.travelCam.side=2;q.travelCam.clock=20;w.P.inTunnel=reason==='tunnel';w.P.grounded=reason!=='air';if(reason==='enemy')w.forms.push({peace:false,pos:w.P.pos.clone().addScaledVector(f,250)});
     for(let i=0;i<60;i++)q.updateVisuals(1/60);check(Math.abs(q.travelCam.side)<.03&&q.travelCam.clock===0,reason+' did not recenter');w.forms.length=0;w.P.inTunnel=false;w.P.grounded=true;}
    q.travelCam.clock=20;q.travelCam.side=2;w.travelFeatured('lake');check(q.travelCam.clock===0&&q.travelCam.side===0,'World change retained a camera excursion');q.updateVisuals(0);const right=new THREE.Vector3(Math.cos(w.P.yaw),0,-Math.sin(w.P.yaw));check(Math.abs(q.camera.position.clone().sub(w.P.pos).dot(right))<.01,'World change retained a sideways camera offset');
-   check(!w.speedLines.visible,'Racing streaks returned');return {hipHeight:m.rig.hipY,torso:size.toArray(),riderTop:m.rig.riderTop,maximumHoofError:footError,headTravel:headHigh-headLow,rearGlanceMetres:2.2,centredOn:['steering','tunnel','air','enemy','worldChange']};}''')
+   check(!w.speedLines.visible,'Racing streaks returned');return {hipHeight:m.rig.hipY,torso:size.toArray(),riderTop:m.rig.riderTop,maximumHoofError:footError,headTravel:headHigh-headLow,rearGlanceMetres:0,centredOn:['steering','tunnel','air','enemy','worldChange']};}''')
   for region in ['lake','mountain','desert']:
    page.evaluate('''r=>{const w=__wl,q=__quietQA;w.travelFeatured(r);q.paused=true;w.P.invuln=0;document.querySelector('#menuSheet').hidden=true;document.querySelector('#flash').style.opacity=0;document.querySelector('#vignette').style.opacity=0;document.querySelector('#toast').classList.remove('on');q.updatePalette(0,true);for(let i=0;i<120;i++)q.updateVisuals(1/60);}''',region)
    page.wait_for_timeout(300);page.screenshot(path=str(args.out/(region+'.png')))
