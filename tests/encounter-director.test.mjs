@@ -4,7 +4,7 @@ test('forward salvos leave drawing windows and longer scenic intervals',()=>{
  const s=D.create(),phases={};let warnings=0,clears=0,combatRest=0,fire=0;
  for(let i=0;i<60*240;i++){D.advance(s,1/60,{region:'lake'});phases[s.phase]=(phases[s.phase]||0)+1/60;if(s.event==='warning')warnings++;if(s.event==='clear')clears++;
   if(s.phase==='scenic')assert.equal(s.fire,false);if(s.phase==='combat'){if(s.fire){fire++;assert.equal(s.weapon,'missile');}else combatRest++;}}
- assert.ok(phases.scenic>phases.combat);assert.ok(warnings>=3&&clears>=3);assert.ok(combatRest>fire*.7);
+ assert.ok(phases.scenic>phases.combat);assert.ok(warnings>=3&&clears>=3);assert.ok(combatRest>fire*.4);
 });
 test('victory earns quiet immediately; pauses, roofs and attack-off cannot emit another salvo',()=>{
  const s=D.create();for(let i=0;i<1000;i++)D.advance(s,.02);assert.equal(s.phase,'combat');const old=s.elapsed;D.advance(s,0);assert.equal(s.elapsed,old);

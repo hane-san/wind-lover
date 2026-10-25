@@ -1,5 +1,7 @@
 # Sky, riding and the answering bow — 24 October 2026
 
+The 25 October [drawn-bow flow update](BOW-FLOW.md) supersedes the earlier draw, target switching, effects, patrol size and salvo values in this document.
+
 This update builds on `a825f79`, including the weighted sideways draw, separate bow/lock layout and shattering impacts. It follows the owner's request for sky targets, beautiful missile trajectories, a rhythmic mixture of evasion and shooting, ground enemies, quieter speed-related hooves, changing music and a slightly more distant camera. The connected world, riding pace, small hit core and regional melancholy remain.
 
 ## The encounter phrase

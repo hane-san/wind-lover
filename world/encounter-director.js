@@ -14,9 +14,9 @@
       else if(s.phase==='combat'){s.phase='release';s.duration=4.5;s.event='release';}
       else{s.phase='scenic';s.cycle++;s.duration=rest(region,s.cycle,hull);s.event='clear';}
     }
-    // A paired reading, then a longer answer on the bow. Each patrol has at most two missile salvos.
+    // Three readings overlap the answering bow; the scenic reward remains outside the engagement.
     const beat=s.elapsed%9.4;
-    s.turning=Math.abs(bend)>=.48;s.fire=s.phase==='combat'&&beat<4.2&&!s.turning;
+    s.turning=Math.abs(bend)>=.48;s.fire=s.phase==='combat'&&beat<5.8&&!s.turning;
     s.weapon=s.fire?'missile':null;s.pressure=s.phase==='combat'?1:s.phase==='warning'?.35:0;return s;
   }
   globalThis.WindEncounters=Object.freeze({create,advance,rest});

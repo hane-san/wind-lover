@@ -3,10 +3,10 @@ await import('../world/horse-archery.js');const A=globalThis.WindArchery;
 test('a touch below the saddle remains a rein gesture; an upper draw releases once',()=>{
  const s=A.create(),horse={x:195,y:590};assert.equal(A.begin(s,1,180,700,horse,390,844),false);
  assert.equal(A.begin(s,2,170,350,horse,390,844),true);assert.ok(s.radius>100);
- A.move(s,3,195,490,horse);assert.equal(s.pull,0);A.move(s,2,195,470,horse);assert.equal(s.pull,1);
+ A.move(s,3,195,490,horse);assert.equal(s.pull,0);A.move(s,2,195,530,horse);assert.equal(s.pull,1);
  assert.equal(A.end(s,2),true);assert.equal(A.end(s,2),false);assert.equal(s.shots,1);
- A.begin(s,3,170,350,horse,390,844);A.move(s,3,195,470,horse);assert.equal(A.end(s,3),false);A.advance(s,.25);
- A.begin(s,4,170,350,horse,390,844);A.move(s,4,195,470,horse);assert.equal(A.end(s,4,true),false);assert.equal(s.shots,1);
+ A.begin(s,3,170,350,horse,390,844);A.move(s,3,195,530,horse);assert.equal(A.end(s,3),false);A.advance(s,.25);
+ A.begin(s,4,170,350,horse,390,844);A.move(s,4,195,530,horse);assert.equal(A.end(s,4,true),false);assert.equal(s.shots,1);
 });
 test('taps, shallow sideways strokes and steep upward drags cannot loose arrows',()=>{
  for(const delta of [[0,0],[35,0],[-35,0],[0,-90],[80,-40],[-80,-40]]){const s=A.create(),horse={x:195,y:590};A.begin(s,1,195,350,horse,390,844);A.move(s,1,195+delta[0],350+delta[1],horse);assert.equal(A.end(s,1),false);}
@@ -41,7 +41,7 @@ test('a committed draw is required across phone sizes, but reaching it needs no 
   const horse={x:width/2,y:height*.8},s=A.create(),x=horse.x,y=height*.3;
   A.begin(s,1,x,y,horse,width,height);A.move(s,1,x,y+s.drawLength*.65,horse);assert.equal(A.end(s,1),false);assert.equal(s.shots,0);assert.equal(s.cooldown,0);
   A.begin(s,2,x,y,horse,width,height);const distance=s.drawLength*(A.minPull+.02);A.move(s,2,x,y+distance,horse);
-  assert.equal(A.end(s,2),true);assert.ok(s.releasePull>=A.minPull);assert.ok(distance>=49&&distance<=71);
+  assert.equal(A.end(s,2),true);assert.ok(s.releasePull>=A.minPull);assert.ok(distance>=100&&distance<=140);
  }
 });
 test('a tapped drone stays selected through the draw until it becomes unavailable',()=>{
@@ -54,8 +54,8 @@ test('a tapped drone stays selected through the draw until it becomes unavailabl
 });
 test('bow layouts stay between saddle and lock, inside the screen, or yield to the physical bow',()=>{
  let shown=0,hidden=0;
- for(const [w,h]of [[320,568],[390,844],[844,390],[768,1024]])for(const horse of [{x:w*.5,y:h*.82},{x:w*.2,y:h*.5},{x:w*.8,y:h*.88}])for(let ix=0;ix<=10;ix++)for(let iy=0;iy<=10;iy++){
-  const target={x:w*ix/10,y:h*iy/10},span=Math.min(78,Math.max(52,Math.min(w,h)*.18)),q=A.layout(target,horse,w,h,span);
+ for(const [w,h]of [[320,568],[390,844],[844,390],[768,1024]])for(const horse of [{x:w*.5,y:h*.82},{x:w*.2,y:h*.5},{x:w*.8,y:h*.88}])for(let ix=0;ix<=10;ix++)for(let iy=0;iy<=10;iy++)for(const pull of [0,.5,1]){
+  const target={x:w*ix/10,y:h*iy/10},span=Math.min(96,Math.max(70,Math.min(w,h)*.23)),q=A.layout(target,horse,w,h,span,pull);
   if(!q){hidden++;continue;}shown++;const dx=horse.x-target.x,dy=horse.y-target.y,length=Math.hypot(dx,dy);
   assert.ok(Math.abs((q.x-target.x)*dy-(q.y-target.y)*dx)<1e-6);assert.ok(q.distance>0&&q.distance<length);
   const c=Math.cos(q.angle),s=Math.sin(q.angle);
@@ -71,6 +71,28 @@ test('camera and saddle motion do not change the resistance of an existing draw'
 });
 test('a follow-up draw can prepare during recovery and fires as soon as it recovers',()=>{
  const s=A.create(),horse={x:195,y:590};
- A.begin(s,1,195,350,horse,390,844);A.move(s,1,195,450,horse);assert.equal(A.end(s,1),true);
- A.begin(s,2,195,350,horse,390,844);A.move(s,2,195,450,horse);A.advance(s,A.cooldown/2);assert.equal(s.shots,1);A.advance(s,A.cooldown/2+.001);assert.equal(A.end(s,2),true);assert.equal(s.shots,2);
+ A.begin(s,1,195,350,horse,390,844);A.move(s,1,195,530,horse);assert.equal(A.end(s,1),true);
+ A.begin(s,2,195,350,horse,390,844);A.move(s,2,195,530,horse);A.advance(s,A.cooldown/2);assert.equal(s.shots,1);A.advance(s,A.cooldown/2+.001);assert.equal(A.end(s,2),true);assert.equal(s.shots,2);
+});
+
+test('a drawn bow may reach the bottom, steer to a neighbour after hysteresis and let down',()=>{
+ const s=A.create(),horse={x:195,y:590},a={d:{},x:130,y:280,distance:220,ahead:1,z:.8},b={...a,d:{},x:270};
+ A.begin(s,1,130,280,horse,390,844);s.target=A.lock(s,[a,b]);A.move(s,1,130,820,horse);assert.equal(s.pull,1);assert.equal(s.drawn,true);
+ for(const x of [134,127,140,130]){A.move(s,1,x,820,horse);A.advance(s,.05);s.target=A.lock(s,[a,b],.05);assert.equal(s.target,a);}
+ A.move(s,1,250,820,horse);const before=s.aimX;A.advance(s,0);assert.equal(s.aimX,before);
+ A.advance(s,.15);s.target=A.lock(s,[a,b],.04);assert.equal(s.target,a);s.target=A.lock(s,[a,b],.04);assert.equal(s.target,b);assert.ok(s.pull>=A.minPull);
+ A.move(s,1,130,280,horse);assert.equal(s.pull,0);assert.equal(A.end(s,1),false);
+});
+test('steering excludes hidden neighbours and cancellation resets its complete state',()=>{
+ const s=A.create(),horse={x:195,y:590},a={d:{},x:130,y:280,distance:220,ahead:1,z:.8},b={...a,d:{},x:270,hidden:true};
+ A.begin(s,1,130,280,horse,390,844);s.target=A.lock(s,[a,b]);A.move(s,1,130,460,horse);A.move(s,1,250,460,horse);A.advance(s,.2);
+ s.target=A.lock(s,[a,b],.2);assert.equal(s.target,a);A.cancel(s);assert.equal(s.steering,false);assert.equal(s.drawn,false);assert.equal(s.pose,null);assert.equal(A.end(s,1),false);
+});
+
+test('smoothed bow poses remain inside every padded viewport during a turn',()=>{
+ for(const [w,h]of [[320,568],[390,844],[844,390]])for(let i=0;i<500;i++){
+  const span=90,p={x:12+(w-24)*(i%31)/30,y:64+(h-76)*(i%23)/22,angle:i*.17,scale:1.65};
+  const fit=A.fitPose(p,w,h,span);if(!fit)continue;const c=Math.cos(fit.angle),s=Math.sin(fit.angle);
+  for(const x of [-span-8,span+8])for(const y of [-40,96]){const px=fit.x+(x*c-y*s)*fit.scale,py=fit.y+(x*s+y*c)*fit.scale;assert.ok(px>=11.999&&px<=w-11.999&&py>=Math.min(64,h*.15)-.001&&py<=h-11.999);}
+ }
 });
