@@ -79,14 +79,15 @@ test('a drawn bow may reach the bottom, steer to a neighbour after hysteresis an
  const s=A.create(),horse={x:195,y:590},a={d:{},x:130,y:280,distance:220,ahead:1,z:.8},b={...a,d:{},x:270};
  A.begin(s,1,130,280,horse,390,844);s.target=A.lock(s,[a,b]);A.move(s,1,130,820,horse);assert.equal(s.pull,1);assert.equal(s.drawn,true);
  for(const x of [134,127,140,130]){A.move(s,1,x,820,horse);A.advance(s,.05);s.target=A.lock(s,[a,b],.05);assert.equal(s.target,a);}
- A.move(s,1,-110,820,horse);const before=s.aimX;A.advance(s,0);assert.equal(s.aimX,before);
- A.advance(s,.15);s.target=A.lock(s,[a,b],.04);assert.equal(s.target,a);s.target=A.lock(s,[a,b],.04);assert.equal(s.target,b);assert.ok(s.pull>=A.minPull);
+ const turn=s.aimAngle-Math.atan2(b.x-s.aimOriginX,s.aimOriginY-b.y),angle=s.drawAngle+turn+Math.sign(turn)*.025;
+ A.move(s,1,s.controlX+Math.tan(angle)*(820-s.controlY),820,horse);const before=s.aimX;A.advance(s,0);assert.equal(s.aimX,before);
+ A.advance(s,.15);s.target=A.lock(s,[a,b],.04);assert.equal(s.target,null);s.target=A.lock(s,[a,b],.04);assert.equal(s.target,b);assert.ok(s.pull>=A.minPull);
  A.move(s,1,130,280,horse);assert.equal(s.pull,0);assert.equal(A.end(s,1),false);
 });
 test('steering excludes hidden neighbours and cancellation resets its complete state',()=>{
  const s=A.create(),horse={x:195,y:590},a={d:{},x:130,y:280,distance:220,ahead:1,z:.8},b={...a,d:{},x:270,hidden:true};
  A.begin(s,1,130,280,horse,390,844);s.target=A.lock(s,[a,b]);A.move(s,1,130,460,horse);A.move(s,1,10,460,horse);A.advance(s,.2);
- s.target=A.lock(s,[a,b],.2);assert.equal(s.target,a);A.cancel(s);assert.equal(s.steering,false);assert.equal(s.drawn,false);assert.equal(s.pose,null);assert.equal(A.end(s,1),false);
+ s.target=A.lock(s,[a,b],.2);assert.equal(s.target,null);A.cancel(s);assert.equal(s.steering,false);assert.equal(s.drawn,false);assert.equal(s.pose,null);assert.equal(A.end(s,1),false);
 });
 
 test('smoothed bow poses remain inside every padded viewport during a turn',()=>{
@@ -103,9 +104,9 @@ test('an upper-right to lower-left draw aims upper-left when the hand moves righ
   A.begin(s,1,right.x,right.y,horse,width,height);s.target=A.lock(s,[right,left]);
   A.move(s,1,width*.18,height*.94,horse);assert.equal(s.target,right);assert.ok(s.pull>=A.minPull);
   const initial=A.layout(right,horse,width,height,s.span,1);assert.ok(Math.sin(initial.angle)>0);
-  const desired=Math.atan2(left.x-s.aimOriginX,s.aimOriginY-left.y),turn=s.aimAngle-desired,dy=height*.94-s.y;
+  const desired=Math.atan2(left.x-s.aimOriginX,s.aimOriginY-left.y),turn=s.aimAngle-desired,dy=height*.94-s.controlY;
   let angle=s.drawAngle+turn;for(let i=0;i<8;i++)angle=s.drawAngle+turn+Math.sign(turn)*.025;
-  A.move(s,1,s.x+Math.tan(angle)*dy,height*.94,horse);assert.ok(s.aimGoalX<horse.x);assert.ok(s.aimGoalY<horse.y);
+  A.move(s,1,s.controlX+Math.tan(angle)*dy,height*.94,horse);assert.ok(s.aimGoalX<s.grip.x);assert.ok(s.aimGoalY<s.grip.y);
   for(let i=0;i<30;i++){A.advance(s,1/120);s.target=A.lock(s,[right,left],1/120);}
   assert.equal(s.target,left);const aimed=A.layout({x:s.aimX,y:s.aimY},horse,width,height,s.span,1);assert.ok(Math.sin(aimed.angle)<0);
   assert.equal(A.end(s,1),true);
@@ -125,6 +126,31 @@ test('a steered ray can acquire a target higher along the same direction without
 
 test('lengthening an already steered ray keeps the same aim and resists camera movement',()=>{
  const s=A.create(),horse={x:195,y:650};A.begin(s,1,285,250,horse,390,844);A.move(s,1,225,400,horse);A.move(s,1,305,500,horse);
- assert.equal(s.steering,true);const aim={x:s.aimGoalX,y:s.aimGoalY},dx=s.dx,dy=s.dy;
- for(const k of [1.3,1.8,2.3]){A.move(s,1,s.x+dx*k,s.y+dy*k,{x:100,y:750});assert.ok(Math.abs(s.aimGoalX-aim.x)<1e-8&&Math.abs(s.aimGoalY-aim.y)<1e-8);}
+ assert.equal(s.steering,true);const aim={x:s.aimGoalX,y:s.aimGoalY},dx=s.x+s.dx-s.controlX,dy=s.y+s.dy-s.controlY;
+ for(const k of [1.3,1.8,2.3]){A.move(s,1,s.controlX+dx*k,s.controlY+dy*k,{x:100,y:750});assert.ok(Math.abs(s.aimGoalX-aim.x)<1e-8&&Math.abs(s.aimGoalY-aim.y)<1e-8);}
+});
+
+test('the visible grip stays fixed through tension, aiming, target motion and fit changes',()=>{
+ for(const [w,h]of [[320,568],[390,844],[844,390]]){
+  const s=A.create(),horse={x:w*.5,y:h*.8};A.begin(s,1,w*.62,h*.28,horse,w,h);s.target={d:{},x:w*.62,y:h*.28,distance:230,ahead:1,z:.8};A.lock(s,[s.target]);const anchor={...s.grip};
+  let shown=0;for(let i=0;i<90;i++){s.pull=Math.min(1,i/25);s.aimX=w*(.12+.76*i/89);s.aimY=h*.25;const p=A.pose(s,1/60);if(!p)continue;shown++;
+   assert.ok(Math.abs(p.x+Math.sin(p.angle)*24*p.scale-anchor.x)<1e-8);assert.ok(Math.abs(p.y-Math.cos(p.angle)*24*p.scale-anchor.y)<1e-8);
+  }assert.ok(shown>40);
+ }
+});
+test('longer pulls rebase steering before the sweep, keeping the same usable hand range',()=>{
+ const s=A.create(),horse={x:195,y:650};A.begin(s,1,285,250,horse,390,844);s.target={d:{},x:285,y:250,distance:230,ahead:1,z:.8};A.lock(s,[s.target]);A.move(s,1,225,400,horse);
+ A.move(s,1,105,700,horse);assert.equal(s.steering,false);assert.ok(Math.abs(Math.hypot(105-s.controlX,700-s.controlY)-s.drawLength)<1e-8);
+ A.move(s,1,330,700,horse);assert.equal(s.steering,true);assert.ok(s.aimGoalX<s.grip.x);
+});
+test('a moving locked enemy rotates the bow about its grip; deliberate off-ray aiming lets go',()=>{
+ const s=A.create(),horse={x:195,y:650},a={d:{},x:240,y:260,distance:230,ahead:1,z:.8};A.begin(s,1,a.x,a.y,horse,390,844);s.target=A.lock(s,[a]);const grip={...s.grip};
+ const moved={...a,x:280,y:220};s.target=A.lock(s,[moved]);assert.equal(s.aimGoalX,280);assert.deepEqual(s.grip,grip);
+ A.move(s,1,195,500,horse);s.steering=true;s.aimX=16;s.aimY=grip.y-5;assert.equal(A.lock(s,[moved]),null);
+});
+test('every fitted grip pose keeps the complete rotated bow inside the padded viewport',()=>{
+ for(const [w,h]of [[320,568],[390,844],[844,390]])for(const x of [w*.2,w*.5,w*.8])for(const y of [h*.35,h*.6,h*.8])for(let i=0;i<32;i++){
+  const grip={x,y},p=A.fitGrip(grip,i*Math.PI/16,1.65,w,h,96);if(!p)continue;const c=Math.cos(p.angle),s=Math.sin(p.angle);
+  for(const X of [-104,104])for(const Y of [-40,96]){const px=p.x+(X*c-Y*s)*p.scale,py=p.y+(X*s+Y*c)*p.scale;assert.ok(px>=11.999&&px<=w-11.999&&py>=Math.min(64,h*.15)-.001&&py<=h-11.999);}
+ }
 });

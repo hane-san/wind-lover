@@ -372,8 +372,9 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 <script src="../world/flow-effects.js?v=20261024-bow"></script>
 <script src="../world/journey-climate.js?v=20261022-voyage"></script>
 <script src="../world/travel-camera.js?v=20261022-network"></script>
-<script src="../world/horse-archery.js?v=20261025-nock-burst"></script>
+<script src="../world/horse-archery.js?v=20261025-fixed-grip"></script>
 <script src="../world/encounter-director.js?v=20261025-bow-flow"></script>
+<script src="../world/sweeper.js?v=20261025-fixed-grip"></script>
 <script src="../world/patrol-score.js?v=20261025-bow-flow"></script>
 <script src="../world/weapon-audio.js?v=20261025-nock-burst"></script>
 <script src="../world/missiles.js?v=20261023-defence"></script>
@@ -4332,6 +4333,11 @@ const EYE_HOSTILE = new THREE.Color(0xffb050), EYE_PEACE = new THREE.Color(0xa8f
 const EYE_SHOT=new THREE.Color(0xfff0b4),EYE_LOCK=new THREE.Color(0xffce7d);
 for (let i = 0; i < MAXD; i++) eyeMesh.setColorAt(i, EYE_HOSTILE);
 for (const im of [droneMesh, eyeMesh]) { im.count = 0; im.frustumCulled = false; scene.add(im); }
+const sweeperGeo=(()=>{const m=new Merger();m.add(G.box,M(0,0,0,0,.85,.42,3.6),0x434b4b);
+  for(const side of [-1,1]){m.add(G.box,M(side*1.55,0,-.25,side*.48,3.5,.14,1.15),0x788078);m.add(G.box,M(side*2.9,.01,-.9,side*.48,.65,.17,.8),0x343d40);}
+  m.add(G.box,M(0,.16,-1.45,0,.35,.65,.65),0x8b6446);m.add(G.box,M(0,0,1.9,0,.35,.24,.6),0xc4ad74);return m.build();})();
+const sweeperMesh=new THREE.InstancedMesh(sweeperGeo,new THREE.MeshPhongMaterial({vertexColors:true,flatShading:true,shininess:24}),8);sweeperMesh.count=0;sweeperMesh.frustumCulled=false;scene.add(sweeperMesh);
+const sweeperBefore=new V3(),sweeperProjection=new V3(),sweeperLocal={},sweeperPosition={};
 const HIT_RADIUS = 0.32, HIT_HEIGHT = 0.45, GRAZE_RADIUS = 3.8;
 const BUL = 4608, bPos = new Float32Array(BUL * 3), bVel = new Float32Array(BUL * 3), bLife = new Float32Array(BUL), bCol = new Float32Array(BUL * 3);
 const bKind=new Float32Array(BUL),bWhizz=new Uint8Array(BUL),slugP=new Float32Array(BUL*6),slugC=new Float32Array(BUL*6);
@@ -4465,7 +4471,7 @@ function spawnFormation(forceMode) {
       const d=f.drones[n-1];d.set(sx,floor+3.45,sz);d.sentry=true;d.yaw=Math.atan2(-tx,-tz);
     }else f.score=WindPatrolScore.plan(encounter.cycle,false,innerWidth/innerHeight);
   }
-  if(mode==='assault')f.launchers=f.drones.slice();
+  if(mode==='assault'){const wing=f.drones.filter(d=>!d.sentry).at(-1);if(wing){wing.sweeper=WindSweeper.create(encounter.cycle%2?1:-1);wing.flightVelocity=new V3();}f.launchers=f.drones.filter(d=>!d.sweeper);}
   forms.push(f);
 }
 // One patrol closes from ahead: geometric missile salvos, a bow window, then short close-range bursts.
@@ -4525,7 +4531,7 @@ function assaultVolley(f){
     if(a.delay)f.pending.push({p:origin,v,c:col,kind:2,gravity:arc.gravity,curve,source:node,at:t+a.delay});else shoot(origin,v,col,2,arc.gravity,curve);
   });f.salvos=(f.salvos||0)+1;sfx.weapon('launch',{gain:.6,pan:weaponPan(f.pos)});
 }
-function clearDrones(reset=true) { if(reset)forms.length=0;else for(let i=forms.length-1;i>=0;i--)if(!forms[i].peace)forms.splice(i,1); for (let i = 0; i < BUL; i++) { bLife[i] = 0; bPos[i * 3 + 1] = -9999; } droneMesh.count = eyeMesh.count = sentryMesh.count = 0; missileTailGeo.setDrawRange(0,0); bulI = -1; bulDrawCount = 0; bulGeo.setDrawRange(0, 0);slugGeo.setDrawRange(0,0);slugLines.visible=false;barrageBodies.count=barrageExhaust.count=0;barrageLive=0;missiles.clear();sfx.stopWeapons();assaultRest=5;if(reset)Object.assign(encounter,WindEncounters.create()); }
+function clearDrones(reset=true) { if(reset)forms.length=0;else for(let i=forms.length-1;i>=0;i--)if(!forms[i].peace)forms.splice(i,1); for (let i = 0; i < BUL; i++) { bLife[i] = 0; bPos[i * 3 + 1] = -9999; } droneMesh.count = eyeMesh.count = sentryMesh.count = sweeperMesh.count = 0; missileTailGeo.setDrawRange(0,0); bulI = -1; bulDrawCount = 0; bulGeo.setDrawRange(0, 0);slugGeo.setDrawRange(0,0);slugLines.visible=false;barrageBodies.count=barrageExhaust.count=0;barrageLive=0;missiles.clear();sfx.stopWeapons();assaultRest=5;if(reset)Object.assign(encounter,WindEncounters.create()); }
 function shoot(p, v, c,kind=0,gravity=0,curve=null) {
   if(kind===2&&barrageLive>=BARRAGE_CAP)return;
   const i = bulI = (bulI + 1) % BUL; bGraze[i] = 0;
@@ -4540,7 +4546,7 @@ function shoot(p, v, c,kind=0,gravity=0,curve=null) {
 }
 function kineticVolley(f){
   const hs=Math.hypot(P.vel.x,P.vel.z)||1,fx=hs>1?P.vel.x/hs:fwd.x,fz=hs>1?P.vel.z/hs:fwd.z,rx=-fz,rz=fx,relative=230;
-  const nodes=f.drones?.filter(d=>(d.x-P.pos.x)*fx+(d.z-P.pos.z)*fz>55&&defenceVisible(d));
+  const nodes=f.drones?.filter(d=>!d.sweeper&&(d.x-P.pos.x)*fx+(d.z-P.pos.z)*fz>55&&defenceVisible(d));
   if(nodes&&!nodes.length)return;
   const muzzle=nodes?.reduce((a,b)=>a.distanceToSquared(P.pos)<b.distanceToSquared(P.pos)?a:b)||f.pos;
   const flight=Math.max(.42,((muzzle.x-P.pos.x)*fx+(muzzle.z-P.pos.z)*fz)/relative),floor=ground(P.pos.x+P.vel.x*flight,P.pos.z+P.vel.z*flight,P.pos.y+20).h+HOVER+HIT_HEIGHT;
@@ -4594,6 +4600,33 @@ function volley(f) {
   }
   if (f.seq === 0 || f.seq === 6) sfx.volley(f.pos);
 }
+function updateSweeper(d,f,dt,previous,fx,fz,canQueue){
+  const s=d.sweeper;sweeperBefore.copy(d);
+  if((f.phase==='leave'||!canQueue)&&['windup','dive'].includes(s.phase))WindSweeper.abortDive(s,d);
+  const wasDiving=s.phase==='dive',active=f.phase==='hold'&&f.ahead<430;
+  sweeperProjection.copy(d).project(camera);
+  const permit=active&&f.ahead>170&&canQueue&&encounter.fire&&Math.abs(sweeperProjection.x)<.95&&Math.abs(sweeperProjection.y)<.95&&defenceVisible(d);
+  WindSweeper.advance(s,dt,{active,permit});
+  if(dt>0&&s.event==='lock'){
+    const travel=WindSweeper.windup+WindSweeper.flight,target=P.pos.clone().addScaledVector(P.vel,travel);
+    target.y=P.grounded?ground(target.x,target.z,P.pos.y+20).h+HOVER+HIT_HEIGHT:P.pos.y+HIT_HEIGHT;
+    WindSweeper.lock(s,d,target,{x:fx,z:fz});sfx.weapon('acquire',{gain:.48,pan:weaponPan(d)});
+  }
+  if(s.phase==='cross'){
+    WindSweeper.cross(s,sweeperLocal);const x=f.pos.x-fz*sweeperLocal.side+fx*sweeperLocal.depth,z=f.pos.z+fx*sweeperLocal.side+fz*sweeperLocal.depth;
+    const y=surfaceAt(x,z)+sweeperLocal.height*(f.score?.skyScale??1),k=1-Math.exp(-8*dt);d.addScaledVector(f.vel,dt);d.x+=(x-d.x)*k;d.y+=(y-d.y)*k;d.z+=(z-d.z)*k;
+  }else if(s.phase!=='gone'){
+    WindSweeper.position(s,sweeperPosition);d.set(sweeperPosition.x,sweeperPosition.y,sweeperPosition.z);
+    if((s.phase==='dive'||wasDiving)&&dt>0){
+      const hit=WindMissiles.swept(sweeperBefore.x-previous.x,sweeperBefore.y-previous.y-HIT_HEIGHT,sweeperBefore.z-previous.z,d.x-P.pos.x,d.y-P.pos.y-HIT_HEIGHT,d.z-P.pos.z);
+      if(!s.hit&&hit<WindSweeper.radius**2&&!P.dead&&!P.inTunnel&&P.invuln<=0){s.hit=true;takeEnemyHit('突進');}
+      if(d.y<surfaceAt(d.x,d.z)+.2)WindSweeper.abortDive(s,d);
+    }
+  }
+  if(dt>0)d.flightVelocity.copy(d).sub(sweeperBefore).multiplyScalar(1/dt);
+  if(dt>0&&s.event==='dive')sfx.weapon('flyby',{gain:.65,pan:weaponPan(d)});
+  return s.phase!=='gone';
+}
 function updateDrones(dt, previous = P.pos) {
   const hs = Math.hypot(P.vel.x, P.vel.z);
   const canFire=shellsOn&&!P.dead&&!P.inTunnel&&encounter.fire;
@@ -4601,7 +4634,7 @@ function updateDrones(dt, previous = P.pos) {
   droneSpawnT-=dt;assaultRest-=dt;
   if(!P.dead&&droneSpawnT<=0&&forms.filter(f=>f.peace).length<4){spawnFormation('flyby');droneSpawnT=5+Math.random()*5;}
   if(encounter.event==='engage'&&!forms.some(f=>f.mode==='assault'&&f.phase!=='leave')&&assaultRest<=0){spawnFormation('assault');assaultRest=2;}
-  let nearest = Infinity, k = 0, groundCount=0;
+  let nearest = Infinity, k = 0, groundCount=0,sweeperCount=0;
   const fx = hs > 1 ? P.vel.x / hs : fwd.x, fz = hs > 1 ? P.vel.z / hs : fwd.z;
   for (let i = forms.length - 1; i >= 0; i--) {
     const f = forms[i];f.t+=dt;f.flash=Math.max(0,(f.flash||0)-dt);
@@ -4641,7 +4674,7 @@ function updateDrones(dt, previous = P.pos) {
     if(f.pending?.length)for(let q=f.pending.length-1;q>=0;q--){const pr=f.pending[q],valid=!pr.source||(f.drones.includes(pr.source)&&(pr.source.x-P.pos.x)*fx+(pr.source.z-P.pos.z)*fz>55);
       if(!valid){f.pending.splice(q,1);continue;}
       if(t>=pr.at){const late=t-pr.at;pr.p.addScaledVector(pr.v,late);pr.p.y+=.5*(pr.gravity||0)*late*late;pr.v.y+=(pr.gravity||0)*late;if(pr.curve){pr.curve.age=late;WindPatrolScore.cruise(late,pr.curve.flight,pr.curve.height,pr.curve.sway,curveAfter);pr.p.x+=curveAfter.side*pr.curve.rx;pr.p.y+=curveAfter.y;pr.p.z+=curveAfter.side*pr.curve.rz;}if(canQueue)shoot(pr.p,pr.v,pr.c,pr.kind||0,pr.gravity||0,pr.curve);f.pending.splice(q,1);}}
-    if(f.mode==='assault'&&f.phase==='hold'&&canFire&&f.ahead>55&&(f.weapon==='kinetic'||WindPatrolScore.mayLaunch({ahead:f.ahead,salvos:f.salvos}))){
+    if(f.mode==='assault'&&f.phase==='hold'&&canFire&&f.drones.some(d=>!d.sweeper)&&f.ahead>55&&(f.weapon==='kinetic'||WindPatrolScore.mayLaunch({ahead:f.ahead,salvos:f.salvos}))){
       if(!f.cue&&f.fireT<=0){
         f.cue={weapon:f.weapon,remaining:f.weapon==='kinetic'?.8:WindPatrolScore.cueTime,clock:f.t};
         if(f.weapon==='missile'||f.lastCueWeapon!==f.weapon){sfx.weapon('acquire',{gain:.28,pan:weaponPan(f.pos)});f.lastCueWeapon=f.weapon;}
@@ -4652,15 +4685,22 @@ function updateDrones(dt, previous = P.pos) {
       }
     }
     if ((d > 1700 && f.t > 20 && f.mode !== 'assault') || (f.mode === 'assault' && f.phase === 'leave' && d > 650) || f.t > 90 || (!shellsOn && !f.peace)) { forms.splice(i, 1); continue; }
+    for(let j=f.drones.length-1;j>=0;j--){const dp=f.drones[j];if(dp.sweeper&&!updateSweeper(dp,f,dt,previous,fx,fz,canQueue)){f.drones.splice(j,1);f.n=f.drones.length;}}
+    if(!f.n){forms.splice(i,1);continue;}
     // drones ease into their slots; the formation faces where it flies
     _f.copy(f.mode==='assault'?fwd:f.vel).normalize(); _r.crossVectors(_f, UP).normalize(); _u.crossVectors(_r, _f);
     for (let j = 0; j < f.n && k < MAXD; j++, k++) {
       const dp=f.drones[j];slotOf(f,dp.slot??j,tmp2,f.cue?.clock??f.t); const tx = f.pos.x + _r.x * tmp2.x + _u.x * tmp2.y + _f.x * tmp2.z, ty = f.pos.y + _r.y * tmp2.x + _u.y * tmp2.y + _f.y * tmp2.z, tz = f.pos.z + _r.z * tmp2.x + _u.z * tmp2.y + _f.z * tmp2.z;
-      const kk=1-Math.exp(-(f.cue?18:8)*dt);if(!dp.sentry){dp.addScaledVector(f.vel,dt);dp.x += (tx - dp.x) * kk; dp.y += (ty - dp.y) * kk; dp.z += (tz - dp.z) * kk;}
+      const kk=1-Math.exp(-(f.cue?18:8)*dt);if(!dp.sentry&&!dp.sweeper){dp.addScaledVector(f.vel,dt);dp.x += (tx - dp.x) * kk; dp.y += (ty - dp.y) * kk; dp.z += (tz - dp.z) * kk;}
       // More dynamic drone animations
       _dm.position.copy(dp); 
       _dm.rotation.set(Math.sin(t * 3 + j * 0.5) * 0.07, Math.atan2(_f.x, _f.z), Math.cos(t * 2.6 + j * 0.3) * 0.07);
       _dm.scale.setScalar(f.mode==='assault'?3.8:2.6);
+      if(dp.sweeper){const s=dp.sweeper,v=dp.flightVelocity,bank=s.phase==='cross'?WindSweeper.cross(s,sweeperLocal).bank:0;
+        const direction=s.phase==='windup'?tmp.set(s.tx-dp.x,s.ty-dp.y,s.tz-dp.z):v;
+        _dm.rotation.set(-Math.atan2(direction.y,Math.hypot(direction.x,direction.z)),Math.atan2(direction.x,direction.z),bank);_dm.scale.set(s.phase==='windup'?3.8:3.2,3.2,3.2);_dm.updateMatrix();
+        if(sweeperCount<8)sweeperMesh.setMatrixAt(sweeperCount++,_dm.matrix);_dm.scale.setScalar(0);
+      }
       if(dp.sentry){
         _dm.rotation.set(0,dp.yaw,0);_dm.scale.setScalar(1.5);_dm.updateMatrix();
         if(groundCount<8)sentryMesh.setMatrixAt(groundCount++,_dm.matrix);_dm.scale.setScalar(0);
@@ -4668,12 +4708,13 @@ function updateDrones(dt, previous = P.pos) {
       _dm.updateMatrix();
       droneMesh.setMatrixAt(k, _dm.matrix);
       _dm.position.addScaledVector(_f, dp.sentry?-1.8:1.2); _dm.position.y += dp.sentry?.6:-1.0;
-      _dm.scale.setScalar(f.flash>0?5.8:f.cue?4.2+Math.sin(f.t*24)*.5:f.mode==='assault'?3.0:2.0);
+      _dm.scale.setScalar(dp.sweeper?.phase==='windup'?4.8+Math.sin(dp.sweeper.age*25)*.7:f.flash>0?5.8:f.cue?4.2+Math.sin(f.t*24)*.5:f.mode==='assault'?3.0:2.0);
       _dm.updateMatrix(); 
       eyeMesh.setMatrixAt(k, _dm.matrix); 
       // Eye color changes based on formation mode and state
       if(f.phase==='leave')eyeMesh.setColorAt(k,EYE_PEACE);
       else if (f.peace) eyeMesh.setColorAt(k, f.eye);
+      else if(dp.sweeper?.phase==='windup')eyeMesh.setColorAt(k,EYE_LOCK);
       else if(f.flash>0)eyeMesh.setColorAt(k,EYE_SHOT);
       else if(f.cue)eyeMesh.setColorAt(k,EYE_LOCK);
       else if(dp.sentry)eyeMesh.setColorAt(k,EYE_HOSTILE);
@@ -4683,6 +4724,7 @@ function updateDrones(dt, previous = P.pos) {
     }
   }
   droneMesh.count = eyeMesh.count = k; droneMesh.instanceMatrix.needsUpdate = eyeMesh.instanceMatrix.needsUpdate = true; if (eyeMesh.instanceColor) eyeMesh.instanceColor.needsUpdate = true;
+  sweeperMesh.count=sweeperCount;if(sweeperCount)sweeperMesh.instanceMatrix.needsUpdate=true;
   sentryMesh.count=groundCount;if(groundCount)sentryMesh.instanceMatrix.needsUpdate=true;
   sfx.hum(nearest < 400 ? 1 - nearest / 400 : 0);
   updateBullets(dt, previous);
@@ -5060,8 +5102,7 @@ function releaseBow(){
   const a=arrows.find(a=>a.life<=0);if(!a)return;
   // Re-evaluate at release, so an already destroyed target never steals another arrow.
   bow.target=WindArchery.lock(bow,bowTargets());a.target=bow.target;
-  const placement=WindArchery.layout(bow.target||{x:bow.aimX,y:bow.aimY},saddleScreen(),innerWidth,innerHeight,bow.span,bow.releasePull);
-  const pose=bow.pose||placement;bow.releaseX=pose?.x??bow.x;bow.releaseY=pose?.y??bow.y;bow.releaseAngle=pose?.angle??0;bow.releaseScale=pose?.scale??0;
+  const pose=bow.pose;bow.releaseX=pose?.x??bow.x;bow.releaseY=pose?.y??bow.y;bow.releaseAngle=pose?.angle??0;bow.releaseScale=pose?.scale??0;
   a.p.copy(P.pos);a.p.y+=2.8;a.p.addScaledVector(fwd,.9);a.life=.85;
   if(a.target){a.target.d.bowIncoming=(a.target.d.bowIncoming||0)+1;a.dir.subVectors(a.target.d,a.p).normalize();}
   else {bowScreen.set((bow.steering?bow.aimX:bow.x)/innerWidth*2-1,1-(bow.steering?bow.aimY:bow.y)/innerHeight*2,.5).unproject(camera);a.dir.subVectors(bowScreen,camera.position).normalize();}
@@ -5102,16 +5143,8 @@ function drawBowSight(dt,refresh=true){
   const holding=bow.id!==null,releasing=!holding&&bow.recoil>0;
   if(holding||releasing){
     if(holding&&refresh)bow.target=WindArchery.lock(bow,bowTargets(),dt);
-    const q=holding?bow.target:null,aim={x:bow.steering?bow.aimX:q?.x??bow.x,y:bow.steering?bow.aimY:q?.y??bow.y};
-    const placement=holding?WindArchery.layout(aim,saddleScreen(),w,h,bow.span,bow.pull):null;
-    if(holding&&placement){
-      if(!bow.pose)bow.pose={...placement};else{const k=1-Math.exp(-16*Math.max(0,dt));for(const key of ['x','y','scale'])bow.pose[key]+=(placement[key]-bow.pose[key])*k;
-        bow.pose.angle+=Math.atan2(Math.sin(placement.angle-bow.pose.angle),Math.cos(placement.angle-bow.pose.angle))*k;
-        // A smaller edge fit applies immediately; interpolation must never push a limb outside the viewport.
-        if(placement.scale<bow.pose.scale)Object.assign(bow.pose,placement);
-      }
-      bow.pose=WindArchery.fitPose(bow.pose,w,h,bow.span);
-    }else if(holding)bow.pose=null;
+    const q=holding?bow.target:null;
+    if(holding)WindArchery.pose(bow,dt);
     const pose=holding?bow.pose:null,cx=holding?(pose?.x??bow.x):bow.releaseX,cy=holding?(pose?.y??bow.y):bow.releaseY,angle=holding?(pose?.angle??0):bow.releaseAngle;
     const scale=holding?(pose?.scale??0):bow.releaseScale;
     const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches,u=1-bow.recoil;
@@ -5134,7 +5167,8 @@ function drawBowSight(dt,refresh=true){
     g.lineWidth=2;g.beginPath();g.moveTo(-5,-24);g.lineTo(5,-24);g.stroke();
     for(const y of [-28,-24,-20]){g.lineWidth=1;g.beginPath();g.moveTo(-4,y);g.lineTo(4,y+1);g.stroke();}
     if(pull>.1){
-      g.lineWidth=1.4;g.beginPath();g.moveTo(0,nockY);g.lineTo(0,12);g.stroke();
+      g.lineWidth=1.4;g.beginPath();g.moveTo(0,nockY);g.lineTo(0,-36);g.stroke();
+      g.beginPath();g.moveTo(-4,-29);g.lineTo(0,-36);g.lineTo(4,-29);g.stroke();
       for(const side of [-1,1]){g.beginPath();g.moveTo(0,nockY-4);g.lineTo(side*4,nockY-10);g.stroke();}
     }
     // One short forward whip joins the release to the physical arrow's persistent world-space wake.
