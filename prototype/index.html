@@ -182,7 +182,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   #tuneSheet .card { padding: 16px; gap: 10px; }
   .camera-tuning .tune-list { gap: 6px; }
 }
-.featured-trips { display: grid; grid-template-columns:repeat(4,minmax(0,1fr));gap:7px; }
+.featured-trips { display: grid; grid-template-columns:repeat(3,minmax(0,1fr));gap:7px; }
 .featured-trips .world { position:relative;width:100%;display:grid;grid-template-columns:1fr;text-align:center;min-height:108px;border-color:var(--line);background:rgba(255,255,255,.025);color:var(--muted);padding:8px 3px;align-content:start; }
 .featured-trips .world .sw { height:44px;min-height:44px;display:grid;place-items:center;background:none; }
 .featured-trips svg { width:36px;height:36px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round; }
@@ -277,7 +277,7 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
     <p>砂漠の廃線、雪へ昇る峠道、青い湖の一周、青い都へ続く隊商路。遺された街と巨大な建造物を追い、弾の隙間をすり抜けて走る。道を離れて、広い世界へ寄り道してもいい。</p>
     <div class="row" id="vehCards"></div>
     <div class="featured-trips" id="featuredTrips"></div>
-    <p class="trip-note">アイコンから出発。草原の廃線は、アスタナの大通りにも続いています。</p>
+    <p class="trip-note">6つの出発地点。湖岸・峠・峡谷・草原の都市は、道をたどって行き来できます。</p>
     <button class="ghost wide" id="btnRandom" type="button">どこかの道から走りだす<small>地続きの旅路のどこか、道の上から</small></button>
     <details><summary>広い世界を選ぶ</summary><div class="worlds" id="worldCards"></div></details>
     <p>左右に動いて弾幕のすき間へ。上へ倒すと前傾して加速、下へ倒すとブレーキ。馬は強い切り返しで低く跳び、脚を踏み替えます。走り続けながら、美しい遠景と地続きの旅路を楽しんでください。</p>
@@ -364,7 +364,7 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 </section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="../world/featured-routes.js?v=20261026-open-pass"></script>
+<script src="../world/featured-routes.js?v=20261026-northern-road"></script>
 <script src="../world/horse-riding.js?v=20261024-bow"></script>
 <script src="../world/horse-gait.js?v=20261024-phrase"></script>
 <script src="../world/horse-sound.js?v=20261024-phrase"></script>
@@ -373,9 +373,9 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 <script src="../world/journey-climate.js?v=20261022-voyage"></script>
 <script src="../world/travel-camera.js?v=20261025-steady"></script>
 <script src="../world/horse-archery.js?v=20261025-bow-response"></script>
-<script src="../world/encounter-director.js?v=20261025-bow-flow"></script>
+<script src="../world/encounter-director.js?v=20261026-openings"></script>
 <script src="../world/sweeper.js?v=20261025-fixed-grip"></script>
-<script src="../world/patrol-score.js?v=20261025-bow-flow"></script>
+<script src="../world/patrol-score.js?v=20261026-terrain"></script>
 <script src="../world/weapon-audio.js?v=20261025-nock-burst"></script>
 <script src="../world/missiles.js?v=20261023-defence"></script>
 <script>
@@ -607,10 +607,10 @@ function mulberry(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = 
 
 // biome weights: two very-low-frequency fields blend the four worlds in quadrants
 const CELL = 3200, _cd = new Float32Array(9), _cb = new Int8Array(9);
-function biomeW(x, z, out) {
+function biomeW(x, z, out, landscape=true) {
   for (let i = 0; i < NB; i++) out[i] = 0;
   if (biomeMode !== 'journey') { out[BKEYS.indexOf(biomeMode)] = 1; return out; }
-  return journeyW(x, z, out);
+  return journeyW(x, z, out, landscape);
 }
 const lowlandZone = (z) => smooth(1800, 3600, Math.abs(z));
 // The journey has a geography: chapters do not wrap round into earlier lands.
@@ -629,7 +629,7 @@ function laneW(list, x, scale, out) {
   out[BIX[list[i][1]]] += scale * k;
   if (i > 0) out[BIX[list[i - 1][1]]] += scale * (1 - k);
 }
-function journeyW(x, z, out) {
+function journeyW(x, z, out, landscape=true) {
   const c = 1 - smooth(1500, 3300, Math.abs(z) / funnel(x)), side = 1 - c;
   laneW(LANES.centre, x, c, out);
   laneW(z > 0 ? LANES.north : LANES.south, x, side, out);
@@ -642,6 +642,7 @@ function journeyW(x, z, out) {
       out[BIX.karakol] += r * kar; out[BIX.issyk] += r * (1 - kar) * n; out[BIX.issykS] += r * (1 - kar) * (1 - n);
     }
   }
+  const canyon=landscape?TOURS.landscapeAt(x,z):null;if(canyon){const k=TOURS.canyonWeight(canyon)*.9;for(let i=0;i<NB;i++)out[i]*=1-k;out[BIX.kyzylkum]+=k*.8;out[BIX.steppe]+=k*.2;}
   return out;
 }
 // Issyk-Kul: a long lake between the mountain belt (north) and the edge range (south), on the south lane
@@ -671,7 +672,7 @@ const newW = () => new Array(NB).fill(0);
 const WATER = -18;
 const _wh = newW();
 function rawHeight(x, z) {
-  const w = biomeW(x, z, _wh);
+  const w = biomeW(x, z, _wh, false);
   let amp = 0, ridge = 0, off = 0;
   let swell = 0;
   for (let i = 0; i < NB; i++) { if (!w[i]) continue; const t = BIOMES[BKEYS[i]].terrain; amp += w[i] * t.amp; ridge += w[i] * t.ridge; off += w[i] * t.off; swell += w[i] * t.swell; }
@@ -702,6 +703,12 @@ function rawHeight(x, z) {
   if(biomeMode==='journey'&&x>34950&&x<42900){
     const a=TOURS.mountainAtX(x),gate=Math.max(smooth(34950,35280,x)*(1-smooth(37120,37450,x)),smooth(41500,41840,x)*(1-smooth(42520,42900,x)));
     if(z>a.z)terrain=lerp(terrain,a.y+3,gate*(1-smooth(65,700,z-a.z)));
+  }
+  const canyon=biomeMode==='journey'?TOURS.landscapeAt(x,z):null;
+  if(canyon)terrain=lerp(terrain,TOURS.canyonHeight(canyon,x,z),TOURS.canyonWeight(canyon));
+  if(biomeMode==='journey'&&x>43000&&x<47700){
+    const a=TOURS.mountainAtX(x),river=z-a.z-260,g=smooth(43000,43500,x)*(1-smooth(47200,47700,x));
+    terrain=lerp(terrain,a.y-5,g*(1-smooth(24,60,Math.abs(river))));
   }
   return terrain;
 }
@@ -747,7 +754,8 @@ function highway(x, z) {
 }
 // the road's own height: only the land's long swell, never below the water
 function deckAt(x, z) {
-  const w = biomeW(x, z, _wb.length ? _wb : (_wb.length = NB, _wb.fill(0)));
+  // Scenic palette overlays must never move a road whose junctions were already constructed.
+  const w = biomeW(x, z, _wb.length ? _wb : (_wb.length = NB, _wb.fill(0)), false);
   let amp = 0, off = 0; for (let i = 0; i < NB; i++) { if (!w[i]) continue; const t = BIOMES[BKEYS[i]].terrain; amp += w[i] * t.amp; off += w[i] * t.off; }
   const big = vnoise(x / 1700 + 3.1, z / 1700 - 8.4, 61) * 2 - 1;
   const gk = biomeMode === 'journey' ? smooth(X_GOAL - 7000, X_GOAL - 2000, x) * 0.92 : 0;
@@ -776,7 +784,7 @@ const surfaceAt = (x, z) => Math.max(heightAt(x, z), WATER);
 const RS = 1440;
 const roadZ = (j, x) => j * RS + 70 * Math.sin(x / 650 + j * 1.7) + 26 * Math.sin(x / 233 + j);
 const roadX = (i, z) => i * RS + 70 * Math.sin(z / 610 + i * 2.3) + 26 * Math.sin(z / 251 + i);
-const minorOn = (x, z) => biomeMode !== 'journey' || (x > EDGE_BACK + 400 && x < X_GOAL - 1800 && Math.abs(z) < halfW(x) - 900 && lakeE(x, z) > 1.18 && !(x>32000&&x<48700&&Math.abs(z-TOURS.mountainAtX(x).z)<1400));
+const minorOn = (x, z) => biomeMode !== 'journey' || (x > EDGE_BACK + 400 && x < X_GOAL - 1800 && Math.abs(z) < halfW(x) - 900 && lakeE(x, z) > 1.18 && !TOURS.landscapeAt(x,z) && !(x>32000&&x<48700&&Math.abs(z-TOURS.mountainAtX(x).z)<1400));
 function roadDist(x, z) { return minorOn(x, z) ? Math.min(Math.abs(z - roadZ(Math.round(z / RS), x)), Math.abs(x - roadX(Math.round(x / RS), z))) : Infinity; }
 
 // ---------------------------------------------------------------- the abandoned line
@@ -883,6 +891,7 @@ function tintLand(colour, offset, x, z, weights, height) {
     for(let k=0;k<3;k++){colour[offset+k]=lerp(colour[offset+k],[.43,.60,.35][k],weather.region*(1-weather.snow)*.60);colour[offset+k]=lerp(colour[offset+k],[.87,.91,.94][k],snow);}
   }
   if(biomeMode==='journey'){
+    const canyon=TOURS.landscapeAt(x,z);if(canyon){const weight=TOURS.canyonWeight(canyon)*.85,bank=smooth(100,400,canyon.d);for(let j=0;j<3;j++)colour[offset+j]=lerp(colour[offset+j],lerp([.62,.58,.39][j],[.71,.42,.28][j],bank),weight);}
     const k=smooth(53500,55500,x)*(1-smooth(62500,64700,x))*(1-smooth(700,1800,Math.abs(z-railZ(x)-350)))*.42;
     for(let j=0;j<3;j++)colour[offset+j]=lerp(colour[offset+j],[.67,.62,.44][j],k);
   }
@@ -1007,14 +1016,14 @@ function prepareJourneyNetwork(){
     }
     for(const seg of path.segments)seg.grade=(seg.b.y-seg.a.y)/seg.length;
   }
-  TOURS.junctions=[{...lake,name:'天山の峠へ →',path:'lake-pass'},
+  TOURS.junctions.push({...lake,name:'天山の峠へ →',path:'lake-pass'},
     {...railNode,name:'湖岸 ↔ 天山の峠',path:'lake-pass'},
     {...entrance,name:'← 湖岸と廃線',path:'mountain'},
     {...exit,name:'砂漠の廃線へ →',path:'pass-line'},
     {...east,name:'← 山道と湖岸',path:'pass-line'},
     {x:54000,z:railZ(54000),y:railY(54000),name:'アスタナの大通り →',path:'astana'},
     {x:63500,z:railZ(63500),y:railY(63500),name:'← 草原の未来都市',path:'astana'},
-    {x:52000,z:railZ(52000),y:railY(52000),name:'サマルカンドへ →',path:'silk'}];
+    {x:52000,z:railZ(52000),y:railY(52000),name:'サマルカンドへ →',path:'silk'});
   biomeMode=before;
 }
 prepareJourneyNetwork();
@@ -1045,6 +1054,7 @@ function prepareRoamingRoutes(){
   biomeMode=before;
 }
 prepareRoamingRoutes();
+TOURS.addNorthernRoad();
 
 // ---------------------------------------------------------------- renderer / scene
 const app = $('#app');
@@ -2201,7 +2211,54 @@ function buildChunkWinds(ch, rng) {
 }
 
 // ---------------------------------------------------------------- featured roads and remembered skylines
+const canyonWaterMat=new THREE.MeshLambertMaterial({vertexColors:true,transparent:true,opacity:.88});SHARED.add(canyonWaterMat);
 const shelterMat=new THREE.MeshLambertMaterial({vertexColors:true,emissive:0x252a30});SHARED.add(shelterMat);
+function buildMountainRiver(ch){
+  if(biomeMode!=='journey')return;
+  const water=new Merger(),trees=new Merger(),path=TOURS.paths.find(p=>p.id==='mountain');
+  for(const seg of path.segments){
+    const x=(seg.a.x+seg.b.x)/2,z=(seg.a.z+seg.b.z)/2+260;
+    if(x<43000||x>47700||Math.floor(x/CH)!==ch.cx||Math.floor(z/CH)!==ch.cz)continue;
+    const vertex=(p,side)=>{const width=24*smooth(43000,43500,p.x)*(1-smooth(47200,47700,p.x));return new V3(p.x,p.y-3.2,p.z+260+side*width);};
+    const a=vertex(seg.a,-1),b=vertex(seg.a,1),c=vertex(seg.b,-1),d=vertex(seg.b,1);
+    if(![a,b,c,d].some(q=>tourReserved(q.x,q.z,24)||lineReserved(q.x,q.z,24)||highway(q.x,q.z).d<HW_HALF+24)){water.tri(a,c,b,0x82b9b7);water.tri(b,c,d,0x82b9b7);}
+    if(seg.index%9!==0)continue;
+    for(let i=0;i<5;i++){
+      const tx=x+(hash(seg.index,i,1994)-.5)*75,tz=z+(i%2?-1:1)*(70+hash(seg.index,i,1995)*130);
+      if(tourReserved(tx,tz,28)||lineReserved(tx,tz,24)||highway(tx,tz).d<HW_HALF+24)continue;
+      const base=heightAt(tx,tz),h=13+hash(seg.index,i,1996)*13;
+      trees.add(G.cyl,M(tx,base+h*.35,tz,0,.55,h*.7,.55),0x766b55);trees.add(G.cone,M(tx,base+h*.6,tz,0,4.5,h*.9,4.5),0x4f6c60);
+      addCollider(tx,tz,0,.55,.55,base,base+h*.7);
+    }
+  }
+  for(const [m,mat,tag]of [[water,canyonWaterMat,'chychkan-river'],[trees,propMat,'chychkan-grove']])if(m.p.length){const mesh=new THREE.Mesh(m.build(),mat);mesh.userData.surface=tag;ch.group.add(mesh);}
+}
+function buildCanyon(ch){
+  if(biomeMode!=='journey')return;
+  const path=TOURS.paths.find(p=>p.id==='charyn'),rocks=new Merger(),river=new Merger();
+  for(const seg of path.segments){
+    const x=(seg.a.x+seg.b.x)/2,z=(seg.a.z+seg.b.z)/2;
+    if(Math.floor(x/CH)!==ch.cx||Math.floor(z/CH)!==ch.cz||seg.s<1800||seg.s>path.length-1800)continue;
+    const p=TOURS.at(path,seg.s+seg.length*.5),yaw=Math.atan2(seg.tx,seg.tz);
+    const vertex=(q,off)=>new V3(q.x+q.nx*off,q.y-3.2,q.z+q.nz*off);
+    const a=vertex(seg.a,138),b=vertex(seg.a,182),c=vertex(seg.b,138),d=vertex(seg.b,182);
+    if(![a,b,c,d].some(q=>tourReserved(q.x,q.z,20)||lineReserved(q.x,q.z,24)||highway(q.x,q.z).d<HW_HALF+24)){
+      river.tri(a,c,b,0x76acaa);river.tri(b,c,d,0x76acaa);
+    }
+    if(seg.index%42!==0)continue;
+    for(const side of [-1,1]){
+      const off=side*(250+hash(seg.index,side,1991)*90),rx=p.x-p.tz*off,rz=p.z+p.tx*off;
+      if(tourReserved(rx,rz,85)||lineReserved(rx,rz,85)||highway(rx,rz).d<HW_HALF+85)continue;
+      const base=heightAt(rx,rz)-6,h=78+hash(seg.index,side,1992)*90;
+      for(let tier=0;tier<4;tier++){
+        const width=58-tier*9,depth=46-tier*6,lo=base+tier*h/4,hi=lo+h/4+1;
+        rocks.add(G.taper8,M(rx,(lo+hi)/2,rz,yaw+Math.sin(tier*2+seg.index)*.06,width*.58,hi-lo,depth*.58),[0xa66f50,0xbb8c67,0xa97151,0xc49971][tier]);
+        addCollider(rx,rz,yaw,width*.58,depth*.58,lo,hi);
+      }
+    }
+  }
+  for(const [merger,material,tag]of [[rocks,propMat,'canyon-rock'],[river,canyonWaterMat,'canyon-river']])if(merger.p.length){const mesh=new THREE.Mesh(merger.build(),material);mesh.userData.surface=tag;ch.group.add(mesh);}
+}
 function buildFeaturedRoad(ch) {
   if (biomeMode !== 'journey') return;
   const road = new Merger(), stone = new Merger(), paint = new THREE.Color(0xcfc6ad), asphalt = new THREE.Color(0x646461),snowRoad=new THREE.Color(0xb0b9bd);
@@ -2351,6 +2408,7 @@ function buildFeaturedVista() {
     const path=TOURS.paths.find(p=>p.id==='silk'),p=TOURS.at(path,path.length*fraction);addSite(p.x-p.tz*side,p.z+p.tx*side,style,scale);
   }
   const reveals={mountain:['jailoo','balbal','caravan','aqueduct','jailoo','caravan','balbal','jailoo'],lake:['balbal','jailoo','aqueduct','caravan','jailoo','balbal','caravan','aqueduct','jailoo','balbal','jailoo','caravan'],
+    charyn:['balbal','caravan','aqueduct','balbal','caravan','station','balbal','caravan'],
     'lake-pass':['caravan','balbal','jailoo','aqueduct'],'pass-line':['balbal','caravan'],silk:['palace','caravan','balbal','aqueduct','bluegate','caravan','bluegate']};
   for(const path of TOURS.paths) {
     const styles=reveals[path.id];if(!styles)continue;
@@ -2374,10 +2432,12 @@ function buildFeaturedVista() {
     for(let j=0;j<=rows;j++)for(let i=0;i<=cols;i++) {
       const x=region.x-region.span/2+i*region.span/cols,z=region.z+region.side*j*650;
       const envelope=Math.pow(Math.sin(j/rows*Math.PI),1.3),height=(1000+1000*vnoise(x/1100,j*.4+region.x,947)+330*vnoise(x/340,j*.8,948))*envelope-250*(1-envelope);
-      points.push(new V3(x,height,z));
+      const canyon=TOURS.landscapeAt(x,z),ridge=canyon?lerp(height,Math.min(height,rawHeight(x,z)-50),TOURS.canyonWeight(canyon)):height;
+      points.push(new V3(x,ridge,z));
     }
     for(let j=0;j<rows;j++)for(let i=0;i<cols;i++) {
       const a=points[j*(cols+1)+i],b=points[j*(cols+1)+i+1],c=points[(j+1)*(cols+1)+i],d=points[(j+1)*(cols+1)+i+1];
+      if([a,b,c,d].some(p=>tourReserved(p.x,p.z,140)))continue;
       const h=(a.y+b.y+c.y+d.y)/4;colour.copy(rock).lerp(snow,smooth(1100,1700,h)).multiplyScalar(.94+.06*vnoise(i*.2,j*.2,949));
       peaks.tri(a,c,b,colour);peaks.tri(b,c,d,colour);
     }
@@ -2471,7 +2531,8 @@ function featuredCards() {
       const b=document.createElement('button');b.type='button';b.className='world';b.dataset.journeyRoute=r.id;b.setAttribute('aria-pressed',String(started&&featured===r.id&&biomeMode==='journey'));
       b.setAttribute('aria-label',r.name+'から出発');b.title=r.name+' — '+r.sub;
       const icons={desert:'<path d="M9 31l5-12h12l5 12M12 25h16M10 29h20M15 19V9h10v10M15 13h10M18 9V6h4v3"/>',mountain:'<path d="M3 29L14 8l6 10 5-7 12 18M10 29v-6a10 10 0 0120 0v6M17 29v-6a3 3 0 016 0v6M11 14l3 3 3-3"/>',lake:'<path d="M3 17L11 7l7 9 7-10 12 12M3 23q5-4 10 0t10 0 14 0M3 29q5-4 10 0t10 0 14 0"/>',silk:'<path d="M4 31V17h10v14M15 31V11h10v20M26 31V17h10v14M17 31V21a3 3 0 016 0v10M3 17q6-12 12 0M25 17q6-12 12 0M17 11q3-10 6 0"/>'};
-      const labels={desert:'砂漠の廃線',mountain:'ビシュケク<br>オシュ',lake:'イシク・クル',silk:'ドゥシャンベ<br>サマルカンド'};
+      icons.astana='<path d="M5 33h30M16 33l2-17h4l2 17M13 13a7 7 0 1114 0 7 7 0 01-14 0M4 28l5-9 5 9M28 31V18h6v13"/>';icons.charyn='<path d="M3 32l3-21h7l3 12M37 32l-3-21h-7l-3 12M6 17h7M27 17h7M15 36q-4-7 5-13t2-17M24 36q-4-6 3-12"/>';
+      const labels={astana:'草原とアスタナ',charyn:'シャリン峡谷',desert:'砂漠の廃線',mountain:'ビシュケク<br>オシュ',lake:'イシク・クル',silk:'ドゥシャンベ<br>サマルカンド'};
       b.innerHTML='<div class="sw"><svg viewBox="0 0 40 40" aria-hidden="true">'+icons[r.id]+'</svg></div><span><b>'+labels[r.id]+'</b><em></em></span>';b.querySelector('em').textContent=r.sub;
       b.addEventListener('click',()=>{featured=r.id;if(!started)begin(false);else{travelFeatured(r.id);closeSheet('#menuSheet');}});box.append(b);
     }
@@ -2491,7 +2552,7 @@ function travelFeatured(id) {
   featured=id;biomeMode='journey';store.set('windlover.world4','journey');clearShells();clearDrones();
   let x,z,yaw;
   if(definition.rail){x=definition.x;z=railZ(x);yaw=Math.atan2(1,railZd(x));}
-  else {const path=TOURS.paths.find(p=>p.id===id),p=TOURS.at(path,path.length*(id==='lake'?.53:.025));x=p.x;z=p.z;yaw=Math.atan2(p.tx,p.tz);}
+  else {const path=TOURS.paths.find(p=>p.id===id),p=TOURS.at(path,path.length*(definition.start??(id==='lake'?.53:.025)));x=p.x;z=p.z;yaw=Math.atan2(p.tx,p.tz);}
   P.pos.set(x,0,z);rebuildAll();placeAt(x,z,yaw,vehKey==='horse'?Math.max(8,S.cruise*.9):Math.max(52,S.cruise*1.2));
   Object.assign(P,{dead:false,hull:3,stalled:false,reached:false,flow:.25,routeTrack:null,routeOffset:0,invuln:4,lean:0,leanV:0,sway:0,hold:0,stopT:0,barrage:false});
   inp.jx=inp.jy=inp.kx=inp.ky=0;inp.keys={};steerSm=0;camBaseY=P.pos.y;suspY=suspV=0;updatePalette(0,true);refreshCards();toast(definition.name,'道の先へ',2200);
@@ -2514,6 +2575,8 @@ function* chunkSteps(ch, rng) {
   buildChunkRoads(ch, rng); yield;
   buildChunkHighway(ch); yield;
   buildFeaturedRoad(ch); yield;
+  buildCanyon(ch); yield;
+  buildMountainRiver(ch); yield;
   buildChunkRailway(ch); yield;
   yield* propSteps(ch, rng);
   buildChunkWinds(ch, rng); yield;
@@ -4243,8 +4306,10 @@ const routeHeat = () => biomeMode === 'journey' ? lowlandZone(P.pos.z / funnel(P
 function updateEncounters(dt){
   const road=rideRoute(P.pos.x,P.pos.z,P.pos.y);let bend=0;
   if(road.path){const dir=P.vel.x*road.tx+P.vel.z*road.tz>=0?1:-1,a=TOURS.at(road.path,road.s+dir*clamp(P.vel.length()*.75,45,110));bend=Math.atan2(road.tx*a.tz-road.tz*a.tx,road.tx*a.tx+road.tz*a.tz);}
-  WindEncounters.advance(encounter,dt,{enabled:shellsOn,dead:P.dead,sheltered:P.inTunnel,region:musicRegion(),hull:P.hull,bend,cleared:encounter.phase==='combat'&&!forms.some(f=>!f.peace&&!f.scout&&f.phase!=='leave')});
-  if(encounter.phase==='scenic'&&encounter.elapsed>5&&encounter.scoutCycle!==encounter.cycle&&!P.inTunnel&&shellsOn&&!P.dead){spawnFormation('scout');encounter.scoutCycle=encounter.cycle;}
+  let opening=Math.abs(bend)<.28;
+  if(road.path){const dir=P.vel.x*road.tx+P.vel.z*road.tz>=0?1:-1;for(const distance of [220,440,650]){const a=TOURS.at(road.path,road.s+dir*distance),turn=Math.abs(Math.atan2(road.tx*a.tz-road.tz*a.tx,road.tx*a.tx+road.tz*a.tz));if(turn>.34||a.y-P.pos.y>distance*.18)opening=false;}}
+  WindEncounters.advance(encounter,dt,{opening,enabled:shellsOn,dead:P.dead,sheltered:P.inTunnel,region:musicRegion(),hull:P.hull,bend,cleared:encounter.phase==='combat'&&!forms.some(f=>!f.peace&&!f.scout&&f.phase!=='leave')});
+  if(encounter.phase==='scenic'&&encounter.elapsed>5&&opening&&encounter.scoutCycle!==encounter.cycle&&!P.inTunnel&&shellsOn&&!P.dead){spawnFormation('scout');encounter.scoutCycle=encounter.cycle;}
   if(encounter.event==='warning'){
     toast('無人警戒網、起動','機械だけが、道を見張っている',1900);sfx.weapon('acquire',{gain:.40});
     if(!forms.some(f=>f.mode==='assault'))spawnFormation('assault');
@@ -4505,12 +4570,15 @@ const EYE_PEACES = [0xa8f0e8, 0xf4e2a8, 0xd6c4ff, 0xc8f0b0, 0xffd0dc].map((h) =>
 function spawnFormation(forceMode) {
   const hs = Math.hypot(P.vel.x, P.vel.z) || 1, fx = hs>1?P.vel.x / hs:fwd.x, fz = hs>1?P.vel.z / hs:fwd.z;
   const mode = forceMode || 'pass';
-  const score=mode==='scout'?{total:2,sky:2,altitude:55,skyScale:1,slots:[{side:-28,height:-16,depth:0},{side:28,height:12,depth:25}]}:mode==='assault'?WindPatrolScore.plan(encounter.cycle,true,innerWidth/innerHeight):null;
+  const patrolRoad=mode==='assault'?rideRoute(P.pos.x,P.pos.z,P.pos.y):null,landscape=patrolRoad?.path?.landscape||musicRegion();
+  const score=mode==='scout'?{total:2,sky:2,altitude:55,skyScale:1,slots:[{side:-28,height:-16,depth:0},{side:28,height:12,depth:25}]}:mode==='assault'?WindPatrolScore.plan(encounter.cycle,true,innerWidth/innerHeight,landscape):null;
   const type = score?'patrol':FORM_TYPES[Math.random() * FORM_TYPES.length | 0], n = score?score.total:FORM_N[type];
   // scenic approach: rise over the horizon far ahead, slightly off your line, and come on slowly
   const side = mode === 'flyby' ? (Math.random() < 0.5 ? -1 : 1) * (700 + Math.random() * 300) : (Math.random() - 0.5) * 24;
   const dist = mode==='scout'?390:mode === 'assault' ? 690 : mode === 'pass' ? 1400 : mode === 'flyby' ? 450 + Math.random() * 700 : -420;
-  const pos = new V3(P.pos.x + fx * dist - fz * side, 0, P.pos.z + fz * dist + fx * side);
+  const road=score?rideRoute(P.pos.x,P.pos.z,P.pos.y):null,dir=road&&road.tx*fx+road.tz*fz<0?-1:1;
+  const approach=road?.path?TOURS.at(road.path,road.s+dir*dist):null;
+  const pos = new V3((approach?.x??P.pos.x+fx*dist)-fz*side,0,(approach?.z??P.pos.z+fz*dist)+fx*side);
   pos.y = surfaceAt(pos.x, pos.z) + (score?score.altitude:mode === 'pass' ? 70 + Math.random() * 30 : mode === 'flyby' ? 60 + Math.random() * 90 : 34 + Math.random() * 20);
   // flybys cross your path far off, slowly, like birds; they never fire
   const vel = mode === 'pass' ? new V3(-fx, 0, -fz).multiplyScalar(34) : mode === 'flyby' ? new V3(fz, 0, -fx).multiplyScalar(Math.sign(side) * (28 + Math.random() * 12)) : new V3(fx, 0, fz).multiplyScalar(45);
@@ -4533,7 +4601,7 @@ function spawnFormation(forceMode) {
     // A cut, viaduct, shoreline or building is not a suitable emplacement. Keep an aerial slot instead.
     if(Math.abs(floor-deck)<10&&margin>5&&floor>WATER+2&&clear){
       const d=f.drones[n-1];d.set(sx,floor+3.45,sz);d.sentry=true;d.yaw=Math.atan2(-tx,-tz);
-    }else f.score=WindPatrolScore.plan(encounter.cycle,false,innerWidth/innerHeight);
+    }else f.score=WindPatrolScore.plan(encounter.cycle,false,innerWidth/innerHeight,landscape);
   }
   if(mode==='assault'){const wing=f.drones.filter(d=>!d.sentry).at(-1);if(wing){wing.sweeper=WindSweeper.create(encounter.cycle%2?1:-1);wing.flightVelocity=new V3();}f.launchers=f.drones.filter(d=>!d.sweeper);}
   for(const d of f.drones)if(!d.sentry)clearEnemyBody(d);

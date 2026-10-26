@@ -18,12 +18,12 @@ try:
    source=(root/'prototype/index.html').read_text().replace('window.__wl = {','window.__voyageQA={models,VEHICLES,renderer,camera,skyMat,horseWake,updateVisuals,updatePalette,tintLand,newW,biomeW,get vista(){return featuredVista},get paused(){return paused},set paused(v){paused=v}};\nwindow.__wl = {');r.fulfill(body=source,content_type='text/html')
   page.route('**/prototype/',probe);page.goto(f'http://127.0.0.1:{server.server_port}/',timeout=120000);page.wait_for_function('window.__wl')
   report={'menu':page.evaluate('''()=>{const buttons=[...document.querySelectorAll('#featuredTrips button')],r=buttons.map(b=>b.getBoundingClientRect());
-   if(buttons.length!==4||buttons.some(b=>b.getAttribute('aria-pressed')!=='false')||buttons.some(b=>!b.querySelector('svg')))throw Error('Unclear initial route selection');
-   if(Math.max(...r.map(x=>x.y))-Math.min(...r.map(x=>x.y))>1||r.at(-1).right>innerWidth)throw Error('Four icons do not fit the mobile row');
-   return {icons:4,initiallyUnselected:true,row:r.map(x=>({x:x.x,y:x.y,width:x.width,height:x.height}))};}''')}
+   if(buttons.length!==6||buttons.some(b=>b.getAttribute('aria-pressed')!=='false')||buttons.some(b=>!b.querySelector('svg')))throw Error('Unclear initial route selection');
+   if(r.some(x=>x.left<0||x.right>innerWidth||x.width<70)||new Set(r.map(x=>Math.round(x.y))).size!==2)throw Error('Six icons do not fit two mobile rows');
+   return {icons:6,initiallyUnselected:true,row:r.map(x=>({x:x.x,y:x.y,width:x.width,height:x.height}))};}''')}
   page.screenshot(path=str(args.out/'menu.png'));page.locator('#featuredTrips [data-journey-route="silk"]').click(timeout=120000);page.locator('#btnMenu').click()
   report['geometry']=page.evaluate('''()=>{const w=__wl,q=__voyageQA,check=(v,s)=>{if(!v)throw Error(s)},results=[];
-   check(w.featured==='silk'&&w.tours.definitions.length===4,'Fourth departure failed');
+   check(w.featured==='silk'&&w.tours.definitions.length===6,'Fourth departure failed');
    check(document.querySelectorAll('#featuredTrips2 [aria-pressed="true"]').length===1,'Selection has no single visual state');
    for(const id of ['silk','astana']){const path=w.tours.paths.find(p=>p.id===id);let grade=0,error=0;
     for(const seg of path.segments){const p=w.tours.at(path,seg.s+seg.length*.5),g=w.ground(p.x,p.z,p.y+1.3);grade=Math.max(grade,Math.abs(seg.grade));error=Math.max(error,Math.abs(g.h-p.y-.14));}

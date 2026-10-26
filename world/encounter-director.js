@@ -1,13 +1,15 @@
 /* Forward patrols: read a distant salvo, ride into bow range, then leave the view quiet. */
 (() => {
-  function create(){return {phase:'scenic',elapsed:0,duration:13,cycle:0,scoutCycle:-1,weapon:null,fire:false,event:null,blocked:false,pressure:0};}
+  function create(){return {phase:'scenic',elapsed:0,duration:13,cycle:0,scoutCycle:-1,weapon:null,fire:false,event:null,blocked:false,pressure:0,openingWait:0};}
   function rest(region,cycle,hull){return ({lake:14,mountain:23,desert:18,city:18,steppe:20}[region]||28)+(cycle%3)*2+(hull<2?9:0);}
-  function advance(s,dt,{enabled=true,dead=false,sheltered=false,region='steppe',hull=3,bend=0,cleared=false}={}){
+  function advance(s,dt,{enabled=true,dead=false,sheltered=false,region='steppe',hull=3,bend=0,cleared=false,opening=true}={}){
     s.event=null;if(!(dt>0))return s;
-    if(!enabled||dead||sheltered){if(!s.blocked)s.event='clear';Object.assign(s,{blocked:true,phase:'scenic',elapsed:0,duration:12,weapon:null,fire:false,pressure:0});return s;}
+    if(!enabled||dead||sheltered){if(!s.blocked)s.event='clear';Object.assign(s,{blocked:true,phase:'scenic',elapsed:0,duration:12,weapon:null,fire:false,pressure:0,openingWait:0});return s;}
     s.blocked=false;s.elapsed+=dt;
     if(s.phase==='combat'&&cleared&&s.elapsed>1.5)s.duration=Math.min(s.duration,s.elapsed);
+    if(s.phase==='scenic'&&s.elapsed>=s.duration&&!opening&&s.openingWait<6){s.openingWait+=dt;s.elapsed=s.duration;return s;}
     if(s.elapsed>=s.duration){
+      s.openingWait=0;
       s.elapsed=0;
       if(s.phase==='scenic'){s.phase='warning';s.duration=2.6;s.event='warning';}
       else if(s.phase==='warning'){s.phase='combat';s.duration=hull<2?24:32;s.event='engage';}

@@ -43,7 +43,7 @@ try:
    __emitBow('pointerdown',82,t.x,t.y);__emitBow('pointermove',82,t.x,t.y+170);__readySounds=0;q.updateArchery(.12);if(__readySounds)throw Error('Early recovery cue');q.updateArchery(.13);if(__readySounds!==1||!b.readyCue)throw Error('A stationary prepared draw never became ready');for(let i=0;i<30;i++)q.updateArchery(1/60);if(__readySounds!==1)throw Error('Repeated held-ready cue');
    const before=b.shots;__emitBow('pointermove',82,t.x,t.y);__emitBow('pointermove',82,t.x,t.y+170);if(__readySounds!==2)throw Error('Let-down could not rearm feedback');__emitBow('pointercancel',82,t.x,t.y+170);if(b.shots!==before)throw Error('Cancel fired a prepared shot');return true;}''')
   report['ridingDraws']=page.evaluate('''()=>{const w=__wl,q=__responseQA,out=[];if(q.sfx.on)q.sfx.toggle();
-   for(const route of ['desert','mountain','lake','silk']){
+   for(const route of ['desert','mountain','lake','silk','astana','charyn']){
     w.travelFeatured(route);q.paused=false;w.P.invuln=0;const startHits=w.archery.hits,startShots=w.archery.shots,start=w.P.pos.clone();let lane=0,lastCount=0,nextShot=0,draw=null,minHull=3,maxOff=0;
     for(let i=0;i<90*20;i++){
      const now=i*.05,r=w.rideRoute(w.P.pos.x,w.P.pos.z,w.P.pos.y),right=new THREE.Vector3(-Math.cos(w.P.yaw),0,Math.sin(w.P.yaw)),offset=(w.P.pos.x-r.cx)*right.x+(w.P.pos.z-r.cz)*right.z;

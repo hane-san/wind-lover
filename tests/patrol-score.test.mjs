@@ -36,3 +36,12 @@ test('cruise paths weave without changing their frozen endpoint across frame rat
  }
  const p=score.plan(1);assert.ok(p.slots.some(s=>p.altitude+s.height<40));assert.ok(p.slots.some(s=>p.altitude+s.height>150));
 });
+
+test('regional patrols adapt to the skyline without increasing the number or changing frozen trajectories',()=>{
+ for(const region of ['canyon','mountain','lake','city'])for(const aspect of [.46,2.16]){
+  const p=score.plan(3,true,aspect,region),base=score.plan(3,true,aspect);
+  assert.equal(p.total,base.total);assert.equal(p.sentry,base.sentry);assert.deepEqual(p.slots.map(x=>x.depth),base.slots.map(x=>x.depth));
+  assert.ok(p.slots.every(x=>Number.isFinite(x.height+x.side)&&Math.abs(x.side)<=60));assert.ok(p.altitude+p.slots[0].height>10);
+ }
+ assert.ok(score.plan(0,true,.5,'canyon').altitude<score.plan(0).altitude);
+});

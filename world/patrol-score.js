@@ -1,11 +1,13 @@
 /* A distant defence patrol draws a readable phrase across the sky, then yields to the bow. */
 (() => {
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  function plan(cycle=0,ground=true,aspect=.5){
+  function plan(cycle=0,ground=true,aspect=.5,landscape='open'){
     const total=5+cycle%2,sentry=ground&&cycle>0&&cycle%3!==0,sky=total-(sentry?1:0);
     const skyScale=clamp(1/Math.max(.1,aspect),.58,1);
-    return {total,sentry,sky,skyScale,altitude:76*skyScale,
-      slots:Array.from({length:sky},(_,i)=>({side:[-42,0,42,-24,24,60][i],height:[-40,80,38,-26,104,54][i]*skyScale,depth:[-100,20,-36,-60,35,60][i]}))};
+    const spread=landscape==='canyon'?.78:landscape==='mountain'?.86:landscape==='city'?.82:1;
+    const altitude=({canyon:62,mountain:84,lake:82,city:88}[landscape]||76)*skyScale;
+    return {total,sentry,sky,skyScale,altitude,
+      slots:Array.from({length:sky},(_,i)=>({side:[-42,0,42,-24,24,60][i]*spread,height:[-40,80,38,-26,104,54][i]*skyScale,depth:[-100,20,-36,-60,35,60][i]}))};
   }
   // Three separated readings overlap the bow, with clear recovery between permissions.
   const salvoGap=1.3,cueTime=.62,limit=3;
