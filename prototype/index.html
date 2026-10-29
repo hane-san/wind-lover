@@ -276,7 +276,7 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
     <h1 class="title">Wind Lover</h1>
     <p>砂漠の廃線、雪へ昇る峠道、青い湖の一周、青い都へ続く隊商路。遺された街と巨大な建造物を追い、弾の隙間をすり抜けて走る。道を離れて、広い世界へ寄り道してもいい。</p>
     <div class="row" id="vehCards"></div>
-    <div class="featured-trips" id="featuredTrips"></div>
+    <div class="featured-trips" id="featuredTrips"></div><button class="ghost wide" id="realmWarp" type="button">旅の門：日本・東南アジアへ</button>
     <p class="trip-note">6つの出発地点。湖岸・峠・峡谷・草原の都市は、道をたどって行き来できます。</p>
     <button class="ghost wide" id="btnRandom" type="button">どこかの道から走りだす<small>地続きの旅路のどこか、道の上から</small></button>
     <details><summary>広い世界を選ぶ</summary><div class="worlds" id="worldCards"></div></details>
@@ -292,7 +292,7 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
       <div><b id="recFind">0</b><span>見つけたもの</span></div>
       <div><b id="recMote">0</b><span>風の欠片</span></div>
     </div>
-    <div class="featured-trips" id="featuredTrips2"></div>
+    <div class="featured-trips" id="featuredTrips2"></div><button class="ghost wide" id="realmWarp2" type="button">旅の門：日本・東南アジアへ</button><details id="monsoonStops" hidden><summary>日本・南の海の出発地点</summary><div class="worlds" id="monsoonChoices"></div></details>
     <p class="trip-note">出発地点を選ぶと移動します。旅路は道でつながっています。</p>
     <fieldset class="music-settings" id="musicSettings" disabled>
       <legend>旅の音楽</legend>
@@ -364,9 +364,10 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 </section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="../world/monsoon-world.js?v=20261029-monsoon"></script>
 <script src="../world/scenic-journey.js?v=20261029-voyage"></script>
 <script src="../world/route-guidance.js?v=20261029-voyage"></script>
-<script src="../world/featured-routes.js?v=20261029-voyage"></script>
+<script src="../world/featured-routes.js?v=20261029-monsoon"></script>
 <script src="../world/horse-riding.js?v=20261024-bow"></script>
 <script src="../world/horse-gait.js?v=20261024-phrase"></script>
 <script src="../world/horse-sound.js?v=20261024-phrase"></script>
@@ -391,7 +392,7 @@ const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t
 const $ = (s) => document.querySelector(s);
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 const LOWQ = isTouch;
-const TOURS = WindRoutes;let NAV=null;
+const TOURS = WindRoutes;let NAV=null;let realm='central';const MON=WindMonsoon;
 let featured = 'desert';
 const tourAt = (x, z) => biomeMode === 'journey' ? TOURS.nearest(x, z) : null;
 const tourReserved = (x, z, pad = 0) => { const r = tourAt(x, z); return r && r.d < r.half + pad; };
@@ -614,6 +615,7 @@ function mulberry(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = 
 // biome weights: two very-low-frequency fields blend the four worlds in quadrants
 const CELL = 3200, _cd = new Float32Array(9), _cb = new Int8Array(9);
 function biomeW(x, z, out, landscape=true) {
+  if(realm==='monsoon'){const q=MON.stage(x,z);out.fill(0);out[BIX[q.previous.key]]=1-q.blend;out[BIX[q.key]]+=q.blend;return out;}
   for (let i = 0; i < NB; i++) out[i] = 0;
   if (biomeMode !== 'journey') { out[BKEYS.indexOf(biomeMode)] = 1; return out; }
   return journeyW(x, z, out, landscape);
@@ -654,7 +656,7 @@ function journeyW(x, z, out, landscape=true) {
 // Issyk-Kul: a long lake between the mountain belt (north) and the edge range (south), on the south lane
 const LK = { x: 15500, z: -5000, a: 8000, b: 1250 };
 function lakeE(x, z) {
-  if (biomeMode !== 'journey') return 99;
+  if (biomeMode !== 'journey'||realm==='monsoon') return 99;
   const u = (x - LK.x) / LK.a, v = (z / funnel(x) - LK.z) / LK.b; return u * u + v * v;
 }
 // the south-shore highway swings wide around the lake
@@ -678,6 +680,7 @@ const newW = () => new Array(NB).fill(0);
 const WATER = -18;
 const _wh = newW();
 function rawHeight(x, z) {
+  if(realm==='monsoon')return MON.terrain(x,z);
   const w = biomeW(x, z, _wh, false);
   let amp = 0, ridge = 0, off = 0;
   let swell = 0;
@@ -744,9 +747,9 @@ const HS = 3200, HW_HALF = 14;
 const hwZ = (j, x) => (j * HS + 260 * Math.sin(x / 1900 + j * 1.3) + 90 * Math.sin(x / 700 + j * 2.1) - (j === -2 ? lakeBend(x) : 0)) * funnel(x);
 const hwZd = (j, x) => (hwZ(j, x + 2) - hwZ(j, x - 2)) / 4;
 // where a highway runs at all: rows stop just past the goal; columns keep off the edge walls and the last approach
-const rowOn = (x) => biomeMode !== 'journey' || x < X_GOAL + 400;
+const rowOn = (x) => realm!=='monsoon' && (biomeMode !== 'journey' || x < X_GOAL + 400);
 const CROSSINGS = new Set([0, 2, 5, 8, 12, 16, 20, 24, 28, 32, 36]);
-const colOn = (x, z) => biomeMode !== 'journey' || (CROSSINGS.has(Math.round((x - HS / 2) / HS)) && Math.abs(z) < halfW(x) - 600 && x < X_GOAL - 2500 && lakeE(x, z) > 1.6);
+const colOn = (x, z) => realm!=='monsoon' && (biomeMode !== 'journey' || (CROSSINGS.has(Math.round((x - HS / 2) / HS)) && Math.abs(z) < halfW(x) - 600 && x < X_GOAL - 2500 && lakeE(x, z) > 1.6));
 const hwX = (i, z) => i * HS + HS / 2 + 260 * Math.sin(z / 2100 + i * 0.7) + 90 * Math.sin(z / 760 + i * 1.9);
 const hwXd = (i, z) => 260 / 2100 * Math.cos(z / 2100 + i * 0.7) + 90 / 760 * Math.cos(z / 760 + i * 1.9);
 const _hw = { d: Infinity, cx: 0, cz: 0, nx: 0, nz: 1 }, _wb = [];
@@ -790,7 +793,7 @@ const surfaceAt = (x, z) => Math.max(heightAt(x, z), WATER);
 const RS = 1440;
 const roadZ = (j, x) => j * RS + 70 * Math.sin(x / 650 + j * 1.7) + 26 * Math.sin(x / 233 + j);
 const roadX = (i, z) => i * RS + 70 * Math.sin(z / 610 + i * 2.3) + 26 * Math.sin(z / 251 + i);
-const minorOn = (x, z) => biomeMode !== 'journey' || (x > EDGE_BACK + 400 && x < X_GOAL - 1800 && Math.abs(z) < halfW(x) - 900 && lakeE(x, z) > 1.18 && !TOURS.landscapeAt(x,z) && !(x>32000&&x<48700&&Math.abs(z-TOURS.mountainAtX(x).z)<1400));
+const minorOn = (x, z) => realm!=='monsoon' && (biomeMode !== 'journey' || (x > EDGE_BACK + 400 && x < X_GOAL - 1800 && Math.abs(z) < halfW(x) - 900 && lakeE(x, z) > 1.18 && !TOURS.landscapeAt(x,z) && !(x>32000&&x<48700&&Math.abs(z-TOURS.mountainAtX(x).z)<1400)));
 function roadDist(x, z) { return minorOn(x, z) ? Math.min(Math.abs(z - roadZ(Math.round(z / RS), x)), Math.abs(x - roadX(Math.round(x / RS), z))) : Infinity; }
 
 // ---------------------------------------------------------------- the abandoned line
@@ -811,7 +814,7 @@ const LOOPS = [
 ];
 const railZ = (x) => profileAt(LINE, x) * funnel(x);
 const railZd = (x) => (railZ(x + 2) - railZ(x - 2)) / 4;
-const railOn = (x) => biomeMode === 'journey' && x >= LINE[0][0] && x <= LINE[LINE.length - 1][0];
+const railOn = (x) => realm!=='monsoon' && biomeMode === 'journey' && x >= LINE[0][0] && x <= LINE[LINE.length - 1][0];
 const railBroken = (x) => BREAKS.some((g) => x > g.a && x < g.b);
 function bridgeValley(x, z) {
   if (biomeMode !== 'journey') return 0;
@@ -905,7 +908,7 @@ function tintLand(colour, offset, x, z, weights, height) {
 
 }
 function ageLand(colour, offset) {
-  if (biomeMode !== 'journey') return;
+  if (biomeMode !== 'journey'||realm==='monsoon') return;
   const grey = colour[offset] * 0.3 + colour[offset + 1] * 0.57 + colour[offset + 2] * 0.13;
   for (let k = 0; k < 3; k++) colour[offset + k] = lerp(colour[offset + k], grey, 0.3) * 0.985;
 }
@@ -2315,16 +2318,25 @@ function buildCanyon(ch){
 }
 function buildFeaturedRoad(ch) {
   if (biomeMode !== 'journey') return;
-  const road = new Merger(), stone = new Merger(), paint = new THREE.Color(0xcfc6ad), asphalt = new THREE.Color(0x646461),snowRoad=new THREE.Color(0xb0b9bd);
+  const road = new Merger(), stone = new Merger(), paint = new THREE.Color(0xcfc6ad), asphalt = new THREE.Color(0x646461),snowRoad=new THREE.Color(0xb0b9bd),roadStart=new THREE.Color(),roadEnd=new THREE.Color(),roadMix=new THREE.Color();
   const vertex = (p, side, up = .14) => new V3(p.x + p.nx * side, p.y + up, p.z + p.nz * side);
   for (const path of TOURS.paths) for (const seg of path.segments) {
     const a = seg.a, b = seg.b, x = (a.x + b.x) / 2, z = (a.z + b.z) / 2;
     if (Math.floor(x / CH) !== ch.cx || Math.floor(z / CH) !== ch.cz) continue;
     const h = seg.half, yaw = Math.atan2(seg.tx, seg.tz), y = (a.y + b.y) / 2, mode = path.id === 'mountain' ? TOURS.tunnel(x) : null,roof=TOURS.hasPanel(seg),roofY=TOURS.shelterHeight;
-    const strip = (off, width, up, colour) => { const p = vertex(a,off+width,up), q = vertex(a,off-width,up), r = vertex(b,off+width,up), s = vertex(b,off-width,up); road.tri(p,r,q,colour); road.tri(q,r,s,colour); };
+    const strip = (off,width,up,colour,gradient=0) => {
+      const p=vertex(a,off+width,up),q=vertex(a,off-width,up),r=vertex(b,off+width,up),s=vertex(b,off-width,up);
+      if(gradient){for(const [v,c]of [[p,roadStart],[r,roadEnd],[q,roadStart],[q,roadStart],[r,roadEnd],[s,roadEnd]]){road.p.push(v.x,v.y,v.z);road.c.push(c.r*gradient,c.g*gradient,c.b*gradient);}}
+      else {road.tri(p,r,q,colour);road.tri(q,r,s,colour);}
+    };
     const ice=path.id==='mountain'?WindJourneyClimate.mountain(x,z,y).snow:0;asphalt.setHex(0x646461).lerp(snowRoad,ice*.25);
-    strip(0,h,.14,asphalt); for(const off of [-h+1,h-1]) strip(off,.11,.17,paint);
-    if(Math.floor(seg.s/24)%2===0) strip(0,.12,.17,paint);
+    const sampler=path.id==='monsoon'?MON.stage(x,z):null;
+    if(sampler){const start=MON.stage(a.x,a.z),end=MON.stage(b.x,b.z);roadStart.setHex(start.previous.road).lerp(roadMix.setHex(start.road),start.blend);roadEnd.setHex(end.previous.road).lerp(roadMix.setHex(end.road),end.blend);}
+    // Adjacent surfaces share edges; no coplanar shoulder overlay or depth flicker.
+    strip(0,sampler?h*.60:h,.14,asphalt,sampler?1:0);
+    if(sampler)for(const off of [-h*.80,h*.80])strip(off,h*.20,.14,asphalt,1.17);
+    for(const off of [-h+1,h-1]) strip(off,.11,.17,paint);
+    if((!sampler||['bay','khaosan','donmueang'].includes(sampler.id))&&Math.floor(seg.s/24)%2===0) strip(0,.12,.17,paint);
     const prev = path.segments[Math.max(0,seg.index-1)];
     for(const side of [-1,1]) {
       // Weathered verge markers give speed parallax without walls through a dodge corridor.
@@ -2394,6 +2406,7 @@ function buildFeaturedVista() {
   if(featuredVista)disposeGroup(featuredVista);
   featuredVista=new THREE.Group();scene.add(featuredVista);
   if(biomeMode!=='journey')return;
+  if(realm==='monsoon'){MON.build({THREE,G,M,Merger,heightAt,addSolid:(x,z,yaw,hw,hd,bottom,top)=>HOME.colliders.push({x,z,c:Math.cos(yaw),s:Math.sin(yaw),hw,hd,bottom,top})},featuredVista,TOURS);rebuildGlobals();return;}
   const addSite=(x,z,style,scale=1)=>{
     const clearance=(style==='aqueduct'?125:95)*scale+20;
     if(tourReserved(x,z,clearance)||lineReserved(x,z,clearance)||highway(x,z).d<clearance||lakeE(x,z)<1.12)return;
@@ -2502,6 +2515,10 @@ function buildFeaturedVista() {
     const a=TOURS.at('mountain',TOURS.paths.find(p=>p.id==='mountain').length*fraction);addSite(a.x-a.tz*side,a.z+a.tx*side,style,.9);
   }
   buildAstanaVista(featuredVista);
+  // A light gate off the lakeside road: its centre is the actual warp trigger.
+  const gate=realmGate(),gy=heightAt(gate.x,gate.z),nearGate=TOURS.nearest(gate.x,gate.z);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(10,.32,6,40),new THREE.MeshLambertMaterial({color:0x9ac5bc,emissive:0x294f50}));
+  ring.position.set(gate.x,gy+11,gate.z);ring.rotation.y=Math.atan2(nearGate.tx,nearGate.tz);ring.userData.realmGate=true;featuredVista.add(ring);
   rebuildGlobals();
 }
 function buildAstanaVista(parent){
@@ -2582,7 +2599,7 @@ function featuredCards() {
   for(const id of ['featuredTrips','featuredTrips2']) {
     const box=document.getElementById(id);box.innerHTML='';
     for(const r of TOURS.definitions) {
-      const b=document.createElement('button');b.type='button';b.className='world';b.dataset.journeyRoute=r.id;b.setAttribute('aria-pressed',String(started&&featured===r.id&&biomeMode==='journey'));
+      const b=document.createElement('button');b.type='button';b.className='world';b.dataset.journeyRoute=r.id;b.setAttribute('aria-pressed',String(realm==='central'&&started&&featured===r.id&&biomeMode==='journey'));
       b.setAttribute('aria-label',r.name+'から出発');b.title=r.name+' — '+r.sub;
       const icons={desert:'<path d="M9 31l5-12h12l5 12M12 25h16M10 29h20M15 19V9h10v10M15 13h10M18 9V6h4v3"/>',mountain:'<path d="M3 29L14 8l6 10 5-7 12 18M10 29v-6a10 10 0 0120 0v6M17 29v-6a3 3 0 016 0v6M11 14l3 3 3-3"/>',lake:'<path d="M3 17L11 7l7 9 7-10 12 12M3 23q5-4 10 0t10 0 14 0M3 29q5-4 10 0t10 0 14 0"/>',silk:'<path d="M4 31V17h10v14M15 31V11h10v20M26 31V17h10v14M17 31V21a3 3 0 016 0v10M3 17q6-12 12 0M25 17q6-12 12 0M17 11q3-10 6 0"/>'};
       icons.astana='<path d="M5 33h30M16 33l2-17h4l2 17M13 13a7 7 0 1114 0 7 7 0 01-14 0M4 28l5-9 5 9M28 31V18h6v13"/>';icons.charyn='<path d="M3 32l3-21h7l3 12M37 32l-3-21h-7l-3 12M6 17h7M27 17h7M15 36q-4-7 5-13t2-17M24 36q-4-6 3-12"/>';
@@ -2593,6 +2610,7 @@ function featuredCards() {
   }
 }
 function musicRegion() {
+  if(realm==='monsoon')return 'monsoon-'+MON.stage(P.pos.x,P.pos.z).id;
   const key=biomeMode==='journey'?BKEYS[dominant(biomeW(P.pos.x,P.pos.z,newW()))]:biomeMode;
   if(biomeMode==='journey') {const r=tourAt(P.pos.x,P.pos.z);if(r&&r.d<300)return r.path.id==='silk'?(P.pos.x>66000?'desert':'mountain'):r.path.region||r.path.id;if(P.pos.x>71000&&P.pos.x<88000)return 'desert';}
   if(['snow','tianshan','pamir'].includes(key))return 'mountain';
@@ -2601,7 +2619,9 @@ function musicRegion() {
   return ['soviet','azure','village'].includes(key)?'city':'steppe';
 }
 function travelFeatured(id) {
+  if(id==='monsoon'||id.startsWith('monsoon:')){travelRealm('monsoon',id.split(':')[1]);return;}
   const definition=TOURS.definitions.find(r=>r.id===id);if(!definition)return;
+  realm='central';applyRealmSkin();
   lakeJourney=WindJourneyClimate.create();
   featured=id;biomeMode='journey';store.set('windlover.world4','journey');clearShells();clearDrones();
   let x,z,yaw;
@@ -2612,6 +2632,45 @@ function travelFeatured(id) {
   inp.jx=inp.jy=inp.kx=inp.ky=0;inp.keys={};steerSm=0;camBaseY=P.pos.y;suspY=suspV=0;updatePalette(0,true);refreshCards();toast(definition.name,'道の先へ',2200);
   window.dispatchEvent(new CustomEvent('wl:music-region',{detail:{region:musicRegion(),visit:true}}));
 }
+
+const monsoonSkyTop=new THREE.Color(),monsoonSkyHor=new THREE.Color();
+let returnDeparture='desert',returnVisit=null,gateUntil=0,gateQueued=false,gateArmed=true;
+function realmGate(){
+ if(realm==='monsoon'){const p=TOURS.at(MON.path,90);return{x:p.x+p.tz*90,z:p.z-p.tx*90,to:'central'};}
+ const p=TOURS.at('lake',TOURS.paths.find(p=>p.id==='lake').length*.53);return{x:p.x-p.tz*65,z:p.z+p.tx*65,to:'monsoon'};
+}
+function updateRealmGate(){
+ if(!started||paused||P.dead||gateQueued)return;const gate=realmGate(),distance=Math.hypot(P.pos.x-gate.x,P.pos.z-gate.z);
+ if(distance>22)gateArmed=true;if(!gateArmed||t<gateUntil)return;
+ if(distance>11||Math.abs(P.pos.y-heightAt(gate.x,gate.z)-HOVER)>4)return;
+ const source=realm;gateArmed=false;gateQueued=true;setTimeout(()=>{gateQueued=false;if(realm===source&&started&&!P.dead)travelRealm(gate.to);},0);
+}
+function refreshRealmControls(){
+ for(const id of ['realmWarp','realmWarp2'])document.getElementById(id).textContent=realm==='monsoon'?'旅の門：中央アジアへ戻る':'旅の門：日本・東南アジアへ';
+ document.getElementById('monsoonStops').hidden=realm!=='monsoon';
+}
+function travelRealm(target='monsoon',zoneId='bay'){
+ gateUntil=t+4;gateArmed=false;
+ if(target==='central'){
+  realm='central';
+  if(returnVisit){
+   const v=returnVisit;applyRealmSkin();clearShells();clearDrones();lakeJourney=v.lake||WindJourneyClimate.create();biomeMode=v.world;featured=v.featured;P.pos.set(v.x,0,v.z);rebuildAll();placeAt(v.x,v.z,v.yaw,v.speed);
+   Object.assign(P,{dead:false,reached:false,hull:3,flow:.25,stalled:false,invuln:4,stopT:0,barrage:false,cornerPace:S.maxSpeed});steerSm=0;suspY=suspV=0;updatePalette(0,true);refreshCards();toast('もとの旅路へ','中央アジアの風が、また吹く',2200);window.dispatchEvent(new CustomEvent('wl:music-region',{detail:{region:musicRegion(),visit:true}}));
+  }else travelFeatured(returnDeparture);
+  refreshRealmControls();return;
+ }
+ if(realm==='central'&&featured!=='monsoon'){
+  if(TOURS.definitions.some(d=>d.id===featured))returnDeparture=featured;
+  returnVisit={x:P.pos.x,z:P.pos.z,yaw:P.yaw,speed:Math.max(8,Math.hypot(P.vel.x,P.vel.z)),world:biomeMode,featured,lake:lakeJourney};
+ }
+ realm='monsoon';const path=MON.install(TOURS);NAV=WindRouteGuidance.install(TOURS,x=>{const slope=railZd(x),l=Math.hypot(1,slope);return{x,z:railZ(x),y:railY(x)+.02,tx:1/l,tz:slope/l,s:x,path:null};});
+ biomeMode='journey';featured='monsoon';lakeJourney=WindJourneyClimate.create();clearShells();clearDrones();applyRealmSkin();
+ const i=Math.max(0,MON.zones.findIndex(z=>z.id===zoneId)),p=TOURS.at(path,path.length*(i/6+.015));P.pos.set(p.x,p.y+HOVER,p.z);rebuildAll();placeAt(p.x,p.z,Math.atan2(p.tx,p.tz),Math.max(8,S.cruise*.9));
+ Object.assign(P,{dead:false,reached:false,hull:3,flow:.25,stalled:false,invuln:4,stopT:0,barrage:false,routeTrack:null,routeOffset:0,lean:0,leanV:0,sway:0,hold:0,cornerPace:S.maxSpeed});inp.jx=inp.jy=inp.kx=inp.ky=0;inp.keys={};steerSm=0;
+ camBaseY=P.pos.y;suspY=suspV=0;WindTravelCamera.reset(travelCam);updatePalette(0,true);refreshCards();refreshRealmControls();toast(MON.zones[i].name,'日本と南の海を巡る、短い旅',2400);window.dispatchEvent(new CustomEvent('wl:music-region',{detail:{region:musicRegion(),visit:true}}));
+}
+for(const id of ['realmWarp','realmWarp2'])document.getElementById(id).addEventListener('click',()=>{if(!started){featured='monsoon';biomeMode='journey';begin(false);}else travelRealm(realm==='central'?'monsoon':'central');closeSheet('#menuSheet');});
+for(const zone of MON.zones){const b=document.createElement('button');b.className='ghost';b.textContent=zone.name;b.dataset.monsoonZone=zone.id;b.addEventListener('click',()=>{travelRealm('monsoon',zone.id);closeSheet('#menuSheet');});document.getElementById('monsoonChoices').append(b);}
 
 function drain(steps) { while (!steps.next().done) {} }
 function chunkJob(cx, cz) {
@@ -2626,6 +2685,7 @@ function advanceChunk(job) {
 function buildChunk(cx, cz) { const job = chunkJob(cx, cz); while (!advanceChunk(job)) {} }
 function* chunkSteps(ch, rng) {
   yield* terrainSteps(ch);
+  if(realm==='monsoon'){buildFeaturedRoad(ch);yield;world.add(ch.group);chunks.set(ch.key,ch);return;}
   buildChunkRoads(ch, rng); yield;
   buildChunkHighway(ch); yield;
   buildFeaturedRoad(ch); yield;
@@ -2867,6 +2927,7 @@ const HOMAGE_BUILD = {
 const RG = 2000, landmarks = new Map();
 let lastRX = null, lastRZ = null;
 function buildLandmark(rx, rz) {
+  if(realm==='monsoon')return;
   const L = { key: rx + ',' + rz, group: new THREE.Group(), colliders: [], rails: [], streams: [], updrafts: [], motes: [], finds: [], mat: null, x: 0, z: 0 };
   landmarks.set(L.key, L);
   const rng = mulberry(seedOf(rx, rz, 9));
@@ -3184,6 +3245,7 @@ function updateFar(force) {
 const rangeMat = new THREE.MeshLambertMaterial({ vertexColors: true, fog: false, emissive: 0x000000 });
 let rangeMesh = null, rangeX = null;
 function buildRanges(cx) {
+  if(realm==='monsoon'){if(rangeMesh){rangeMesh.geometry.dispose();scene.remove(rangeMesh);rangeMesh=null;}return;}
   const seg = 160, span = 30000, pos = [], col = [], rock = new THREE.Color(0x6f7684), snow = new THREE.Color(0xf2f4f6), c = new THREE.Color();
   const tri = (a, b, d) => { for (const v of [a, b, d]) { pos.push(v[0], v[1], v[2]); const k = clamp((v[1] - 900) / 1300, 0, 1); c.copy(rock).lerp(snow, k * k); col.push(c.r, c.g, c.b); } };
   // a ridge along a crest line: foot on the near side, peaks along the line, a back slope away from the land
@@ -3220,7 +3282,7 @@ const HOME = { colliders: [], group: new THREE.Group() }, GOAL = { x: X_GOAL + 3
 let goalVeil = null;
 function buildHome() {
   disposeGroup(HOME.group); scene.remove(HOME.group); HOME.group = new THREE.Group(); scene.add(HOME.group); HOME.colliders = []; goalVeil = null;
-  if (biomeMode === 'journey') {
+  if (biomeMode === 'journey'&&realm==='central') {
     const m = new Merger(), yaw = Math.atan2(1, hwZd(0, BASE_X)), bz = hwZ(0, BASE_X), y0 = deckAt(BASE_X, bz) + 0.25, cs = Math.cos(yaw), sn = Math.sin(yaw);
     const B = M(BASE_X, y0, bz, yaw), R0 = 22, L = BASE_LEN, SKIN = 0x6b7066, RIB = 0x4d524b;
     const wx = (lx, lz) => BASE_X + lx * cs + lz * sn, wz = (lx, lz) => bz - lx * sn + lz * cs;
@@ -3614,14 +3676,20 @@ function limb(parent, a, b, r, mat) {
   add(new THREE.BoxGeometry(.5,.09,.4),red,0,2.03,-.07,rider);
   add(new THREE.BoxGeometry(.035,.56,.04),gold,0,2.31,.18,rider);
   oval(0,2.86,.03,.175,.21,.17,pale,rider);
+  const centralHat=new THREE.Group();rider.add(centralHat);
   // Four felt panels and turned dark-edged brim give the ak-kalpak its recognisable outline.
-  add(new THREE.CylinderGeometry(.14,.225,.38,4),pale,0,3.2,.01,rider,0,Math.PI/4);
-  add(new THREE.CylinderGeometry(.24,.23,.055,8),dark,0,3.02,.01,rider);
-  add(new THREE.CylinderGeometry(.235,.21,.055,8),pale,0,3.065,.01,rider);
-  for(const a of [0,Math.PI/2,Math.PI,Math.PI*1.5])limb(rider,[Math.sin(a)*.2,3.07,.01+Math.cos(a)*.2],[Math.sin(a)*.1,3.38,.01+Math.cos(a)*.1],.012,dark);
+  add(new THREE.CylinderGeometry(.14,.225,.38,4),pale,0,3.2,.01,centralHat,0,Math.PI/4);
+  add(new THREE.CylinderGeometry(.24,.23,.055,8),dark,0,3.02,.01,centralHat);
+  add(new THREE.CylinderGeometry(.235,.21,.055,8),pale,0,3.065,.01,centralHat);
+  for(const a of [0,Math.PI/2,Math.PI,Math.PI*1.5])limb(centralHat,[Math.sin(a)*.2,3.07,.01+Math.cos(a)*.2],[Math.sin(a)*.1,3.38,.01+Math.cos(a)*.1],.012,dark);
   const scarfA=new THREE.Object3D();scarfA.position.set(0,2.67,-.16);rider.add(scarfA);
   // Move the rider's own geometry, keeping its group pivot available for saddle absorption.
   for(const child of rider.children)child.position.y+=.32;
+  // An invented indigo hunting outfit and a broad straw hat, inspired by mounted archery dress.
+  const japanHat=new THREE.Group();rider.add(japanHat);japanHat.visible=false;
+  add(new THREE.ConeGeometry(.37,.16,20),gold,0,3.50,.01,japanHat);
+  add(new THREE.CylinderGeometry(.37,.37,.035,20),gold,0,3.43,.01,japanHat);
+  for(const side of [-1,1])limb(japanHat,[side*.28,3.44,.01],[side*.12,3.12,.03],.009,dark);
   const ridingBow=new THREE.Group();rider.add(ridingBow);ridingBow.visible=false;
   const bowPath=new THREE.CatmullRomCurve3([new V3(0,-.67,.16),new V3(0,-.53,.02),new V3(0,-.4,-.13),new V3(0,-.17,-.05),new V3(0,0,0),new V3(0,.17,-.05),new V3(0,.4,-.13),new V3(0,.53,.02),new V3(0,.67,.16)]);
   const bowLimb=new THREE.Mesh(new THREE.TubeGeometry(bowPath,24,.026,6,false),gold);ridingBow.add(bowLimb);
@@ -3635,7 +3703,7 @@ function limb(parent, a, b, r, mat) {
   const reins=[];
   for(const side of [-1,1]){const geo=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(27),3));const line=new THREE.Line(geo,new THREE.LineBasicMaterial({color:0x3a3026}));line.frustumCulled=false;body.add(line);reins.push({geo,hand:new V3(side*.18,2.47,.65),bit:new V3(side*.16,.69,1.12),a:new V3(),b:new V3()});}
   const trailA=new THREE.Object3D();trailA.position.set(0,.05,-1.15);g.add(trailA);
-  models.horse={group:g,rider,scarf:scarfA,trail:trailA,arms:null,body,neck,tail,legs,reins,rig,torso,bowArms,ridingBow,bowLimb,bowBase,bowEars,bowFlex:-1,bowStringGeo,bowBlend:0,motion:WindHorseGait.create()};boardPivot.add(g);
+  models.horse={skin:{centralHat,japanHat,cloth,felt,gold,normalBow:bowLimb.geometry,normalBase:bowBase.slice()},group:g,rider,scarf:scarfA,trail:trailA,arms:null,body,neck,tail,legs,reins,rig,torso,bowArms,ridingBow,bowLimb,bowBase,bowEars,bowFlex:-1,bowStringGeo,bowBlend:0,motion:WindHorseGait.create()};boardPivot.add(g);
 })();
 const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
 scene.add(shadow);
@@ -3879,7 +3947,7 @@ function stepPhysics(dt) {
   P.dist += Math.hypot(P.vel.x, P.vel.z) * dt;
   P.ajCD -= dt; P.skipT -= dt;
   if (!P.dead) { if (braking) P.flow = Math.max(0, P.flow - dt * 0.3); else if (speed > S.cruise * 0.8) P.flow = Math.min(1, P.flow + dt / 55); }
-  if (biomeMode === 'journey') {
+  if (biomeMode === 'journey'&&realm==='central') {
     const lim = halfW(P.pos.x) - Math.min(300, halfW(P.pos.x) * 0.3);
     if (Math.abs(P.pos.z) > lim) { const sg = Math.sign(P.pos.z); P.pos.z = sg * lim; if (P.vel.z * sg > 0) P.vel.z *= -0.3; }
     if (P.pos.x < EDGE_BACK) { P.pos.x = EDGE_BACK; if (P.vel.x < 0) P.vel.x *= -0.3; }
@@ -3888,6 +3956,7 @@ function stepPhysics(dt) {
   }
   if (!isFinite(P.pos.x + P.pos.y + P.pos.z + P.vel.x + P.vel.y + P.vel.z)) respawn();
   collectMotes(); collectFinds();
+  updateRealmGate();
   P.gauge = clamp(P.gauge, 0, 100);
   inp.jumpPressed = false; inp.dashPressed = false;
 }
@@ -4528,6 +4597,23 @@ const sweeperGeo=(()=>{const m=new Merger();m.add(G.box,M(0,0,0,0,.85,.42,3.6),0
   for(const side of [-1,1]){m.add(G.box,M(side*1.55,0,-.25,side*.48,3.5,.14,1.15),0x788078);m.add(G.box,M(side*2.9,.01,-.9,side*.48,.65,.17,.8),0x343d40);}
   m.add(G.box,M(0,.16,-1.45,0,.35,.65,.65),0x8b6446);m.add(G.box,M(0,0,1.9,0,.35,.24,.6),0xc4ad74);return m.build();})();
 const sweeperMesh=new THREE.InstancedMesh(sweeperGeo,new THREE.MeshPhongMaterial({vertexColors:true,flatShading:true,shininess:24}),8);sweeperMesh.count=0;sweeperMesh.frustumCulled=false;scene.add(sweeperMesh);
+// Alternative shells share every formation, hit box, warning and attack clock.
+const monsoonDroneGeo=(()=>{const m=new Merger();m.add(G.ico,M(0,0,0,0,1.8,1.25,2),0x34455b);
+ for(const side of [-1,1]){m.add(G.box,M(side*2.1,0,-.3,side*.65,3,.22,3.8),0xd4d0b8);m.add(G.box,M(side*1.3,.6,.7,side*.3,2.8,.20,1.1),0xa65f52);}
+ m.add(G.box,M(0,0,2,0,1.2,.6,.3),0xd5af69);return m.build();})();
+const monsoonWingGeo=(()=>{const m=new Merger();m.add(G.taper8,M(0,0,0,0,.7,.5,4),0x34455b);
+ for(const side of [-1,1]){m.add(G.box,M(side*1.9,0,-.2,side*.65,5,.18,1.7),0xd4d0b8);m.add(G.box,M(side*3.5,0,-1.3,side*.65,1.8,.2,.8),0xa65f52);}return m.build();})();
+const monsoonSentryGeo=(()=>{const m=new Merger();m.add(G.cyl,M(0,-.1,0,0,1.2,4,1.2),0x34455b);m.add(G.taper8,M(0,1.8,0,0,1.9,.7,1.9),0xb59965);
+ for(const side of [-1,1])for(const front of [-1,1])m.add(G.box,M(side*1.5,-1.5,front*1.1,side*.4,2.2,.35,.5),0xa65f52);m.add(G.box,M(0,.4,1.3,0,.8,.7,.2),0xd6bc83);return m.build();})();
+function applyRealmSkin(){
+ const japanese=realm==='monsoon',md=models.horse,skin=md.skin;if(!skin)return;
+ VEHICLES.horse.name=japanese?'和弓の旅人と馬':'キルギスの馬';for(const id of ['vehCards','vehCards2']){const b=document.getElementById(id).querySelectorAll('button')[Object.keys(VEHICLES).indexOf('horse')];if(b)b.textContent=VEHICLES.horse.name;}
+ skin.centralHat.visible=!japanese;skin.japanHat.visible=japanese;skin.cloth.color.setHex(japanese?0x34496b:0x3c5753);skin.gold.color.setHex(japanese?0xbaa06c:0xa28b5e);
+ skin.felt.map=japanese?null:shyrdakTex[0];skin.felt.color.setHex(japanese?0x34496b:0xffffff);skin.felt.needsUpdate=true;
+ if(japanese&&!skin.japanBow){const curve=new THREE.CatmullRomCurve3([new V3(0,-.52,.16),new V3(0,-.3,-.1),new V3(0,0,0),new V3(0,.5,-.17),new V3(0,1.05,-.05),new V3(0,1.25,.16)]);skin.japanBow=new THREE.TubeGeometry(curve,24,.021,6,false);skin.japanBase=new Float32Array(skin.japanBow.attributes.position.array);}
+ md.bowLimb.geometry=japanese?skin.japanBow:skin.normalBow;md.bowBase=japanese?skin.japanBase:skin.normalBase;md.bowFlex=-1;for(const {ear}of md.bowEars)ear.visible=!japanese;
+ droneMesh.geometry=japanese?monsoonDroneGeo:droneGeo;sweeperMesh.geometry=japanese?monsoonWingGeo:sweeperGeo;sentryMesh.geometry=japanese?monsoonSentryGeo:sentryGeo;
+}
 const sweeperBefore=new V3(),sweeperProjection=new V3(),sweeperLocal={},sweeperPosition={};
 const HIT_RADIUS = 0.32, HIT_HEIGHT = 0.45, GRAZE_RADIUS = 3.8;
 const BUL = 4608, bPos = new Float32Array(BUL * 3), bVel = new Float32Array(BUL * 3), bLife = new Float32Array(BUL), bCol = new Float32Array(BUL * 3);
@@ -5482,9 +5568,13 @@ function updatePalette(dt, snap) {
   sun.color.copy(pal.sunLight).lerp(moodSun, mk * 0.6); sun.intensity = pal.sunI * .78 * lakeLight; sun.position.copy(pal.sunDir).normalize();
   for (const c of clouds) { c.material.color.copy(pal.cloud).lerp(moodHor,.25); c.material.opacity=lerp(.62,.17,lakeSky.night*lakeBlend); }
   for (const c of cloudSea) { c.material.color.copy(pal.cloud).lerp(moodHor, 0.3); c.material.opacity = altK * 0.85; c.visible = altK > 0.02; }
+  if(realm==='monsoon'){
+    const zone=MON.stage(P.pos.x,P.pos.z);lakeSkyMix.setHex(zone.previous.top).lerp(monsoonSkyTop.setHex(zone.top),zone.blend);skyMat.uniforms.top.value.lerp(lakeSkyMix,.88);lakeSkyMix.setHex(zone.previous.hor).lerp(monsoonSkyHor.setHex(zone.hor),zone.blend);skyMat.uniforms.hor.value.lerp(lakeSkyMix,.88);skyMat.uniforms.bot.value.lerp(lakeSkyMix,.70);scene.fog.color.copy(skyMat.uniforms.hor.value);renderer.setClearColor(scene.fog.color);scene.fog.near=350;scene.fog.far=5600;waterMat.color.setHex(0x4d969d);
+    const evening=(zone.id==='edo'?zone.blend:0)+(zone.previous.id==='edo'?1-zone.blend:0);pal.sunDir.set(lerp(.3,-.6,evening),lerp(.48,.13,evening),-.7).normalize();skyMat.uniforms.sunDir.value.copy(pal.sunDir);sun.position.copy(pal.sunDir);sun.color.setHex(0xffeed6).lerp(lakeSkyMix.setHex(0xffc28b),evening);skyMat.uniforms.sunCol.value.copy(sun.color);
+  }
   // announce a new land when it clearly takes over
   const d = dominant(_wp);
-  if (d !== curDom && _wp[d] > 0.62) { domHold += dt; if (domHold > 0.6 || snap) { if (curDom !== -1 && started) toast(BIOMES[BKEYS[d]].name, '— 旅の途中 —', 2600); curDom = d; domHold = 0; } }
+  if (d !== curDom && _wp[d] > 0.62) { domHold += dt; if (domHold > 0.6 || snap) { if (curDom !== -1 && started) toast(realm==='monsoon'?MON.stage(P.pos.x,P.pos.z).name:BIOMES[BKEYS[d]].name, '— 旅の途中 —', 2600); curDom = d; domHold = 0; } }
   else domHold = 0;
 }
 
@@ -5578,9 +5668,9 @@ function updateVisuals(dt) {
       MD.reins[side<0?0:1].hand.copy(hand);
     }
     MD.ridingBow.visible=k>.02;MD.ridingBow.position.copy(MD.bowArms[0].hand.position);MD.ridingBow.rotation.y=-.14;
-    if(Math.abs(pull-MD.bowFlex)>.003){const pos=MD.bowLimb.geometry.attributes.position;for(let i=0;i<pos.count;i++)pos.setZ(i,MD.bowBase[i*3+2]-.12*pull*Math.pow(Math.abs(MD.bowBase[i*3+1])/.67,1.3));pos.needsUpdate=true;MD.bowFlex=pull;
+    if(Math.abs(pull-MD.bowFlex)>.003){const pos=MD.bowLimb.geometry.attributes.position;for(let i=0;i<pos.count;i++)pos.setZ(i,MD.bowBase[i*3+2]-.12*pull*Math.pow(Math.abs(MD.bowBase[i*3+1])/(realm==='monsoon'?(MD.bowBase[i*3+1]<0?.52:1.25):.67),1.3));pos.needsUpdate=true;MD.bowFlex=pull;
       for(const {ear,side}of MD.bowEars){ear.position.z=.09-.10*pull;ear.rotation.x=side*Math.atan2(.14-.12*pull*(1-Math.pow(.53/.67,1.3)),.14);}}
-    const string=MD.bowStringGeo.attributes.position;string.setXYZ(0,0,-.67,.16-.12*pull);string.setXYZ(1,.18*pull,0,-.62*pull);string.setXYZ(2,0,.67,.16-.12*pull);string.needsUpdate=true;
+    const string=MD.bowStringGeo.attributes.position;string.setXYZ(0,0,realm==='monsoon'?-.52:-.67,.16-.12*pull);string.setXYZ(1,.18*pull,0,-.62*pull);string.setXYZ(2,0,realm==='monsoon'?1.25:.67,.16-.12*pull);string.needsUpdate=true;
     MD.rider.updateMatrix();MD.neck.updateMatrix();
     sfx.horseRhythm(gait,{active:started&&!paused&&!P.dead,grounded:P.grounded,speed,
       surface:P.onWater?'water':WindJourneyClimate.mountain(P.pos.x,P.pos.z,P.pos.y).snow>.45?'snow':P.onRoad?(String(P.routeTrack).startsWith('rail')?'gravel':'road'):musicRegion()==='mountain'?'snow':'earth',load:Math.abs(action.load)});
@@ -6001,7 +6091,7 @@ function worldCards(container, onPick) {
   const hex = (n) => '#' + n.toString(16).padStart(6, '0');
   const entries = [['journey', { name: '旅する', sub: '廃線をたどる120km、駅と峠と寄り道' }], ...BKEYS.map((k) => [k, BIOMES[k]])];
   for (const [key, th] of entries) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'world'; b.setAttribute('aria-pressed', String(key === biomeMode));
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'world'; b.setAttribute('aria-pressed', String(realm==='central'&&key === biomeMode));
     const bg = key === 'journey'
       ? `linear-gradient(90deg, ${BKEYS.map((k, i) => `${hex(BIOMES[k].low)} ${i * 100 / NB}%, ${hex(BIOMES[k].skyHor)} ${(i + 1) * 100 / NB}%`).join(', ')})`
       : `linear-gradient(180deg, ${hex(th.skyTop)} 0%, ${hex(th.skyHor)} 62%, ${hex(th.low)} 63%, ${hex(th.high)} 100%)`;
@@ -6011,10 +6101,11 @@ function worldCards(container, onPick) {
     container.append(b);
   }
 }
-function refreshCards() { featuredCards(); worldCards($('#worldCards'), pickWorld); worldCards($('#worldCards2'), (k) => { pickWorld(k); closeSheet('#menuSheet'); }); }
+function refreshCards() { refreshRealmControls();featuredCards(); worldCards($('#worldCards'), pickWorld); worldCards($('#worldCards2'), (k) => { pickWorld(k); closeSheet('#menuSheet'); }); }
 function pickWorld(k) {
+  const changedRealm=realm!=='central';realm='central';applyRealmSkin();refreshRealmControls();
   featured = null;
-  if (k !== biomeMode) { biomeMode = k; store.set('windlover.world4', k); rebuildAll(); updatePalette(0, true); if (started) recover(); }
+  if (changedRealm||k !== biomeMode) { biomeMode = k;if(changedRealm)P.pos.set(homeX(),0,hwZ(0,homeX())); store.set('windlover.world4', k); rebuildAll(); updatePalette(0, true); if (started){if(changedRealm)placeHome(S.cruise*.9);else recover();} }
   refreshCards();
   window.dispatchEvent(new CustomEvent('wl:music-region',{detail:{region:musicRegion(),visit:true}}));
 }
@@ -6157,7 +6248,8 @@ function begin(randomStart) {
   sfx.init(); sfx.resume();
   try { navigator.wakeLock && navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
   if (randomStart) {
-    featured = null;
+    if(realm!=='central'){realm='central';applyRealmSkin();rebuildAll();refreshCards();}
+    realm='central';applyRealmSkin();featured = null;
     if (biomeMode !== 'journey') { biomeMode = 'journey'; store.set('windlover.world4', 'journey'); rebuildAll(); refreshCards(); }
     const sp = randomRoadSpot(); P.pos.set(sp.x, 0, sp.z); updateChunks(true); placeAt(sp.x, sp.z, sp.yaw, S.cruise * 0.8); P.stalled = false; P.reached = false; updatePalette(0, true);
   } else if (featured && biomeMode === 'journey') travelFeatured(featured);
@@ -6271,11 +6363,11 @@ function frame(now) {
 setVehicle(vehKey); applyLens();
 placeHome(0); buildHome(); buildFeaturedVista(); updatePalette(0, true); refreshCards();
 requestAnimationFrame(frame);
-window.__wl = { get paused(){return paused;}, climate:WindJourneyClimate,get lakeJourney(){return lakeJourney;},flowEffects,riding: WindHorseRiding, musicRegion, setVehicle, get vehicle(){return vehKey;}, tours: TOURS, tourAt, travelFeatured, get featured() { return featured; }, guidance:NAV, scenicJourney, performance: { streaming: streamStats, quality }, archery:bow, combat: { encounter,missiles,hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, patternNames: PATTERN_NAMES, relativeSpeed: AS_REL, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
+window.__wl = { get paused(){return paused;}, climate:WindJourneyClimate,get lakeJourney(){return lakeJourney;},flowEffects,riding: WindHorseRiding, musicRegion, setVehicle, get vehicle(){return vehKey;}, tours: TOURS, tourAt, travelFeatured, get featured() { return featured; },get realm(){return realm;},monsoon:MON,travelRealm,realmGate, get guidance(){return NAV;}, scenicJourney, performance: { streaming: streamStats, quality }, archery:bow, combat: { encounter,missiles,hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, patternNames: PATTERN_NAMES, relativeSpeed: AS_REL, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
 // A lazy connection lets the menu's independent BGM bus reuse the game's audio clock.
 window.__wlAudio = { getContext() { sfx.init(); return sfx.context; }, getDestination() { sfx.init(); return sfx.output; }, get soundOn() { return sfx.on; } };
 })();
 </script>
-<script type="module" src="../music/game-music.mjs?v=20261029-voyage" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
+<script type="module" src="../music/game-music.mjs?v=20261029-monsoon" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
 </body>
 </html>

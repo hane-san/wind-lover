@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { ROUTE_POOLS, chooseRouteTrack, createRoutePlaylist } from '../music/route-playlist.mjs';
 import { TRACKS } from '../music/quiet-score.mjs';
 
-test('every landscape has nine playable candidates; re-entry avoids the previous song', () => {
+test('landscape pools have playable candidates; re-entry avoids the previous song', () => {
   for (const [region, pool] of Object.entries(ROUTE_POOLS)) {
-    assert.equal(new Set(pool).size, 9);
+    assert.equal(new Set(pool).size, region.startsWith('monsoon-')?6:9);
     for (const previous of pool) for(let i=0;i<100;i++) {
       const next = chooseRouteTrack(region, previous, () => i/100);
       assert.ok(pool.includes(next)); assert.notEqual(next, previous);
@@ -50,4 +50,13 @@ test('regional automatic selection mixes quiet and brave music without consecuti
   const list=createRoutePlaylist(music,{storage:null,random:()=>.97});for(let i=0;i<20;i++)await list.enter(region,true);
   assert.equal(brave.has(ids[0]),false);assert.ok(ids.filter(id=>brave.has(id)).length>=6);for(let i=1;i<ids.length;i++)assert.ok(!(brave.has(ids[i-1])&&brave.has(ids[i])));
  }
+});
+
+test('rapid sampler scenery changes preserve the current phrase, whilst explicit warps crossfade',async()=>{
+ const selected=[],music={state:{track:'rust-horizon',status:'playing'},select(id){selected.push(id);this.state.track=id;return Promise.resolve(true)}};
+ const list=createRoutePlaylist(music,{storage:null,random:()=>0});await list.enter('monsoon-bay',true);const initial=music.state.track;
+ for(const zone of ['edo','angkor','khaosan','donmueang','straits'])assert.equal(await list.enter('monsoon-'+zone),false);
+ assert.equal(selected.length,1);assert.equal(music.state.track,initial);assert.equal(list.region,'monsoon-straits');
+ await list.enter('monsoon-edo',true);assert.equal(selected.length,2);assert.notEqual(music.state.track,initial);
+ await list.enter('lake');assert.equal(selected.length,3);
 });

@@ -43,6 +43,7 @@
   for(let i=0;i<=N;i++){const a=i/N*TAU,x=15500+8540*Math.cos(a);lp.push({x,z:(-5000+1490*Math.sin(a))*widthAt(x),y:24+14*Math.sin(a)+6*Math.cos(2*a)});}
   // Reuse the exact first vertex at the seam, avoiding a floating point crack.
   lp[N]={...lp[0]};addPath('lake',lp,true);
+  function addCircuit(id,points){return paths.find(p=>p.id===id)||addPath(id,points,true);}
   function addConnection(id,knots,region){
     if(paths.some(p=>p.id===id))return paths.find(p=>p.id===id);
     const points=[];
@@ -130,5 +131,5 @@
   function hasPanel(seg){const mode=seg.path.id==='mountain'?tunnel((seg.a.x+seg.b.x)*.5):null;return mode==='tunnel'||mode==='gallery'&&Math.floor(seg.s/24)%4!==0;}
   function covered(seg,lateral=0){const mode=seg.path.id==='mountain'?tunnel((seg.a.x+seg.b.x)*.5):null;return hasPanel(seg)&&(mode==='tunnel'||lateral< -seg.half*.30&&lateral> -seg.half-4);}
   function relief(x,z){if(x<31000||x>49600)return -Infinity;const p=mountainAtX(x),d=Math.abs(z-p.z),gate=smooth(31000,32600,x)*(1-smooth(48000,49600,x));return (p.y-12+800*Math.pow(smooth(48,1100,d),.7)+((x>35150&&x<37250)||(x>41700&&x<42650)?120*(1-smooth(40,220,d)):0))*gate-200*(1-gate);}
-  globalThis.WindRoutes={definitions,paths,nearest,candidates,at,tunnel,relief,addConnection,mountainAtX,indexReach,shelterHeight,hasPanel,covered,junctions,addNorthernRoad,landscapeAt,canyonWeight,canyonHeight};
+  globalThis.WindRoutes={definitions,paths,nearest,candidates,at,tunnel,relief,addConnection,mountainAtX,indexReach,shelterHeight,hasPanel,covered,junctions,addCircuit,addNorthernRoad,landscapeAt,canyonWeight,canyonHeight};
 })();

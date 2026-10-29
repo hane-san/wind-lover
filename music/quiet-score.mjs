@@ -1,4 +1,4 @@
-import { EXPEDITION_TRACKS,buildExpeditionScore } from './voyage-score.mjs?v=20261029-voyage';
+import { EXPEDITION_TRACKS,buildExpeditionScore } from './voyage-score.mjs?v=20261029-monsoon';
 import { TRACKS as originals, buildScore as buildOriginal } from './scores.mjs?v=20261022';
 
 // Original chamber arrangements: modal falling phrases, held strings and unfilled bars.

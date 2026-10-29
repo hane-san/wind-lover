@@ -1,5 +1,5 @@
-import { RIDING_TRACKS } from './quiet-score.mjs?v=20261029-voyage';
-const brave=new Set(RIDING_TRACKS.map(t=>t.id));
+import { RIDING_TRACKS } from './quiet-score.mjs?v=20261029-monsoon';
+const brave=new Set(RIDING_TRACKS.filter(t=>t.energy==='brave').map(t=>t.id));
 // Visits and complete musical phrases choose songs; menus and boundary noise never churn playback.
 export const ROUTE_POOLS = Object.freeze({
   desert: ['rust-horizon','last-caravan','copper-mirage','forgotten-siding','dune-riders','railbound-heart','saffron-riders','seven-red-cliffs','steppe-signal'],
@@ -7,6 +7,12 @@ export const ROUTE_POOLS = Object.freeze({
   lake: ['glass-current','blue-viaduct','issyk-dawn','shoreline-afterglow','skyward-current','tian-shan-charge','turquoise-cavalcade','seven-red-cliffs','cities-in-the-wind'],
   steppe: ['last-caravan','blue-viaduct','jailoo-wind','felt-and-stars','dune-riders','tian-shan-charge','steppe-signal','saffron-riders','pass-of-thunder'],
   city: ['rust-horizon','glass-current','forgotten-siding','shoreline-afterglow','railbound-heart','skyward-current','cities-in-the-wind','steppe-signal','turquoise-cavalcade'],
+  'monsoon-bay':['bay-glass','straits-tide','runway-swallow','sunset-reins','khaosan-afterlight','lotus-stone'],
+  'monsoon-edo':['bay-glass','straits-tide','sunset-reins','lotus-stone','khaosan-afterlight','runway-swallow'],
+  'monsoon-angkor':['straits-tide','bay-glass','lotus-stone','sunset-reins','khaosan-afterlight','runway-swallow'],
+  'monsoon-khaosan':['bay-glass','straits-tide','khaosan-afterlight','runway-swallow','lotus-stone','sunset-reins'],
+  'monsoon-donmueang':['bay-glass','straits-tide','runway-swallow','khaosan-afterlight','sunset-reins','lotus-stone'],
+  'monsoon-straits':['straits-tide','bay-glass','sunset-reins','lotus-stone','khaosan-afterlight','runway-swallow'],
 });
 export function chooseRouteTrack(region, previous, random = Math.random) {
   const pool = ROUTE_POOLS[region] || ROUTE_POOLS.steppe;
@@ -31,6 +37,7 @@ export function createRoutePlaylist(music, { storage, random = Math.random } = {
   }
   function enter(next, force = false) {
     if (!next || (!force && region === next)) return Promise.resolve(false);
+    if(!force&&region?.startsWith('monsoon-')&&next.startsWith('monsoon-')&&music.state.status==='playing'){region=next;return Promise.resolve(false);}
     region = next;
     return automatic ? music.select(nextTrack(),{fade:2.4}) : Promise.resolve(false);
   }
