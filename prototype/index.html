@@ -292,7 +292,7 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
       <div><b id="recFind">0</b><span>見つけたもの</span></div>
       <div><b id="recMote">0</b><span>風の欠片</span></div>
     </div>
-    <div class="featured-trips" id="featuredTrips2"></div><button class="ghost wide" id="realmWarp2" type="button">旅の門：日本・東南アジアへ</button><details id="monsoonStops" hidden><summary>日本・南の海の出発地点</summary><div class="worlds" id="monsoonChoices"></div></details>
+    <div class="featured-trips" id="featuredTrips2"></div><button class="ghost wide" id="realmWarp2" type="button">旅の門：日本・東南アジアへ</button><details id="monsoonStops" hidden><summary>旅の地図・14の出発地点</summary><p class="trip-note">分岐では左右を長めに。下＋左右で道の外へ。地図の丸からも移動できます。</p><svg id="atlasMap" style="width:100%;max-height:280px;background:#24383b;border-radius:12px" role="group"></svg><div class="worlds" id="monsoonChoices"></div></details>
     <p class="trip-note">出発地点を選ぶと移動します。旅路は道でつながっています。</p>
     <fieldset class="music-settings" id="musicSettings" disabled>
       <legend>旅の音楽</legend>
@@ -364,10 +364,11 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 </section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="../world/monsoon-world.js?v=20261029-regional"></script>
+<script src="../world/monsoon-atlas.js?v=20261029-atlas"></script>
+<script src="../world/monsoon-world.js?v=20261029-atlas"></script>
 <script src="../world/scenic-journey.js?v=20261029-voyage"></script>
 <script src="../world/route-guidance.js?v=20261029-voyage"></script>
-<script src="../world/featured-routes.js?v=20261029-regional"></script>
+<script src="../world/featured-routes.js?v=20261029-atlas"></script>
 <script src="../world/horse-riding.js?v=20261024-bow"></script>
 <script src="../world/horse-gait.js?v=20261024-phrase"></script>
 <script src="../world/horse-sound.js?v=20261024-phrase"></script>
@@ -615,7 +616,7 @@ function mulberry(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = 
 // biome weights: two very-low-frequency fields blend the four worlds in quadrants
 const CELL = 3200, _cd = new Float32Array(9), _cb = new Int8Array(9);
 function biomeW(x, z, out, landscape=true) {
-  if(realm==='monsoon'){const q=MON.stage(x,z);out.fill(0);out[BIX[q.previous.key]]=1-q.blend;out[BIX[q.key]]+=q.blend;return out;}
+  if(realm==='monsoon'){const q=MON.stage(x,z);out.fill(0);if(q.weights)for(const v of q.weights)out[BIX[v.zone.key]]+=v.w;else{out[BIX[q.previous.key]]=1-q.blend;out[BIX[q.key]]+=q.blend;}return out;}
   for (let i = 0; i < NB; i++) out[i] = 0;
   if (biomeMode !== 'journey') { out[BKEYS.indexOf(biomeMode)] = 1; return out; }
   return journeyW(x, z, out, landscape);
@@ -933,7 +934,7 @@ function ground(x, z, y) {
   const hx = heightAt(x + e, z) - heightAt(x - e, z), hz = heightAt(x, z + e) - heightAt(x, z - e);
   GI.n.set(-hx, 2 * e, -hz).normalize(); GI.water = false; GI.roof = false;
   if (WATER > h) { h = WATER; GI.n.set(0, 1, 0); GI.water = true; }
-  if(realm==='monsoon'){const water=MON.waterAt(x,z);if(water!==null&&water>h){h=water;GI.n.set(0,1,0);GI.water=true;}}
+  if(realm==='monsoon'){const water=MON.waterAt(x,z);if(water!==null&&water>h){h=water;GI.n.set(0,1,0);GI.water=true;}const plaza=MON.plazaAt(x,z);if(plaza&&y>=plaza.y-.25&&Math.hypot(x-plaza.x,z-plaza.z)<82){h=plaza.y+.14;GI.n.set(0,1,0);GI.water=false;}}
   if (y !== undefined) {
     const hw = highway(x, z);
     if (hw.d < HW_HALF + 0.6) {
@@ -1391,7 +1392,7 @@ function* terrainSteps(ch) {
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setIndex(idx);
   geo.computeBoundingSphere();
-  ch.group.add(new THREE.Mesh(geo, terrainMat));
+  const terrainMesh=new THREE.Mesh(geo,terrainMat);terrainMesh.userData.surface='terrain';ch.group.add(terrainMesh);
   if (minH < WATER) { const wm = new THREE.Mesh(waterGeo, waterMat); wm.position.set(x0 + CH / 2, WATER, z0 + CH / 2); ch.group.add(wm); }
 }
 
@@ -2322,10 +2323,11 @@ function buildCanyon(ch){
 function buildFeaturedRoad(ch) {
   if (biomeMode !== 'journey') return;
   const road = new Merger(), stone = new Merger(), paint = new THREE.Color(0xcfc6ad), asphalt = new THREE.Color(0x646461),snowRoad=new THREE.Color(0xb0b9bd),roadStart=new THREE.Color(),roadEnd=new THREE.Color(),roadMix=new THREE.Color(),vergeStart=new THREE.Color(),vergeEnd=new THREE.Color();
-  const vertex = (p, side, up = .14) => new V3(p.x + p.nx * side, p.y + up, p.z + p.nz * side);
+  const vertex=(p,side,up=.14)=>{const x=p.x+p.nx*side,z=p.z+p.nz*side,y=p.rawY!==undefined?MON.atlas.mergeHeight(x,z,p.rawY):p.y;return new V3(x,y+up,z);};
   for (const path of TOURS.paths) for (const seg of path.segments) {
     const a = seg.a, b = seg.b, x = (a.x + b.x) / 2, z = (a.z + b.z) / 2;
     if (Math.floor(x / CH) !== ch.cx || Math.floor(z / CH) !== ch.cz) continue;
+    if(path.atlas&&MON.atlas.nodes.some(n=>n.plaza&&Math.hypot(x-n.x,z-n.z)<75))continue;
     const h = seg.half, yaw = Math.atan2(seg.tx, seg.tz), y = (a.y + b.y) / 2, mode = path.id === 'mountain' ? TOURS.tunnel(x) : null,roof=TOURS.hasPanel(seg),roofY=TOURS.shelterHeight;
     const strip = (off,width,up,colour,gradient=0,verge=false,endOff=off,endWidth=width) => {
       const p=vertex(a,off+width,up),q=vertex(a,off-width,up),r=vertex(b,endOff+endWidth,up),s=vertex(b,endOff-endWidth,up);
@@ -2333,7 +2335,7 @@ function buildFeaturedRoad(ch) {
       else {road.tri(p,r,q,colour);road.tri(q,r,s,colour);}
     };
     const ice=path.id==='mountain'?WindJourneyClimate.mountain(x,z,y).snow:0;asphalt.setHex(0x646461).lerp(snowRoad,ice*.25);
-    const sampler=path.id==='monsoon'?MON.stage(x,z):null;
+    const sampler=path.realm==='monsoon'?MON.stage(x,z):null;
     let startTrack=h,endTrack=h;
     if(sampler){const start=MON.stage(a.x,a.z),end=MON.stage(b.x,b.z);startTrack=lerp(start.previous.track,start.track,start.blend);endTrack=lerp(end.previous.track,end.track,end.blend);roadStart.setHex(start.previous.road).lerp(roadMix.setHex(start.road),start.blend);roadEnd.setHex(end.previous.road).lerp(roadMix.setHex(end.road),end.blend);vergeStart.setHex(start.previous.verge).lerp(roadMix.setHex(start.verge),start.blend);vergeEnd.setHex(end.previous.verge).lerp(roadMix.setHex(end.verge),end.blend);}
     // Adjacent surfaces share edges; no coplanar shoulder overlay or depth flicker.
@@ -2651,7 +2653,7 @@ function updateRealmGate(){
 }
 function refreshRealmControls(){
  for(const id of ['realmWarp','realmWarp2'])document.getElementById(id).textContent=realm==='monsoon'?'旅の門：中央アジアへ戻る':'旅の門：日本・東南アジアへ';
- document.getElementById('monsoonStops').hidden=realm!=='monsoon';
+ document.getElementById('monsoonStops').hidden=realm!=='monsoon';if(realm==='monsoon'&&MON.atlas)MON.atlas.drawMap(document.getElementById('atlasMap'),P.pos);
 }
 function travelRealm(target='monsoon',zoneId='bay'){
  gateUntil=t+4;gateArmed=false;
@@ -2669,11 +2671,13 @@ function travelRealm(target='monsoon',zoneId='bay'){
  }
  realm='monsoon';const path=MON.install(TOURS);NAV=WindRouteGuidance.install(TOURS,x=>{const slope=railZd(x),l=Math.hypot(1,slope);return{x,z:railZ(x),y:railY(x)+.02,tx:1/l,tz:slope/l,s:x,path:null};});
  biomeMode='journey';featured='monsoon';lakeJourney=WindJourneyClimate.create();clearShells();clearDrones();applyRealmSkin();
- const i=Math.max(0,MON.zones.findIndex(z=>z.id===zoneId)),p=TOURS.at(path,path.length*(i/6+.015));P.pos.set(p.x,p.y+HOVER,p.z);rebuildAll();placeAt(p.x,p.z,Math.atan2(p.tx,p.tz),Math.max(8,S.cruise*.9));
+ const i=Math.max(0,MON.zones.findIndex(z=>z.id===zoneId)),p=MON.departure(MON.zones[i].id);P.pos.set(p.x,p.y+HOVER,p.z);rebuildAll();placeAt(p.x,p.z,p.yaw,Math.max(8,S.cruise*.9));
  Object.assign(P,{dead:false,reached:false,hull:3,flow:.25,stalled:false,invuln:4,stopT:0,barrage:false,routeTrack:null,routeOffset:0,lean:0,leanV:0,sway:0,hold:0,cornerPace:S.maxSpeed});inp.jx=inp.jy=inp.kx=inp.ky=0;inp.keys={};steerSm=0;
  camBaseY=P.pos.y;suspY=suspV=0;WindTravelCamera.reset(travelCam);updatePalette(0,true);refreshCards();refreshRealmControls();toast(MON.zones[i].name,'日本と南の海を巡る、短い旅',2400);window.dispatchEvent(new CustomEvent('wl:music-region',{detail:{region:musicRegion(),visit:true}}));
 }
 for(const id of ['realmWarp','realmWarp2'])document.getElementById(id).addEventListener('click',()=>{if(!started){featured='monsoon';biomeMode='journey';begin(false);}else travelRealm(realm==='central'?'monsoon':'central');closeSheet('#menuSheet');});
+document.getElementById('btnMenu').addEventListener('click',()=>{if(realm==='monsoon')MON.atlas.drawMap(document.getElementById('atlasMap'),P.pos);});
+for(const type of ['click','keydown'])document.getElementById('atlasMap').addEventListener(type,e=>{if(type==='keydown'&&!['Enter',' '].includes(e.key))return;const id=e.target.closest('[data-atlas-warp]')?.dataset.atlasWarp;if(id){e.preventDefault();e.stopPropagation();travelRealm('monsoon',id);closeSheet('#menuSheet');}});
 for(const zone of MON.zones){const b=document.createElement('button');b.className='ghost';b.textContent=zone.name;b.dataset.monsoonZone=zone.id;b.addEventListener('click',()=>{travelRealm('monsoon',zone.id);closeSheet('#menuSheet');});document.getElementById('monsoonChoices').append(b);}
 
 function drain(steps) { while (!steps.next().done) {} }
@@ -3791,6 +3795,7 @@ function startPose() { return Math.atan2(1, hwZd(0, homeX())); }
 function placeHome(speed) { const x = homeX(); P.pos.set(x, 0, hwZ(0, x)); updateChunks(true); placeAt(x, hwZ(0, x), startPose(), speed); P.stalled = false; P.reached = false; }
 function placeAt(x, z, yaw, speed) {
   resetRidingInput();clearArrows();
+  if(realm==='monsoon')MON.reset(P);
   P.horse=WindHorseRiding.create();P.hopping=false;P.jumpBuf=0;P.sway=0;P.routeTrack=null;
   sfx.stopHooves();
   horseWake.clear();flowEffects.clear();
@@ -3884,7 +3889,7 @@ function stepPhysics(dt) {
       if (braking) vf = Math.max(0, vf - 24 * brakeAmt * dt);
       vf += S.tailwind * Math.max(0, fPl.x * windDir.x + fPl.z * windDir.z) * dt;
       const route = rideRoute(P.pos.x, P.pos.z, P.pos.y);
-      P.onRoad = roadDist(P.pos.x, P.pos.z) < 5 || route.d < route.half;
+      P.onRoad = (realm==='monsoon'&&Boolean(MON.plazaAt(P.pos.x,P.pos.z))) || roadDist(P.pos.x, P.pos.z) < 5 || route.d < route.half;
       if (P.onRoad) vf += (horse?2.1:5) * dt;
       if (vf > cruiseNow) vf -= (vf - cruiseNow) * (P.onWater ? 0.02 : P.onRoad ? 0.003 : 0.007) * dt;
       // the long pull: held straight, the old engine keeps winding up toward the top end, slowly;
@@ -3975,6 +3980,10 @@ function roadAffinity(steer, dt) {
   roadPull = Math.max(0, roadPull - dt * 2);
   P.assistLean *= Math.exp(-6 * dt);
   if ((!P.grounded && !(vehKey==='horse'&&P.hopping)) || P.drifting || P.grind || window.__noAssist) return;
+  if(realm==='monsoon'&&vehKey==='horse'){
+    if(P.braking){MON.reset(P);return;}
+    if(MON.guide(P,steer,dt)){roadPull=1;return;}
+  }
   const hw = rideRoute(P.pos.x, P.pos.z, P.pos.y), half = hw.half, reach = half + 36;
   if (hw.d > reach) return;
   if(vehKey==='horse'&&horseRoadAffinity(hw,steer,dt))return;
@@ -5573,8 +5582,10 @@ function updatePalette(dt, snap) {
   for (const c of clouds) { c.material.color.copy(pal.cloud).lerp(moodHor,.25); c.material.opacity=lerp(.62,.17,lakeSky.night*lakeBlend); }
   for (const c of cloudSea) { c.material.color.copy(pal.cloud).lerp(moodHor, 0.3); c.material.opacity = altK * 0.85; c.visible = altK > 0.02; }
   if(realm==='monsoon'){
-    const zone=MON.stage(P.pos.x,P.pos.z);lakeSkyMix.setHex(zone.previous.top).lerp(monsoonSkyTop.setHex(zone.top),zone.blend);skyMat.uniforms.top.value.lerp(lakeSkyMix,.88);lakeSkyMix.setHex(zone.previous.hor).lerp(monsoonSkyHor.setHex(zone.hor),zone.blend);skyMat.uniforms.hor.value.lerp(lakeSkyMix,.88);skyMat.uniforms.bot.value.lerp(lakeSkyMix,.70);scene.fog.color.copy(skyMat.uniforms.hor.value);renderer.setClearColor(scene.fog.color);scene.fog.near=350;scene.fog.far=5600;waterMat.color.setHex(0x4d969d);
-    const evening=(zone.id==='edo'?zone.blend:0)+(zone.previous.id==='edo'?1-zone.blend:0);pal.sunDir.set(lerp(.3,-.6,evening),lerp(.48,.13,evening),-.7).normalize();skyMat.uniforms.sunDir.value.copy(pal.sunDir);sun.position.copy(pal.sunDir);sun.color.setHex(0xffeed6).lerp(lakeSkyMix.setHex(0xffc28b),evening);skyMat.uniforms.sunCol.value.copy(sun.color);
+    const zone=MON.stage(P.pos.x,P.pos.z),weather=MON.weather(P.pos.x,P.pos.z,t);
+    monsoonSkyTop.setRGB(...weather.top);monsoonSkyHor.setRGB(...weather.hor);skyMat.uniforms.top.value.lerp(monsoonSkyTop,.92);skyMat.uniforms.hor.value.lerp(monsoonSkyHor,.92);skyMat.uniforms.bot.value.lerp(monsoonSkyHor,.78);skyMat.uniforms.stars.value=weather.stars;scene.fog.color.copy(skyMat.uniforms.hor.value);renderer.setClearColor(scene.fog.color);scene.fog.near=320;scene.fog.far=weather.fog;waterMat.color.setHex(['okinawa','ryukyu','straits'].includes(zone.id)?0x419baf:0x659b9b);
+    pal.sunDir.set(.3,weather.elevation,-.7).normalize();skyMat.uniforms.sunDir.value.copy(pal.sunDir);sun.position.copy(pal.sunDir);sun.color.setHex(0xffeed6).lerp(lakeSkyMix.setHex(0xffbf8b),1-weather.elevation);skyMat.uniforms.sunCol.value.copy(sun.color);for(const c of clouds)c.material.opacity=weather.cloud;
+
   }
   // announce a new land when it clearly takes over
   const d = dominant(_wp);
@@ -6329,7 +6340,7 @@ const keyAxis = () => {
   inp.ky = ((k.KeyW || k.ArrowUp) ? 1 : 0) - ((k.KeyS || k.ArrowDown) ? 1 : 0);
 };
 window.addEventListener('keydown', (e) => {
-  if (e.target && e.target.closest('input, select, textarea, button')) return;
+  if (e.target && e.target.closest('input, select, textarea, button, summary, [role="button"]')) return;
   if (e.repeat) { if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); return; }
   inp.keys[e.code] = true; keyAxis();
   if (e.code === 'Space') {e.preventDefault();if(started&&!paused){inp.jumpHeld=true;inp.jumpPressed=true;sfx.resume();}}
@@ -6372,6 +6383,6 @@ window.__wl = { get paused(){return paused;}, climate:WindJourneyClimate,get lak
 window.__wlAudio = { getContext() { sfx.init(); return sfx.context; }, getDestination() { sfx.init(); return sfx.output; }, get soundOn() { return sfx.on; } };
 })();
 </script>
-<script type="module" src="../music/game-music.mjs?v=20261029-regional" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
+<script type="module" src="../music/game-music.mjs?v=20261029-atlas" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
 </body>
 </html>

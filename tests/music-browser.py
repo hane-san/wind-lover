@@ -44,7 +44,7 @@ try:
     page.wait_for_function('window.__wl && window.__wlMusic',timeout=120000)
     assert page.evaluate('__wlMusic.state.enabled && audioProbe.contexts.length===0')
     assert len(requests)==0,'Default-on BGM must wait for a user gesture'
-    assert page.locator('#musicTrack option').count()==29
+    assert page.locator('#musicTrack option').count()==37
     page.route('**/assets/music/quiet/*.ogg',lambda r:r.fulfill(body=b'invalid codec',content_type='audio/ogg') if any(id in r.request.url for id in ['rust-horizon']) else r.continue_())
     page.locator('#btnGo').click(timeout=120000)
     page.wait_for_function('__wl.P.dist>2',timeout=60000)

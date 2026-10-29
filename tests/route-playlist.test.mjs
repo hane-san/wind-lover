@@ -71,3 +71,10 @@ test('boundary chatter queues only the latest sampler scene instead of repeatedl
  for(const zone of ['edo','bay','edo','angkor'])await list.enter('monsoon-'+zone);assert.equal(calls.length,initial);
  age=14;music.state.status='switching';assert.equal(await list.tick(),false);music.state.status='playing';await list.tick();assert.equal(calls.at(-1),'lotus-stone');assert.equal(calls.length,initial+1);
 });
+
+test('returning along an atlas road restores the district theme even when heard recently',async()=>{
+ let age=0;const music={state:{track:'rust-horizon',status:'playing'},inspect:()=>({playingSeconds:age}),select(id){this.state.track=id;age=0;return Promise.resolve(true)}};
+ const list=createRoutePlaylist(music,{storage:null,random:()=>0});
+ await list.enter('monsoon-shikoku',true);assert.equal(music.state.track,'indigo-gorge');
+ for(const [region,theme]of [['kanazawa','rain-on-lattice'],['shikoku','indigo-gorge']]){await list.enter('monsoon-'+region);age=14;assert.equal(await list.tick(),true);assert.equal(music.state.track,theme);}
+});

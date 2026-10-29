@@ -3,7 +3,7 @@
  const CX=150000,RX=1500,RZ=1050,TAU=Math.PI*2,CELL=128;
  const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v)),mix=(a,b,t)=>a+(b-a)*t;
  const smooth=(a,b,v)=>{const t=clamp((v-a)/(b-a));return t*t*(3-2*t);};
- const zones=[
+ const baseZones=[
   {id:'bay',name:'豊洲風の運河と湾岸',key:'azure',top:0x527fa6,hor:0xc9dfe1,ground:0x779c89,road:0x667b83,verge:0x9fafa3,track:18},
   {id:'edo',name:'夕暮れの田畑と江戸街道',key:'steppe',top:0x855881,hor:0xf0b576,ground:0x8c9c56,road:0xb29b6c,verge:0x899953,track:8},
   {id:'angkor',name:'環濠とアンコールの森',key:'fergana',top:0x507d7b,hor:0xd4dfbc,ground:0x54734b,road:0x9d9478,verge:0x81805c,track:13},
@@ -11,6 +11,7 @@
   {id:'donmueang',name:'ドンムアン・空港と高架',key:'azure',top:0x648eac,hor:0xe1d9bd,ground:0x839275,road:0x637680,verge:0x9baca3,track:20},
   {id:'straits',name:'マレーの入り江と石灰岩',key:'issyk',top:0x4093af,hor:0xc5e4d5,ground:0x62835a,road:0xc7b68b,verge:0xb9c39b,track:11},
  ];
+ let atlas=null,zones=baseZones.concat(WindAtlas.additions.map(z=>({...z})));
  let path=null,plots=[],patches=[],patchGrid=new Map(),signAtlas=null;
  const profile=[[0,20],[.045,22],[.085,38],[.14,24],[1/6,23],[.25,21],[1/3,25],[.43,27],[.50,20],[2/3,20],[.77,22],[5/6,31],[.90,60],[.965,27],[1,20]];
  function roadHeight(u){let i=0;while(i<profile.length-2&&u>profile[i+1][0])i++;const a=profile[i],b=profile[i+1];return mix(a[1],b[1],smooth(a[0],b[0],u));}
@@ -18,8 +19,8 @@
   if(path)return path;const points=[],cum=[0];
   for(let i=0;i<=480;i++){const a=i/480*TAU,r=1+.035*Math.sin(a*3)+.018*Math.sin(a*7);points.push({x:CX+RX*r*Math.cos(a),z:RZ*r*Math.sin(a),y:0});if(i)cum.push(cum.at(-1)+Math.hypot(points[i].x-points[i-1].x,points[i].z-points[i-1].z));}
   for(let i=0;i<points.length;i++)points[i].y=roadHeight(cum[i]/cum.at(-1));points[480]={...points[0]};
-  path=routes.addCircuit('monsoon',points);Object.assign(path,{region:'monsoon',realm:'monsoon',name:'日本と南の海を巡る旅'});for(const seg of path.segments)seg.half=30;routes.indexReach(path,1300);
-  const patch=(s,off,hw,hd,kind,floor,water=null)=>{const p=pose(routes,s,off),q={...p,hw,hd,kind,floor,water,c:Math.cos(p.yaw),sn:Math.sin(p.yaw)};patches.push(q);const reach=Math.hypot(hw+24,hd+24);for(let x=Math.floor((q.x-reach)/CELL);x<=Math.floor((q.x+reach)/CELL);x++)for(let z=Math.floor((q.z-reach)/CELL);z<=Math.floor((q.z+reach)/CELL);z++){const key=x+','+z;if(!patchGrid.has(key))patchGrid.set(key,[]);patchGrid.get(key).push(q);}return q;};
+  path=routes.addCircuit('monsoon',points);Object.assign(path,{region:'monsoon',realm:'monsoon',name:'日本と南の海を巡る旅'});for(const seg of path.segments)seg.half=30;routes.indexReach(path,1300);atlas=WindAtlas.create(routes,path,nearMain,baseZones);zones=atlas.zones;
+  const patch=(s,off,hw,hd,kind,floor,water=null,site=null)=>{const p=site||pose(routes,s,off),q={...p,hw,hd,kind,floor,water,c:Math.cos(p.yaw),sn:Math.sin(p.yaw)};patches.push(q);const reach=Math.hypot(hw+24,hd+24);for(let x=Math.floor((q.x-reach)/CELL);x<=Math.floor((q.x+reach)/CELL);x++)for(let z=Math.floor((q.z-reach)/CELL);z<=Math.floor((q.z+reach)/CELL);z++){const key=x+','+z;if(!patchGrid.has(key))patchGrid.set(key,[]);patchGrid.get(key).push(q);}return q;};
   // Flooded and dry fields sit beside the riding corridor, with real shallow floors and banks.
   for(let s=path.length*.182,i=0;s<path.length*.322;s+=96,i++)for(const side of [-1,1])for(let row=0;row<3;row++){
    const p=routes.at(path,s),kind=(i+row)%4===0?'dry':(i+row)%3===0?'gold':'rice',floor=p.y-1.4-row*.35;
@@ -33,18 +34,21 @@
   for(let u=.69;u<.80;u+=.025)patch(path.length*u,330,16,100,'drain',12,16);
   for(let s=path.length*.684;s<path.length*.817;s+=86)patch(s,-174,86,43,'apron',18.7);
   for(let s=path.length*.018;s<path.length*.16;s+=78)patch(s,-250,52,45,'quay',21);
+  for(const p of atlas.waterPatches)patch(0,0,p.hw,p.hd,p.kind,p.floor,p.water,p);
   return path;
  }
- function near(x,z){
+ function nearMain(x,z){
   const a=((Math.atan2(z/RZ,(x-CX)/RX)%TAU)+TAU)%TAU,i=Math.min(479,Math.floor(a/TAU*480));let best=null;
   for(let j=-1;j<=1;j++){const seg=path?.segments[(i+j+480)%480];if(!seg)continue;const u=clamp(((x-seg.a.x)*seg.dx+(z-seg.a.z)*seg.dz)/(seg.length**2)),px=seg.a.x+seg.dx*u,pz=seg.a.z+seg.dz*u,d=Math.hypot(x-px,z-pz);if(!best||d<best.d)best={y:mix(seg.a.y,seg.b.y,u),d,s:seg.s+seg.length*u,side:(x-px)*-seg.tz+(z-pz)*seg.tx};}
   return best||{y:20,d:999,s:0,side:0};
  }
+ function near(x,z){return atlas?atlas.near(x,z):nearMain(x,z);}
  function describe(p){const u=path?p.s/path.length:0,index=Math.min(5,Math.floor(u*6)),v=clamp((u*6-index)/.12);return {...zones[index],index,u,previous:zones[(index+5)%6],blend:v*v*(3-2*v)};}
- function stage(x,z){return describe(near(x,z));}
+ function stage(x,z){return atlas?atlas.stage(x,z):describe(near(x,z));}
  function local(p,x,z){const dx=x-p.x,dz=z-p.z;return{x:dx*p.c-dz*p.sn,z:dx*p.sn+dz*p.c};}
  function regionTerrain(id,p,x,z){
-  const side=p.side,d=Math.abs(side),u=p.s/path.length,noise=Math.sin(x/133)*Math.sin(z/171)*1.2;
+  const extra=atlas?.terrain(id,p,x,z);if(extra!==null&&extra!==undefined)return extra;
+  const side=p.side,d=Math.abs(side),u=(p.mainS??p.s)/path.length,noise=Math.sin(x/133)*Math.sin(z/171)*1.2;
   if(id==='bay'){const shore=1-smooth(-225,-68,side);return mix(21+noise,-42,shore);}
   if(id==='edo'){const hills=smooth(370,850,d)*(80+35*Math.sin(x/310)*Math.cos(z/340));return p.y-1.2+noise*.35+hills;}
   if(id==='angkor')return 24+noise*.65+9*smooth(400,950,d)*Math.sin(x/570)**2;
@@ -54,11 +58,11 @@
   return mix(p.y-2+ridge+noise,-42,sea);
  }
  function terrain(x,z){
-  const p=near(x,z),q=describe(p);let h=mix(regionTerrain(q.previous.id,p,x,z),regionTerrain(q.id,p,x,z),q.blend);
+  const p=near(x,z),q=stage(x,z);let h=q.weights?q.weights.reduce((n,v)=>n+regionTerrain(v.zone.id,p,x,z)*v.w,0):mix(regionTerrain(q.previous.id,p,x,z),regionTerrain(q.id,p,x,z),q.blend);
   h=mix(p.y-.35,h,smooth(34,80,Math.abs(p.side)));
   const ocean=smooth(2.0,2.65,Math.hypot((x-CX)/RX,z/RZ));h=mix(h,-42,ocean);
   for(const patch of patchGrid.get(Math.floor(x/CELL)+','+Math.floor(z/CELL))||[]){const a=local(patch,x,z),dx=Math.abs(a.x)-patch.hw,dz=Math.abs(a.z)-patch.hd,w=1-smooth(8,23,Math.max(dx,dz));if(w>0)h=mix(h,patch.floor,w);}
-  return h;
+  return atlas?atlas.ground(h,x,z):h;
  }
  function waterAt(x,z){let top=null;for(const p of patchGrid.get(Math.floor(x/CELL)+','+Math.floor(z/CELL))||[]){if(p.water===null)continue;const q=local(p,x,z);if(Math.abs(q.x)<p.hw-1.5&&Math.abs(q.z)<p.hd-1.5)top=top===null?p.water:Math.max(top,p.water);}return top;}
  function colour(x,z,slope=0){
@@ -67,17 +71,20 @@
   return result;
  }
  function pose(routes,s,off=0){const p=routes.at(path,s);return{...p,x:p.x-p.tz*off,z:p.z+p.tx*off,yaw:Math.atan2(p.tx,p.tz)};}
- function atlas(THREE){
-  if(signAtlas)return signAtlas;const c=document.createElement('canvas');c.width=1024;c.height=256;const g=c.getContext('2d');
-  const labels=[['TOYOSU','WATERFRONT'],['茶屋','街道'],['旅籠','夕暮れ'],['KHAO SAN','NIGHT MARKET'],['BANGLAMPHU','RIVERSIDE'],['NIGHT MARKET','FOOD & MUSIC'],['DON MUEANG','TERMINAL'],['STRAITS','COAST ROAD']];
-  for(let i=0;i<8;i++){const x=(i%4)*256,y=Math.floor(i/4)*128;g.fillStyle=['#244b61','#715842','#59513b','#653b60','#285e63','#70523c','#2c5a6b','#4b6b57'][i];g.fillRect(x,y,256,128);g.strokeStyle='#d0b98c';g.lineWidth=3;g.strokeRect(x+6,y+6,244,116);g.fillStyle='#f5e6c0';g.textAlign='center';g.font='bold 28px sans-serif';g.fillText(labels[i][0],x+128,y+57,238);g.font='17px sans-serif';g.fillText(labels[i][1],x+128,y+91,235);}
+ function signTexture(THREE){
+  if(signAtlas)return signAtlas;const c=document.createElement('canvas');c.width=1024;c.height=512;const g=c.getContext('2d');
+  const labels=[['TOYOSU','WATERFRONT'],['茶屋','街道'],['旅籠','夕暮れ'],['KHAO SAN','NIGHT MARKET'],['BANGLAMPHU','RIVERSIDE'],['NIGHT MARKET','FOOD & MUSIC'],['DON MUEANG','TERMINAL'],['STRAITS','COAST ROAD'],['KANAZAWA','RAIN & LATTICE'],['SHIKOKU','INDIGO RIVER'],['INNER ANGKOR','FOREST GALLERIES'],['RIVER TOWN','THAILAND'],['RYUKYU','VERMILLION TIDE'],['OKINAWA','CORAL COAST'],['NORTHERN LAKE','FOREST & CISE'],['HA GIANG','KARST HIGHLANDS']];
+  for(let i=0;i<labels.length;i++){const x=(i%4)*256,y=Math.floor(i/4)*128;g.fillStyle=['#244b61','#715842','#59513b','#653b60','#285e63','#70523c','#2c5a6b','#4b6b57'][i%8];g.fillRect(x,y,256,128);g.strokeStyle='#d0b98c';g.lineWidth=3;g.strokeRect(x+6,y+6,244,116);g.fillStyle='#f5e6c0';g.textAlign='center';g.font='bold 28px sans-serif';g.fillText(labels[i][0],x+128,y+57,238);g.font='17px sans-serif';g.fillText(labels[i][1],x+128,y+91,235);}
   signAtlas=new THREE.CanvasTexture(c);signAtlas.anisotropy=2;return signAtlas;
  }
  function build({THREE,G,M,Merger,heightAt,addSolid},parent,routes){
   const stone=new Merger(),glass=new Merger(),light=new Merger(),water=new Merger(),signs={p:[],uv:[]},stats={fields:plots.length,canals:patches.filter(p=>['canal','city-canal','drain'].includes(p.kind)).length,landformPatches:patches.length,trees:0,houses:0,shops:0,bridges:0,islands:0};
-  const part=(geo,x,y,z,yaw,sx,sy,sz,col,bright=false)=>(bright?light:stone).add(geo,M(x,y,z,yaw,sx,sy,sz),col);
+  const part=(geo,x,y,z,yaw,sx,sy,sz,col,bright=false)=>{
+   if(sy>.6){const r=routes.nearest(x,z,null,1000),hw=geo===G.box?sx/2:sx,hd=geo===G.box?sz/2:sz;if(r?.path.realm==='monsoon'&&y-sy/2<r.y+26&&!safeBox(x,z,yaw,hw,hd))return false;}
+   (bright?light:stone).add(geo,M(x,y,z,yaw,sx,sy,sz),col);return true;
+  };
   const clear=(x,z,r=8)=>{const p=routes.nearest(x,z,null,1500);return !p||p.d>p.half+r+5;};
-  const safeBox=(x,z,yaw,hw,hd)=>{const c=Math.cos(yaw),sn=Math.sin(yaw);for(const a of [-hw,0,hw])for(const b of [-hd,0,hd]){const p=routes.nearest(x+c*a+sn*b,z-sn*a+c*b,null,1500);if(p&&p.d<p.half+1)return false;}return true;};
+  const safeBox=(x,z,yaw,hw,hd)=>{if(atlas.nodes.some(n=>n.plaza&&Math.hypot(x-n.x,z-n.z)<82+Math.hypot(hw,hd)))return false;const c=Math.cos(yaw),sn=Math.sin(yaw);for(const a of [-hw,0,hw])for(const b of [-hd,0,hd]){const p=routes.nearest(x+c*a+sn*b,z-sn*a+c*b,null,1500);if(p&&p.d<p.half+1)return false;}return true;};
   const solid=(x,z,yaw,hw,hd,bottom,top)=>{if(safeBox(x,z,yaw,hw,hd))addSolid(x,z,yaw,hw,hd,bottom,top);};
   const block=(p,w,h,d,col,y=heightAt(p.x,p.z),collision=true)=>{if(collision&&!safeBox(p.x,p.z,p.yaw,w/2,d/2))return false;part(G.box,p.x,y+h/2,p.z,p.yaw,w,h,d,col);if(collision)addSolid(p.x,p.z,p.yaw,w/2,d/2,y,y+h);return true;};
   const move=(p,right=0,forward=0)=>({...p,x:p.x+Math.cos(p.yaw)*right+Math.sin(p.yaw)*forward,z:p.z-Math.sin(p.yaw)*right+Math.cos(p.yaw)*forward});
@@ -85,13 +92,13 @@
   const rice=(()=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute([-.5,0,0,.5,0,0,0,1,0,0,0,-.5,0,0,.5,0,1,0],3));g.computeVertexNormals();return g;})();
   const frond=(()=>{const p=[],ix=[];for(let i=0;i<=8;i++){const u=i/8,w=Math.sin(u*Math.PI)*2.7;for(const side of [-1,1])p.push(side*w,3*Math.sin(u*Math.PI)-6*u*u,u*18);}for(let i=0;i<8;i++){const a=i*2;ix.push(a,a+2,a+1,a+1,a+2,a+3);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setIndex(ix);g.computeVertexNormals();return g;})();
   const roof=(p,w,h,d,col,topCol)=>{if(!safeBox(p.x,p.z,p.yaw,w*.56,d*.58))return;const y=heightAt(p.x,p.z);block(p,w,h,d,col,y);part(gable,p.x,y+h,p.z,p.yaw,w*.56,h*.55,d*.58,topCol);solid(p.x,p.z,p.yaw,w*.56,d*.58,y+h,y+h*1.55);stats.houses++;};
-  const tree=(p,h=24,palm=false)=>{if(!clear(p.x,p.z,palm?17:10))return;const y=heightAt(p.x,p.z);if(y< -15)return;part(G.cyl,p.x,y+h/2,p.z,p.yaw,.65,h,.65,0x77694e);solid(p.x,p.z,0,.65,.65,y,y+h);stats.trees++;
+  const tree=(p,h=24,palm=false)=>{if(atlas.nodes.some(n=>n.plaza&&Math.hypot(p.x-n.x,p.z-n.z)<105))return;if(!clear(p.x,p.z,palm?17:10))return;const y=heightAt(p.x,p.z);if(y< -15)return;part(G.cyl,p.x,y+h/2,p.z,p.yaw,.65,h,.65,0x77694e);solid(p.x,p.z,0,.65,.65,y,y+h);stats.trees++;
    if(palm){for(let k=0;k<7;k++)part(frond,p.x,y+h,p.z,k/7*TAU,.9,.9,.9,k%2?0x365d43:0x477a50);}
    else {for(const [dx,dz,dy,r]of [[0,0,0,10],[-6,2,-3,8],[5,-4,-2,8]])part(G.ico,p.x+dx,y+h+dy,p.z+dz,p.yaw,r,r*.7,r,dy?0x48674a:0x557650);solid(p.x,p.z,0,14,14,y+h-9,y+h+7);}
   };
   const beam=(a,b,r,col)=>{const A=new THREE.Vector3(...a),B=new THREE.Vector3(...b),d=B.clone().sub(A),matrix=new THREE.Matrix4().compose(A.clone().add(B).multiplyScalar(.5),new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),d.clone().normalize()),new THREE.Vector3(r,d.length(),r));stone.add(G.cyl,matrix,col);};
-  const sign=(p,y,index,w=9,h=4)=>{const x=p.x,z=p.z,c=Math.sin(p.yaw)*w/2,s=Math.cos(p.yaw)*w/2,verts=[[x-c,y-h/2,z-s],[x+c,y-h/2,z+s],[x-c,y+h/2,z-s],[x+c,y+h/2,z+s]],u=index%4*.25,v=1-Math.floor(index/4)*.5;
-   for(const [i,uv]of [[0,[u,v-.5]],[1,[u+.25,v-.5]],[2,[u,v]],[2,[u,v]],[1,[u+.25,v-.5]],[3,[u+.25,v]]]){signs.p.push(...verts[i]);signs.uv.push(...uv);}
+  const sign=(p,y,index,w=9,h=4)=>{const x=p.x,z=p.z,c=Math.sin(p.yaw)*w/2,s=Math.cos(p.yaw)*w/2,verts=[[x-c,y-h/2,z-s],[x+c,y-h/2,z+s],[x-c,y+h/2,z-s],[x+c,y+h/2,z+s]],u=index%4*.25,v=1-Math.floor(index/4)*.25;
+   for(const [i,uv]of [[0,[u,v-.25]],[1,[u+.25,v-.25]],[2,[u,v]],[2,[u,v]],[1,[u+.25,v-.25]],[3,[u+.25,v]]]){signs.p.push(...verts[i]);signs.uv.push(...uv);}
   };
   const quad=(p,hw,hd,y,col,merger=water)=>{const pts=[move(p,-hw,-hd),move(p,hw,-hd),move(p,-hw,hd),move(p,hw,hd)].map(q=>new THREE.Vector3(q.x,y,q.z));merger.tri(pts[0],pts[2],pts[1],col);merger.tri(pts[1],pts[2],pts[3],col);};
   // A single clipped surface per cell prevents transparent canal/moat rectangles overlapping.
@@ -106,11 +113,19 @@
       const next=[];for(let i=0;i<polygon.length;i++){const a=polygon[i],b=polygon[(i+1)%polygon.length],da=side*a[axis]-edge,db=side*b[axis]-edge;if(da<=0)next.push(a);if((da<0)!==(db<0)){const t=da/(da-db);next.push({x:mix(a.x,b.x,t),z:mix(a.z,b.z,t)});}}polygon=next;if(!polygon.length)break;
     }return polygon;
   };
+  const area=poly=>Math.abs(poly.reduce((v,p,i)=>{const q=poly[(i+1)%poly.length];return v+p.x*q.z-q.x*p.z;},0))/2;
+  const split=(poly,a,b)=>{
+    const inside=[],outside=[],distance=p=>(b.x-a.x)*(p.z-a.z)-(b.z-a.z)*(p.x-a.x);
+    for(let i=0;i<poly.length;i++){const p=poly[i],q=poly[(i+1)%poly.length],dp=distance(p),dq=distance(q);(dp>=0?inside:outside).push(p);if((dp>0&&dq<0)||(dp<0&&dq>0)){const t=dp/(dp-dq),v={x:mix(p.x,q.x,t),z:mix(p.z,q.z,t)};inside.push(v);outside.push(v);}}
+    return{inside,outside};
+  };
+  const difference=(subject,clip)=>{let inside=subject;const result=[];for(let i=0;i<clip.length&&inside.length;i++){const halves=split(inside,clip[i],clip[(i+1)%clip.length]);if(halves.outside.length>=3&&area(halves.outside)>.00001)result.push(halves.outside);inside=halves.inside;}return result;};
   for(const {candidates,corners}of waterCells.values()){
-    const p=candidates[0],same=candidates.filter(q=>q.water===p.water),covered=corners.every(([x,z])=>same.some(q=>{const a=local(q,x,z);return Math.abs(a.x)<q.hw-1.5&&Math.abs(a.z)<q.hd-1.5;}));
-    let vertices=covered?corners.map(([x,z])=>({x,z})):null;
-    if(!vertices){let best=[];for(const q of candidates){const poly=clipped(q,corners);if(poly.length>best.length)best=poly.map(a=>move(q,a.x,a.z));}vertices=best;}
-    const pts=vertices.map(q=>new THREE.Vector3(q.x,p.water,q.z));for(let i=1;i<pts.length-1;i++)water.tri(pts[0],pts[i+1],pts[i],p.kind==='rice'?0x96aaa1:p.kind==='moat'?0x627f70:0x538e96);
+    const used=[];for(const p of candidates.sort((a,b)=>b.water-a.water)){
+      const polygon=clipped(p,corners).map(q=>move(p,q.x,q.z));if(polygon.length<3||area(polygon)<.00001)continue;
+      let pieces=[polygon];for(const prior of used)pieces=pieces.flatMap(poly=>difference(poly,prior));used.push(polygon);
+      for(const poly of pieces){const pts=poly.map(q=>new THREE.Vector3(q.x,p.water,q.z));for(let i=1;i<pts.length-1;i++)water.tri(pts[0],pts[i+1],pts[i],p.kind==='rice'?0x96aaa1:p.kind==='moat'?0x627f70:0x538e96);}
+    }
   }
   stats.waterCells=waterCells.size;
   for(let i=0;i<plots.length;i++){
@@ -174,10 +189,11 @@
   for(let i=0;i<9;i++){const p=pose(routes,path.length*(.844+i*.017),-420-(i%3)*150),y=-42,h=110+(i%4)*27,r=30+(i%3)*14;part(G.sediment,p.x,y+h/2,p.z,p.yaw,r,h,r*.7,0x778e81);solid(p.x,p.z,p.yaw,r,r*.7,y,y+h);part(G.half,p.x,y+h,p.z,0,r*.83,18,r*.56,0x4d7050);solid(p.x,p.z,0,r*.83,r*.56,y+h,y+h+18);stats.islands++;}
   // Coastal headlands sit ahead around the bends, so their rock faces enter the forward panorama.
   for(const [u,off,h,r]of [[.878,-112,115,27],[.932,-145,145,34],[.969,-105,100,25]]){const p=pose(routes,path.length*u,off),y=heightAt(p.x,p.z);part(G.sediment,p.x,y+h/2,p.z,p.yaw,r,h,r*.72,0x88978b);solid(p.x,p.z,p.yaw,r,r*.72,y,y+h);part(G.half,p.x,y+h,p.z,p.yaw,r*.83,12,r*.6,0x4e7454);solid(p.x,p.z,p.yaw,r*.83,r*.6,y+h,y+h+12);}
+  atlas.build({THREE,G,M,Merger,parent,stone,glass,light,water,part,block,move,roof,tree,sign,quad,beam,safeBox,heightAt,waterAt,addSolid,stats});
   const gate=pose(routes,90,-90),gy=heightAt(gate.x,gate.z),torus=new THREE.TorusGeometry(10,.32,5,32);for(const side of [-1,1])block(move(gate,side*13),3,24,4,0x77b8af,gy);part(torus,gate.x,gy+12,gate.z,gate.yaw,1,1,1,0x75b9c6,true);torus.dispose();
   for(const [m,kind,emissive]of [[stone,'solid',0],[glass,'glass',0x0c1b20],[light,'lantern',0x967047],[water,'water',0x101b18]])if(m.p.length){const mat=kind==='water'?new THREE.MeshPhongMaterial({vertexColors:true,shininess:42,specular:0xb4cabb,transparent:true,opacity:.92,side:THREE.DoubleSide}):new THREE.MeshLambertMaterial({vertexColors:true,emissive,side:THREE.DoubleSide});const mesh=new THREE.Mesh(m.build(),mat);Object.assign(mesh.userData,{monsoon:true,sceneryKind:kind,sceneryStats:stats});parent.add(mesh);}
-  if(signs.p.length){const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(signs.p,3));geo.setAttribute('uv',new THREE.Float32BufferAttribute(signs.uv,2));geo.computeVertexNormals();const mesh=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({map:atlas(THREE),side:THREE.DoubleSide}));Object.assign(mesh.userData,{monsoon:true,sceneryKind:'signs',sceneryStats:stats});parent.add(mesh);}
+  if(signs.p.length){const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(signs.p,3));geo.setAttribute('uv',new THREE.Float32BufferAttribute(signs.uv,2));geo.computeVertexNormals();const mesh=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({map:signTexture(THREE),side:THREE.DoubleSide}));Object.assign(mesh.userData,{monsoon:true,sceneryKind:'signs',sceneryStats:stats});parent.add(mesh);}
   gable.dispose();rice.dispose();frond.dispose();
  }
- globalThis.WindMonsoon=Object.freeze({zones,install,near,stage,terrain,waterAt,colour,build,pose,get path(){return path;},get plots(){return plots;},get patches(){return patches;},CX,RX,RZ});
+ globalThis.WindMonsoon=Object.freeze({get zones(){return zones;},install,near,stage,terrain,waterAt,colour,build,pose,get atlas(){return atlas;},departure:id=>atlas.departure(id),plazaAt:(x,z)=>atlas?.plazaAt(x,z),guide:(P,s,dt)=>atlas?.guide(P,s,dt),reset:P=>atlas?.reset(P),weather:(x,z,t)=>atlas.weather(x,z,t),get path(){return path;},get plots(){return plots;},get patches(){return patches;},CX,RX,RZ});
 })();

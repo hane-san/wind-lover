@@ -1,5 +1,7 @@
 # Japan and southern seas — an optional compressed journey
 
+**Latest extension:** [the fourteen-land compact atlas](COMPACT-ATLAS.md) adds a branching road web, regional landscapes and eight more songs. The six-scene and 28-song sections below record the earlier sampler baseline.
+
 29 October 2026. This is an additional fictional sample world, rather than a replacement for the connected Central Asian journey. Use **旅の門：日本・東南アジアへ** on the start screen or in the menu. A light gate also stands just off the lake's departure road. The sample's gate returns to the previous journey; the menu provides the same return. A journey entered during play remembers its position, heading, pace, selected landscape and lake sunset state. The initial sample departure falls back to the original desert departure on return. Gates require leaving their centre before rearming, with a four-second cooldown. Warps clear attacks, reservations, arrows, reins and scheduled hoof sounds.
 
 ## Six scenes in one circuit

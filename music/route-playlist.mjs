@@ -1,4 +1,4 @@
-import { RIDING_TRACKS } from './quiet-score.mjs?v=20261029-monsoon';
+import { RIDING_TRACKS } from './quiet-score.mjs?v=20261029-atlas';
 const brave=new Set(RIDING_TRACKS.filter(t=>t.energy==='brave').map(t=>t.id));
 // Visits and complete musical phrases choose songs; menus and boundary noise never churn playback.
 export const ROUTE_POOLS = Object.freeze({
@@ -13,6 +13,14 @@ export const ROUTE_POOLS = Object.freeze({
   'monsoon-khaosan':['bay-glass','straits-tide','khaosan-afterlight','runway-swallow','lotus-stone','sunset-reins'],
   'monsoon-donmueang':['bay-glass','straits-tide','runway-swallow','khaosan-afterlight','sunset-reins','lotus-stone'],
   'monsoon-straits':['straits-tide','bay-glass','sunset-reins','lotus-stone','khaosan-afterlight','runway-swallow'],
+  'monsoon-kanazawa':['rain-on-lattice','bay-glass','straits-tide','sunset-reins','lotus-stone','runway-swallow'],
+  'monsoon-shikoku':['indigo-gorge','bay-glass','straits-tide','sunset-reins','lotus-stone','runway-swallow'],
+  'monsoon-inner':['roots-of-the-sky','bay-glass','straits-tide','sunset-reins','lotus-stone','runway-swallow'],
+  'monsoon-thai':['river-neon','bay-glass','straits-tide','sunset-reins','lotus-stone','runway-swallow'],
+  'monsoon-ryukyu':['vermillion-tide','bay-glass','straits-tide','sunset-reins','lotus-stone','runway-swallow'],
+  'monsoon-okinawa':['reef-after-rain','bay-glass','straits-tide','sunset-reins','lotus-stone','runway-swallow'],
+  'monsoon-ainu':['birch-lake','bay-glass','straits-tide','sunset-reins','lotus-stone','runway-swallow'],
+  'monsoon-hagiang':['karst-eagle','bay-glass','straits-tide','sunset-reins','lotus-stone','runway-swallow'],
 });
 export function chooseRouteTrack(region, previous, random = Math.random) {
   const pool = ROUTE_POOLS[region] || ROUTE_POOLS.steppe;
@@ -36,12 +44,12 @@ export function createRoutePlaylist(music, { storage, random = Math.random } = {
     history.push(id);if(history.length>4)history.shift();return id;
   }
   const isSampler=id=>Boolean(id?.startsWith('monsoon-'));
-  const themes={bay:'bay-glass',edo:'sunset-reins',angkor:'lotus-stone',khaosan:'khaosan-afterlight',donmueang:'runway-swallow',straits:'straits-tide'};
+  const themes={bay:'bay-glass',edo:'sunset-reins',angkor:'lotus-stone',khaosan:'khaosan-afterlight',donmueang:'runway-swallow',straits:'straits-tide',kanazawa:'rain-on-lattice',shikoku:'indigo-gorge',inner:'roots-of-the-sky',thai:'river-neon',ryukyu:'vermillion-tide',okinawa:'reef-after-rain',ainu:'birch-lake',hagiang:'karst-eagle'};
   async function sampleChange(boundary=false){
     if(rotating)return false;rotating=true;const requested=region;
     try{
       let id=boundary?themes[region?.slice(8)]:null;
-      if(!id||id===music.state.track||history.slice(-2).includes(id))id=nextTrack();
+      if(!id||id===music.state.track)id=nextTrack();
       else {history.push(id);if(history.length>4)history.shift();}
       const changed=await music.select(id,{fade:3});
       if(pendingRegion===requested)pendingRegion=null;return changed;

@@ -1,5 +1,5 @@
-import { createJourneyMusic, TRACKS } from './journey-music.mjs?v=20261029-monsoon';
-import { createRoutePlaylist } from './route-playlist.mjs?v=20261029-regional';
+import { createJourneyMusic, TRACKS } from './journey-music.mjs?v=20261029-atlas';
+import { createRoutePlaylist } from './route-playlist.mjs?v=20261029-atlas';
 
 const settings = document.querySelector('#musicSettings');
 const toggle = document.querySelector('#musicToggle');
@@ -43,7 +43,7 @@ volume.addEventListener('input', () => music.setVolume(Number(volume.value) / 10
 
 // Unlock only on deliberate gestures. Opening the menu or changing a world never restarts a playing loop.
 document.addEventListener('click', event => {
-  if (event.target.closest('[data-journey-route], #realmWarp, #realmWarp2, [data-monsoon-zone], #btnGo, #btnRandom, #btnMenu, #menuClose')) {
+  if (event.target.closest('[data-journey-route], #realmWarp, #realmWarp2, [data-monsoon-zone], [data-atlas-warp], #btnGo, #btnRandom, #btnMenu, #menuClose')) {
     // Resume inside the gesture; selection below can finish preparing asynchronously.
     if (music.state.enabled) music.unlock();
     queueMicrotask(() => { if(window.__wl?.started) playlist.enter(window.__wl.musicRegion()); });

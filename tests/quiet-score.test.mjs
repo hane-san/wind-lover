@@ -4,7 +4,7 @@ import { TRACKS,buildScore } from '../music/quiet-score.mjs';
 import { ROUTE_POOLS } from '../music/route-playlist.mjs';
 
 test('the twelve quiet and saved chamber songs retain breathing room',()=>{
-  assert.equal(TRACKS.length,28);
+  assert.equal(TRACKS.length,36);
   for(const id of TRACKS.filter(t=>t.arrangement==='quiet').map(t=>t.id)){
     const s=buildScore(id),voices=new Set(s.events.map(e=>e.voice));
     assert.ok(s.bpm>=60&&s.bpm<=72);
@@ -19,8 +19,8 @@ test('the twelve quiet and saved chamber songs retain breathing room',()=>{
   assert.throws(()=>buildScore('missing'),RangeError);
 });
 
-test('fourteen brave arrangements have distinct rhythms, bounded levels and stable saved identities',()=>{
- const riding=TRACKS.filter(t=>t.energy==='brave');assert.equal(riding.length,14);
+test('nineteen brave arrangements have distinct rhythms, bounded levels and stable saved identities',()=>{
+ const riding=TRACKS.filter(t=>t.energy==='brave');assert.equal(riding.length,19);
  for(const t of riding){const s=buildScore(t.id);assert.ok(s.bpm>=100&&s.bpm<=150);assert.ok(s.seconds>50&&s.seconds<75);assert.ok(s.events.some(e=>e.voice==='kick'));
   for(const e of s.events)assert.ok(Number.isFinite(e.midi+e.beat+e.velocity)&&e.velocity>0&&e.velocity<.4&&e.duration>0);
   assert.deepEqual(s,buildScore(t.id));

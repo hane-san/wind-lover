@@ -1,4 +1,4 @@
-import { TRACKS, buildScore } from './quiet-score.mjs?v=20261029-monsoon';
+import { TRACKS, buildScore } from './quiet-score.mjs?v=20261029-atlas';
 import { buildScore as buildArchiveScore } from './scores.mjs?v=20261022';
 export { TRACKS, buildScore };
 
