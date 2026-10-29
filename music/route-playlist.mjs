@@ -1,12 +1,12 @@
-import { RIDING_TRACKS } from './quiet-score.mjs?v=20261026-variety';
+import { RIDING_TRACKS } from './quiet-score.mjs?v=20261029-voyage';
 const brave=new Set(RIDING_TRACKS.map(t=>t.id));
 // Visits and complete musical phrases choose songs; menus and boundary noise never churn playback.
 export const ROUTE_POOLS = Object.freeze({
-  desert: ['rust-horizon','last-caravan','copper-mirage','forgotten-siding','dune-riders','railbound-heart'],
-  mountain: ['blue-viaduct','last-caravan','tian-shan-pass','snowlight','tian-shan-charge','dune-riders'],
-  lake: ['glass-current','blue-viaduct','issyk-dawn','shoreline-afterglow','skyward-current','tian-shan-charge'],
-  steppe: ['last-caravan','blue-viaduct','jailoo-wind','felt-and-stars','dune-riders','tian-shan-charge'],
-  city: ['rust-horizon','glass-current','forgotten-siding','shoreline-afterglow','railbound-heart','skyward-current'],
+  desert: ['rust-horizon','last-caravan','copper-mirage','forgotten-siding','dune-riders','railbound-heart','saffron-riders','seven-red-cliffs','steppe-signal'],
+  mountain: ['blue-viaduct','last-caravan','tian-shan-pass','snowlight','tian-shan-charge','dune-riders','pass-of-thunder','seven-red-cliffs','turquoise-cavalcade'],
+  lake: ['glass-current','blue-viaduct','issyk-dawn','shoreline-afterglow','skyward-current','tian-shan-charge','turquoise-cavalcade','seven-red-cliffs','cities-in-the-wind'],
+  steppe: ['last-caravan','blue-viaduct','jailoo-wind','felt-and-stars','dune-riders','tian-shan-charge','steppe-signal','saffron-riders','pass-of-thunder'],
+  city: ['rust-horizon','glass-current','forgotten-siding','shoreline-afterglow','railbound-heart','skyward-current','cities-in-the-wind','steppe-signal','turquoise-cavalcade'],
 });
 export function chooseRouteTrack(region, previous, random = Math.random) {
   const pool = ROUTE_POOLS[region] || ROUTE_POOLS.steppe;

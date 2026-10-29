@@ -1,7 +1,7 @@
 /* Forward patrols: read a distant salvo, ride into bow range, then leave the view quiet. */
 (() => {
-  function create(){return {phase:'scenic',elapsed:0,duration:13,cycle:0,scoutCycle:-1,weapon:null,fire:false,event:null,blocked:false,pressure:0,openingWait:0};}
-  function rest(region,cycle,hull){return ({lake:14,mountain:23,desert:18,city:18,steppe:20}[region]||28)+(cycle%3)*2+(hull<2?9:0);}
+  function create(){return {phase:'scenic',elapsed:0,duration:12,cycle:0,scoutCycle:-1,weapon:null,fire:false,event:null,blocked:false,pressure:0,openingWait:0};}
+  function rest(region,cycle,hull){return ({lake:13,mountain:21,desert:16,city:17,steppe:18}[region]||28)+(cycle%3)*2+(hull<2?9:0);}
   function advance(s,dt,{enabled=true,dead=false,sheltered=false,region='steppe',hull=3,bend=0,cleared=false,opening=true}={}){
     s.event=null;if(!(dt>0))return s;
     if(!enabled||dead||sheltered){if(!s.blocked)s.event='clear';Object.assign(s,{blocked:true,phase:'scenic',elapsed:0,duration:12,weapon:null,fire:false,pressure:0,openingWait:0});return s;}

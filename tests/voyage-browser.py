@@ -33,7 +33,7 @@ try:
    return results;}''');print('Geometry:',json.dumps(report['geometry']),flush=True)
   report['acceleration']=page.evaluate('''()=>{const w=__wl,q=__voyageQA;w.travelFeatured('desert');q.paused=true;w.placeAt(75100,w.railZ(75100),Math.atan2(1,w.railZd(75100)),8);w.P.invuln=1000;w.P.flow=.25;
    let t24=null,t34=null;const trace=[];for(let i=0;i<120*22;i++){w.stepPhysics(1/120);if(i%12===0)w.loadStep();const v=w.P.vel.length();if(t24===null&&v>=24)t24=i/120;if(t34===null&&v>=34)t34=i/120;if(i%120===0)trace.push(v);}
-   if(!(w.S.maxSpeed===34&&t24<4&&t34<9&&w.P.vel.length()>32&&w.P.vel.length()<48&&w.P.hull===3))throw Error('Mounted gallop failed '+JSON.stringify({t24,t34,speed:w.P.vel.length(),hull:w.P.hull}));
+   if(!(w.S.maxSpeed===38&&t24<4&&t34<9&&w.P.vel.length()>32&&w.P.vel.length()<48&&w.P.hull===3))throw Error('Mounted gallop failed '+JSON.stringify({t24,t34,speed:w.P.vel.length(),hull:w.P.hull}));
    return {maxSpeed:w.S.maxSpeed,cruise:w.S.cruise,t24,t34,exitSpeed:w.P.vel.length(),trace};}''');print('Acceleration:',json.dumps(report['acceleration']),flush=True)
   report['drives']=[]
   for route in ['silk','astana']:

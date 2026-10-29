@@ -1,6 +1,6 @@
 # Quiet journey arrangements
 
-Twelve original 24 kHz stereo Vorbis loops, generated from `music/quiet-score.mjs`
+Twenty-two original 24 kHz stereo Vorbis loops (twelve quiet and ten riding arrangements), generated from `music/quiet-score.mjs` and `music/voyage-score.mjs`
 and the WebAudio instruments in `music/journey-music.mjs`. These recordings replace
 the driving mixes in normal playback whilst preserving track IDs and regional pools.
 No music or samples from another game are included.

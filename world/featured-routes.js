@@ -12,10 +12,11 @@
     {id:'silk',name:'ドゥシャンベからサマルカンドへ',sub:'緑の大通り、山間の隊商路、青い古都へ',colour:['#54715e','#d2b78b','#587f97']},
   ];
   const paths = [], grid = new Map(), CELL = 256;
-  let landscapeCache=null;
+  let landscapeCache=null,candidateCache=null;
   const mountain = [[32600,300,150],[34000,900,205],[35500,450,300],[36900,-550,405],[38400,-100,510],[39900,1200,610],[41400,1750,655],[43000,900,550],[44600,-300,420],[46300,200,290],[48000,1200,215]];
   const cubic = (a,b,c,d,t) => .5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t*t+(-a+3*b-3*c+d)*t*t*t);
   function addPath(id,points,closed=false) {
+    candidateCache=null;
     const path={id,points,closed,segments:[],length:0};
     for(let i=0;i<points.length;i++){const a=points[i===0&&closed?points.length-2:Math.max(0,i-1)],b=points[i===points.length-1&&closed?1:Math.min(points.length-1,i+1)],l=Math.hypot(b.x-a.x,b.z-a.z);points[i].nx=-(b.z-a.z)/l;points[i].nz=(b.x-a.x)/l;}
     for(let i=0;i<points.length-1;i++) {
@@ -53,7 +54,7 @@
     points.push({...knots.at(-1)});const path=addPath(id,points);path.connection=true;path.region=region;return path;
   }
   function indexReach(path,reach){
-    landscapeCache=null;
+    landscapeCache=null;candidateCache=null;
     for(const seg of path.segments)for(let x=Math.floor((Math.min(seg.a.x,seg.b.x)-reach)/CELL);x<=Math.floor((Math.max(seg.a.x,seg.b.x)+reach)/CELL);x++)
       for(let z=Math.floor((Math.min(seg.a.z,seg.b.z)-reach)/CELL);z<=Math.floor((Math.max(seg.a.z,seg.b.z)+reach)/CELL);z++){
         const key=x+','+z;if(!grid.has(key))grid.set(key,[]);const entries=grid.get(key);if(!entries.includes(seg))entries.push(seg);
@@ -67,6 +68,15 @@
     if(!best||d2>radius*radius)return null;
     const cx=lerp(best.a.x,best.b.x,u0),cz=lerp(best.a.z,best.b.z,u0);
     return {d:Math.sqrt(d2),cx,cz,nx:-best.tz,nz:best.tx,tx:best.tx,tz:best.tz,y:lerp(best.a.y,best.b.y,u0),grade:best.grade,half:best.half,s:best.s+u0*best.length,path:best.path,segment:best};
+  }
+  function candidates(x,z,radius=170){
+    if(candidateCache?.x===x&&candidateCache.z===z&&candidateCache.radius===radius)return candidateCache.result;
+    const found=new Map();
+    for(const seg of grid.get(Math.floor(x/CELL)+','+Math.floor(z/CELL))||[]){
+      const u=clamp(((x-seg.a.x)*seg.dx+(z-seg.a.z)*seg.dz)/(seg.length*seg.length),0,1),cx=seg.a.x+seg.dx*u,cz=seg.a.z+seg.dz*u,d=Math.hypot(x-cx,z-cz);
+      if(d>radius||d>=(found.get(seg.path.id)?.d??Infinity))continue;
+      found.set(seg.path.id,{d,cx,cz,nx:-seg.tz,nz:seg.tx,tx:seg.tx,tz:seg.tz,y:lerp(seg.a.y,seg.b.y,u),grade:seg.grade,half:seg.half,s:seg.s+u*seg.length,path:seg.path,segment:seg});
+    }const result=[...found.values()];candidateCache={x,z,radius,result};return result;
   }
   function at(path,s) {
     if(typeof path==='string')path=paths.find(p=>p.id===path);
@@ -120,5 +130,5 @@
   function hasPanel(seg){const mode=seg.path.id==='mountain'?tunnel((seg.a.x+seg.b.x)*.5):null;return mode==='tunnel'||mode==='gallery'&&Math.floor(seg.s/24)%4!==0;}
   function covered(seg,lateral=0){const mode=seg.path.id==='mountain'?tunnel((seg.a.x+seg.b.x)*.5):null;return hasPanel(seg)&&(mode==='tunnel'||lateral< -seg.half*.30&&lateral> -seg.half-4);}
   function relief(x,z){if(x<31000||x>49600)return -Infinity;const p=mountainAtX(x),d=Math.abs(z-p.z),gate=smooth(31000,32600,x)*(1-smooth(48000,49600,x));return (p.y-12+800*Math.pow(smooth(48,1100,d),.7)+((x>35150&&x<37250)||(x>41700&&x<42650)?120*(1-smooth(40,220,d)):0))*gate-200*(1-gate);}
-  globalThis.WindRoutes={definitions,paths,nearest,at,tunnel,relief,addConnection,mountainAtX,indexReach,shelterHeight,hasPanel,covered,junctions,addNorthernRoad,landscapeAt,canyonWeight,canyonHeight};
+  globalThis.WindRoutes={definitions,paths,nearest,candidates,at,tunnel,relief,addConnection,mountainAtX,indexReach,shelterHeight,hasPanel,covered,junctions,addNorthernRoad,landscapeAt,canyonWeight,canyonHeight};
 })();

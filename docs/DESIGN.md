@@ -20,6 +20,8 @@ The latest mounted-bow game loop, lower horse pace and default panorama are spec
 
 The latest sky/ground patrol choreography, ballistic missile trails, quieter speed-related hoof rhythm, distant mounted panorama and automatic regional song rotation are specified in [SKY-RHYTHM.md](SKY-RHYTHM.md). This supersedes the older patrol altitude, launch band, repeated salvo and one-song-per-region rules.
 
+The latest pace, connected look-ahead, restrained lakeside sightseeing, six/seven-target patrols, twelve missile figures and twenty-two-song score are specified in [VOYAGE-UPGRADE.md](VOYAGE-UPGRADE.md). Those values supersede older limits below.
+
 ## Core rules
 
 Per-vehicle FOV, height, pitch, sky/ground framing and distance can be explored in a paused camera preview or a full-screen comparison. The owner's high-follow view and two wider presets provide starting points. Defaults retain the existing composition, and wall/tunnel protection still takes precedence. See [CAMERA-TUNING.md](CAMERA-TUNING.md) for ranges, saving and checks.

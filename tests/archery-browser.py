@@ -89,7 +89,7 @@ try:
     for(const f of hostiles){if(f.ahead<35&&f.cue)throw Error('Rearward attack');if(f.weapon==='kinetic'&&f.cue)near=f.ahead;if(f.weapon==='missile'&&f.cue)far=f.ahead;}
     if(phase==='scenic'&&(w.combat.bullets||w.shells.length))throw Error('Quiet interval contains enemy fire');
    }
-   if(!(missile>100&&kinetic>10&&maxHostiles<=8&&phases.scenic>45&&near<155&&far>285&&maxMissiles<=256))throw Error('Wrong patrol loop '+JSON.stringify({missile,kinetic,maxHostiles,phases,near,far,maxMissiles,events}));
+   if(!(missile>100&&kinetic>10&&maxHostiles<=9&&phases.scenic>45&&near<155&&far>285&&maxMissiles<=256))throw Error('Wrong patrol loop '+JSON.stringify({missile,kinetic,maxHostiles,phases,near,far,maxMissiles,events}));
    return {phases,events,near,far,maxMissiles,maxHostiles,hull:w.P.hull};}''');print('Patrols:',json.dumps(report['patrols']),flush=True)
   report['ridingCombats']=page.evaluate('''()=>{const w=__wl,q=__bowQA,out=[];q.paused=true;if(q.sfx.on)q.sfx.toggle();
    for(const route of ['desert','mountain','lake','silk']){
@@ -130,8 +130,8 @@ try:
    # RAF draws the same paused image; draw once in its callback for the visible aiming screenshot.
    page.evaluate('''()=>{const q=__bowQA;q.paused=false;q.updateVisuals(.01);q.drawBowSight(.01);q.renderer.render(__wl.scene,q.camera);q.paused=true;}''');page.screenshot(path=str(args.out/(str(size[0])+'-bow.png')))
   # An untouched old save migrates, whilst custom camera/handling and music fields survive.
-  page.evaluate('''()=>{localStorage.removeItem('windlover.mounted-bow.v1');localStorage.setItem('windlover.vehicle4',JSON.stringify('horse'));localStorage.setItem('windlover.settings.v11',JSON.stringify({horse:{maxSpeed:116,cruise:48,tailwind:8,camFov:0,camHeight:4.8,camTilt:0,camFrame:0,camDist:15,turn:1.2},sidecar:{camDist:12,turn:1.4},bike:{maxSpeed:91,cruise:45,camFov:38,camHeight:16,camTilt:-4,camDist:12,camFrame:.06}}));}''')
-  page.reload(timeout=120000);page.wait_for_function('window.__wl');assert page.evaluate('__wl.S.maxSpeed===34 && __wl.S.cruise===20 && __wl.S.tailwind===1.5 && __wl.S.camFov===46 && __wl.S.turn===1.2')
+  page.evaluate('''()=>{localStorage.removeItem('windlover.mounted-bow.v1');localStorage.removeItem('windlover.voyage-pace.v1');localStorage.setItem('windlover.vehicle4',JSON.stringify('horse'));localStorage.setItem('windlover.settings.v11',JSON.stringify({horse:{maxSpeed:116,cruise:48,tailwind:8,camFov:0,camHeight:4.8,camTilt:0,camFrame:0,camDist:15,turn:1.2},sidecar:{camDist:12,turn:1.4},bike:{maxSpeed:91,cruise:45,camFov:38,camHeight:16,camTilt:-4,camDist:12,camFrame:.06}}));}''')
+  page.reload(timeout=120000);page.wait_for_function('window.__wl');assert page.evaluate('__wl.S.maxSpeed===38 && __wl.S.cruise===22 && __wl.S.tailwind===1.8 && __wl.S.camFov===46 && __wl.S.turn===1.2')
   assert page.evaluate('(()=>{__wl.setVehicle("sidecar");return __wl.S.camDist===12 && __wl.S.camFov===0 && __wl.S.camFrame===0 && __wl.S.turn===1.4;})()')
   assert page.evaluate('(()=>{__wl.setVehicle("bike");return __wl.S.maxSpeed===91 && __wl.S.cruise===45 && __wl.S.camFov===38 && __wl.S.camFrame===.06;})()');report['savedTuningPreserved']=True
   assert not errors,errors;report['pageErrors']=errors;(args.out/'result.json').write_text(json.dumps(report,indent=2));print('PASS: mounted archery, simultaneous reins, decisive hits, forward patrols and avoidable missiles.',flush=True);browser.close()

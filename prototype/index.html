@@ -364,18 +364,20 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 </section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="../world/featured-routes.js?v=20261026-northern-road"></script>
+<script src="../world/scenic-journey.js?v=20261029-voyage"></script>
+<script src="../world/route-guidance.js?v=20261029-voyage"></script>
+<script src="../world/featured-routes.js?v=20261029-voyage"></script>
 <script src="../world/horse-riding.js?v=20261024-bow"></script>
 <script src="../world/horse-gait.js?v=20261024-phrase"></script>
 <script src="../world/horse-sound.js?v=20261024-phrase"></script>
 <script src="../world/horse-wake.js?v=20261022-voyage"></script>
 <script src="../world/flow-effects.js?v=20261024-bow"></script>
 <script src="../world/journey-climate.js?v=20261022-voyage"></script>
-<script src="../world/travel-camera.js?v=20261025-steady"></script>
+<script src="../world/travel-camera.js?v=20261029-voyage"></script>
 <script src="../world/horse-archery.js?v=20261025-bow-response"></script>
-<script src="../world/encounter-director.js?v=20261026-openings"></script>
+<script src="../world/encounter-director.js?v=20261029-voyage"></script>
 <script src="../world/sweeper.js?v=20261025-fixed-grip"></script>
-<script src="../world/patrol-score.js?v=20261026-terrain"></script>
+<script src="../world/patrol-score.js?v=20261029-voyage"></script>
 <script src="../world/weapon-audio.js?v=20261025-nock-burst"></script>
 <script src="../world/missiles.js?v=20261023-defence"></script>
 <script>
@@ -389,7 +391,7 @@ const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t
 const $ = (s) => document.querySelector(s);
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 const LOWQ = isTouch;
-const TOURS = WindRoutes;
+const TOURS = WindRoutes;let NAV=null;
 let featured = 'desert';
 const tourAt = (x, z) => biomeMode === 'journey' ? TOURS.nearest(x, z) : null;
 const tourReserved = (x, z, pad = 0) => { const r = tourAt(x, z); return r && r.d < r.half + pad; };
@@ -402,7 +404,7 @@ const VEHICLES = {
   board: { name: 'ボード', hover: 0.75, grip: 6, accel: 15, lean: 0.32, resp: 10, roll: 5, defaults: { maxSpeed: 80, cruise: 30, minSpeed: 0, inertia: 1.2, tailwind: 6, gravity: 30, glide: 0.72, turn: 1.0, jump: 15, camDist: 12, fovKick: 1.1, auto: true } },
 };
 // A mounted bow needs a readable gallop; independent rein response and lead changes remain.
-VEHICLES.horse = { ...VEHICLES.sidecar, grip: 8.8, accel:18, name: 'キルギスの馬', defaults: { ...VEHICLES.sidecar.defaults,maxSpeed:34,cruise:20,tailwind:1.5 } };
+VEHICLES.horse = { ...VEHICLES.sidecar, grip: 8.8, accel:22, name: 'キルギスの馬', defaults: { ...VEHICLES.sidecar.defaults,maxSpeed:38,cruise:22,tailwind:1.8 } };
 // The broadest rear panorama is the starting view; per-vehicle custom compositions remain available.
 for(const vehicle of Object.values(VEHICLES))Object.assign(vehicle.defaults,{camFov:46,camHeight:20,camTilt:-5,camFrame:.08,camDist:14});
 VEHICLES.horse.defaults.camDist=17;
@@ -435,6 +437,10 @@ if(!store.get('windlover.sky-phrase.v1',false)){
   const h=allS.horse;
   if(h&&(h.camFov??46)===46&&(h.camHeight??20)===20&&(h.camTilt??-5)===-5&&(h.camFrame??.08)===.08&&(h.camDist??14)===14)h.camDist=17;
   store.set('windlover.settings.v11',allS);store.set('windlover.sky-phrase.v1',true);
+}
+if(!store.get('windlover.voyage-pace.v1',false)){
+  const saved=allS.horse;if(saved&&typeof saved==='object'){if(saved.maxSpeed===34)saved.maxSpeed=38;if(saved.cruise===20)saved.cruise=22;if(saved.tailwind===1.5)saved.tailwind=1.8;}
+  store.set('windlover.settings.v11',allS);store.set('windlover.voyage-pace.v1',true);
 }
 const loadS = () => ({ ...VEHICLES[vehKey].defaults, ...(allS[vehKey] || {}) });
 let S = loadS();
@@ -859,7 +865,7 @@ function rideRoute(x, z, y) {
   // At a crossing, stay on the deck under the feet in either direction of travel.
   const railGap=Math.abs(y-routeY(rw,x)-.16-HOVER),roadGap=Math.abs(y-deckAt(hw.cx,hw.cz)-.25-HOVER);
   const base = railGap<4&&(rw.d<hw.d||(rw.d<rw.half+2&&roadGap>6))?{...rw}:hw;
-  const tr = biomeMode==='journey'?TOURS.nearest(x,z,Math.abs(inp.jx+inp.kx)<.3?P.routeTrack:null):null;
+  const tr = biomeMode==='journey'?(vehKey==='horse'&&NAV?NAV.choose(x,z,{preferred:P.routeTrack,y:y-HOVER,yaw:P.yaw,steer:inp.jx+inp.kx}):TOURS.nearest(x,z,Math.abs(inp.jx+inp.kx)<.3?P.routeTrack:null)):null;
   const baseGap=base===hw?roadGap:railGap;
   return tr&&tr.d<tr.half+95&&Math.abs(y-tr.y-HOVER)<7&&
     (tr.d-(tr.path.id===P.routeTrack&&Math.abs(inp.jx+inp.kx)<.3?1.5:0)<base.d||(tr.d<tr.half+1&&Math.abs(y-tr.y-HOVER)<3&&baseGap>6))?tr:base;
@@ -892,6 +898,7 @@ function tintLand(colour, offset, x, z, weights, height) {
   }
   if(biomeMode==='journey'){
     const canyon=TOURS.landscapeAt(x,z);if(canyon){const weight=TOURS.canyonWeight(canyon)*.85,bank=smooth(100,400,canyon.d);for(let j=0;j<3;j++)colour[offset+j]=lerp(colour[offset+j],lerp([.62,.58,.39][j],[.71,.42,.28][j],bank),weight);}
+    const scenic=TOURS.nearest(x,z);if(scenic&&scenic.path.id==='lake'&&scenic.d>scenic.half+8){const south=smooth(.50,.59,scenic.s/scenic.path.length)*(1-smooth(.91,.99,scenic.s/scenic.path.length)),band=.5+.5*Math.sin(scenic.s/780),k=south*.30*smooth(scenic.half+8,100,scenic.d);for(let j=0;j<3;j++)colour[offset+j]=lerp(colour[offset+j],lerp([.62,.43,.28][j],[.66,.56,.36][j],band),k);}
     const k=smooth(53500,55500,x)*(1-smooth(62500,64700,x))*(1-smooth(700,1800,Math.abs(z-railZ(x)-350)))*.42;
     for(let j=0;j<3;j++)colour[offset+j]=lerp(colour[offset+j],[.67,.62,.44][j],k);
   }
@@ -1055,6 +1062,7 @@ function prepareRoamingRoutes(){
 }
 prepareRoamingRoutes();
 TOURS.addNorthernRoad();
+NAV=WindRouteGuidance.install(TOURS,x=>{const slope=railZd(x),l=Math.hypot(1,slope);return{x,z:railZ(x),y:railY(x)+.02,tx:1/l,tz:slope/l,s:x,path:null};});
 
 // ---------------------------------------------------------------- renderer / scene
 const app = $('#app');
@@ -1095,6 +1103,7 @@ const detailTex = canvasTex(128, 128, (g, w) => {
   for (let i = 0; i < 14; i++) { g.strokeStyle = 'rgba(0,0,0,0.05)'; g.lineWidth = 2; g.beginPath(); const y = rng() * w; g.moveTo(0, y); g.bezierCurveTo(w * 0.3, y + 8, w * 0.6, y - 8, w, y); g.stroke(); }
 });
 const CH = 480, SEGS = LOWQ ? 40 : 56, RAD = 2;
+const scenicJourney=WindScenicJourney.create(TOURS,x=>{const slope=railZd(x),l=Math.hypot(1,slope);return{x,z:railZ(x),y:railY(x),tx:1/l,tz:slope/l};},CH);
 detailTex.wrapS = detailTex.wrapT = THREE.RepeatWrapping; detailTex.repeat.set(CH / 12, CH / 12);
 const shadowTex = canvasTex(64, 64, (g, w) => { const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2); r.addColorStop(0, 'rgba(0,0,0,0.5)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, w, w); });
 const cloudTex = canvasTex(256, 128, (g, w, h) => {
@@ -1129,6 +1138,7 @@ const G = {
   cyl: new THREE.CylinderGeometry(1, 1, 1, 10),
   taper: new THREE.CylinderGeometry(0.35, 1, 1, 4),
   taper8: new THREE.CylinderGeometry(0.66, 1, 1, 14),
+  sediment: new THREE.CylinderGeometry(.84,1,1,14),
   cone: new THREE.ConeGeometry(1, 1, 8),
   half: new THREE.SphereGeometry(1, 12, 6, 0, TAU, 0, Math.PI / 2),
   ico: new THREE.IcosahedronGeometry(1, 0),
@@ -2213,6 +2223,50 @@ function buildChunkWinds(ch, rng) {
 // ---------------------------------------------------------------- featured roads and remembered skylines
 const canyonWaterMat=new THREE.MeshLambertMaterial({vertexColors:true,transparent:true,opacity:.88});SHARED.add(canyonWaterMat);
 const shelterMat=new THREE.MeshLambertMaterial({vertexColors:true,emissive:0x252a30});SHARED.add(shelterMat);
+function scenicClear(x,z,radius){
+  if(lineReserved(x,z,radius+12)||highway(x,z).d<HW_HALF+radius+12||roadDist(x,z)<radius+9||heightAt(x,z)<WATER+1)return false;
+  if(TOURS.candidates(x,z).some(r=>r.d<r.half+radius+12))return false;
+  for(const c of [...HOME.colliders,...CUR.colliders]){const dx=(x-c.x)*c.c-(z-c.z)*c.s,dz=(x-c.x)*c.s+(z-c.z)*c.c;if(Math.hypot(Math.max(0,Math.abs(dx)-c.hw),Math.max(0,Math.abs(dz)-c.hd))<radius+3)return false;}
+  return true;
+}
+function buildScenicJourney(ch){
+  if(biomeMode!=='journey')return;
+  const solid=new Merger(),leaves=new Merger(),firstCollider=CUR.colliders.length;let count=0;
+  for(const site of scenicJourney.at(ch.cx,ch.cz)){
+    const {x,z,yaw,style,seed}=site,snow=site.route==='mountain'?WindJourneyClimate.mountain(x,z,heightAt(x,z)).snow:0;
+    if(style==='fins'||style==='white-bands'){
+      const pale=style==='white-bands',parts=3+(seed%3);
+      for(let k=0;k<parts;k++){
+        const dx=(k-(parts-1)/2)*49,px=x+Math.sin(yaw)*dx,pz=z+Math.cos(yaw)*dx,radius=17+(k%2)*5;
+        if(!scenicClear(px,pz,radius+3))continue;
+        const foot=Math.min(heightAt(px-radius,pz),heightAt(px+radius,pz),heightAt(px,pz-radius),heightAt(px,pz+radius))-3,h=70+hash(seed,k,2019)*70;
+        for(let band=0;band<4;band++){
+          const r=radius*Math.pow(.84,band),lo=foot+h*band/4,hi=lo+h/4+.15,angle=yaw+.1*Math.sin(k+seed);
+          const colour=snow>.6?[0xa9b2b9,0xd1d9da,0x929fa9,0xe4e7de][band]:pale?[0xb78869,0xdcc9a0,0xd6d5bd,0xc99d7e][band]:[0xad7050,0xb9835b,0xc6976c,0xa96d50][band];
+          solid.add(G.sediment,M(px,(lo+hi)/2,pz,angle,r,hi-lo,r*.82),colour);addCollider(px,pz,angle,r,r*.82,lo,hi);
+        }count++;
+      }
+    }else if(style==='poplars'||style==='orchard'){
+      const orchard=style==='orchard';
+      for(let k=0;k<5;k++){
+        const dx=(k-2)*(orchard?12:19),px=x+Math.sin(yaw)*dx,pz=z+Math.cos(yaw)*dx;
+        if(!scenicClear(px,pz,orchard?6:5))continue;const foot=heightAt(px,pz),h=(orchard?7:19)+hash(seed,k,2020)*(orchard?4:11);
+        solid.add(G.cyl,M(px,foot+h*.37,pz,0,.45,h*.74,.45),0x756d58);addCollider(px,pz,0,.45,.45,foot,foot+h*.74);
+        leaves.add(G.ico,M(px,foot+h*.67,pz,0,orchard?4.4:3.1,h*.42,orchard?4.4:3.1),snow>.6?0xbfcac6:site.route==='desert'?0x788767:seed%3?0x71896a:0x92985f);count++;
+      }
+    }else if(style==='memory'){
+      if(!scenicClear(x,z,6))continue;const foot=heightAt(x,z),h=7+seed%5;
+      solid.add(G.taper8,M(x,foot+h*.5,z,yaw,2.1,h,1.9),0xaaa28a);solid.add(G.ico,M(x,foot+h+1.4,z,yaw,2.2,2.6,1.9),0xb7ae93);addCollider(x,z,yaw,2.2,1.9,foot,foot+h+4);count++;
+    }else{
+      for(let k=0;k<3;k++){
+        const px=x+Math.sin(yaw)*(k-1)*16,pz=z+Math.cos(yaw)*(k-1)*16;if(!scenicClear(px,pz,6))continue;
+        const foot=heightAt(px,pz),h=11+(seed+k)%9;solid.add(G.box,M(px,foot+h/2,pz,yaw,5,h,4),0xb5a78e);addCollider(px,pz,yaw,2.5,2,foot,foot+h);count++;
+      }
+    }
+  }
+  for(let i=firstCollider;i<CUR.colliders.length;i++)CUR.colliders[i].scenic=true;
+  for(const [m,mat]of [[solid,propMat],[leaves,softMat]])if(m.p.length){const mesh=new THREE.Mesh(m.build(),mat);mesh.userData.scenicJourney={count,styles:[...new Set(scenicJourney.at(ch.cx,ch.cz).map(s=>s.style))]};ch.group.add(mesh);}
+}
 function buildMountainRiver(ch){
   if(biomeMode!=='journey')return;
   const water=new Merger(),trees=new Merger(),path=TOURS.paths.find(p=>p.id==='mountain');
@@ -2251,8 +2305,8 @@ function buildCanyon(ch){
       if(tourReserved(rx,rz,85)||lineReserved(rx,rz,85)||highway(rx,rz).d<HW_HALF+85)continue;
       const base=heightAt(rx,rz)-6,h=78+hash(seg.index,side,1992)*90;
       for(let tier=0;tier<4;tier++){
-        const width=58-tier*9,depth=46-tier*6,lo=base+tier*h/4,hi=lo+h/4+1;
-        rocks.add(G.taper8,M(rx,(lo+hi)/2,rz,yaw+Math.sin(tier*2+seg.index)*.06,width*.58,hi-lo,depth*.58),[0xa66f50,0xbb8c67,0xa97151,0xc49971][tier]);
+        const width=58*Math.pow(.84,tier),depth=46*Math.pow(.84,tier),lo=base+tier*h/4,hi=lo+h/4+1;
+        rocks.add(G.sediment,M(rx,(lo+hi)/2,rz,yaw,width*.58,hi-lo,depth*.58),[0xa66f50,0xbb8c67,0xa97151,0xc49971][tier]);
         addCollider(rx,rz,yaw,width*.58,depth*.58,lo,hi);
       }
     }
@@ -2554,7 +2608,7 @@ function travelFeatured(id) {
   if(definition.rail){x=definition.x;z=railZ(x);yaw=Math.atan2(1,railZd(x));}
   else {const path=TOURS.paths.find(p=>p.id===id),p=TOURS.at(path,path.length*(definition.start??(id==='lake'?.53:.025)));x=p.x;z=p.z;yaw=Math.atan2(p.tx,p.tz);}
   P.pos.set(x,0,z);rebuildAll();placeAt(x,z,yaw,vehKey==='horse'?Math.max(8,S.cruise*.9):Math.max(52,S.cruise*1.2));
-  Object.assign(P,{dead:false,hull:3,stalled:false,reached:false,flow:.25,routeTrack:null,routeOffset:0,invuln:4,lean:0,leanV:0,sway:0,hold:0,stopT:0,barrage:false});
+  Object.assign(P,{dead:false,hull:3,stalled:false,reached:false,flow:.25,routeTrack:null,routeOffset:0,invuln:4,lean:0,leanV:0,sway:0,hold:0,stopT:0,barrage:false,cornerPace:S.maxSpeed});
   inp.jx=inp.jy=inp.kx=inp.ky=0;inp.keys={};steerSm=0;camBaseY=P.pos.y;suspY=suspV=0;updatePalette(0,true);refreshCards();toast(definition.name,'道の先へ',2200);
   window.dispatchEvent(new CustomEvent('wl:music-region',{detail:{region:musicRegion(),visit:true}}));
 }
@@ -2577,6 +2631,7 @@ function* chunkSteps(ch, rng) {
   buildFeaturedRoad(ch); yield;
   buildCanyon(ch); yield;
   buildMountainRiver(ch); yield;
+  buildScenicJourney(ch); yield;
   buildChunkRailway(ch); yield;
   yield* propSteps(ch, rng);
   buildChunkWinds(ch, rng); yield;
@@ -3218,7 +3273,7 @@ function rebuildAll() {
   cancelStreaming(); farKey = null;
   for (const c of chunks.values()) disposeGroup(c.group); chunks.clear();
   for (const L of landmarks.values()) disposeGroup(L.group); landmarks.clear();
-  lastRX = lastRZ = null; updateChunks(true); buildHome(); buildFeaturedVista();
+  lastRX = lastRZ = null; buildHome(); buildFeaturedVista(); updateChunks(true);
 }
 
 // ---------------------------------------------------------------- fx tied to loaded features
@@ -3668,8 +3723,10 @@ function placeAt(x, z, yaw, speed) {
   sfx.stopHooves();
   horseWake.clear();flowEffects.clear();
   WindTravelCamera.reset(travelCam);
-  const g = ground(x, z, Infinity);
-  P.pos.set(x, g.h + HOVER + 0.5, z); P.yaw = yaw; P.grind = null; P.grounded = false; P.air = 0.01; P.n.copy(g.n);
+  const deck=biomeMode==='journey'?TOURS.nearest(x,z):null;
+  const g = ground(x,z,vehKey==='horse'&&deck&&deck.d<deck.half?deck.y+HOVER:Infinity);
+  // A mounted departure starts on its road, without falling half a metre or landing on a canopy.
+  P.pos.set(x,g.h+HOVER+(vehKey==='horse'?0:.5),z);P.yaw=yaw;P.grind=null;P.grounded=vehKey==='horse';P.air=vehKey==='horse'?0:.01;P.n.copy(g.n);
   fwd.set(Math.sin(yaw), 0, Math.cos(yaw)); P.vel.copy(fwd).multiplyScalar(speed);
   camDir.copy(fwd); camPos.copy(P.pos).addScaledVector(fwd, -S.camDist).add(new V3(0, 3, 0)); lookSm.copy(P.pos);
   camOff.copy(camPos).sub(P.pos);camBaseY=P.pos.y;lookAng=0;
@@ -3749,20 +3806,25 @@ function stepPhysics(dt) {
       const nvs = vs * Math.exp(-grip * dt);
       if (vf >= 0) vf += (Math.abs(vs) - Math.abs(nvs)) * (P.drifting ? 0.9 : 0.86); else vf *= Math.exp(-3 * dt);
       const cruiseNow = S.cruise * (1 + P.flow * (horse?.3:.5)), maxNow = S.maxSpeed * (1 + P.flow * (horse?.12:.3));
-      let target = S.auto && !braking && !P.dead && !P.stalled ? cruiseNow : 0, acc = V.accel * (vf < 12 ? 0.45 : 1); // heavy to get rolling again
+      let target = S.auto && !braking && !P.dead && !P.stalled ? cruiseNow : 0, acc = V.accel * (vf < 12 ? (horse?.68:.45) : 1); // heavy to get rolling again
       if (P.tuck && target > 0) { target = cruiseNow * 1.35; acc *= 1.6; }
       if (vf < target) vf += acc * dt * (1 - clamp(vf / Math.max(target, 1), 0, 1) * 0.5);
       if (braking) vf = Math.max(0, vf - 24 * brakeAmt * dt);
       vf += S.tailwind * Math.max(0, fPl.x * windDir.x + fPl.z * windDir.z) * dt;
       const route = rideRoute(P.pos.x, P.pos.z, P.pos.y);
       P.onRoad = roadDist(P.pos.x, P.pos.z) < 5 || route.d < route.half;
-      if (P.onRoad) vf += (horse?1.8:5) * dt;
+      if (P.onRoad) vf += (horse?2.1:5) * dt;
       if (vf > cruiseNow) vf -= (vf - cruiseNow) * (P.onWater ? 0.02 : P.onRoad ? 0.003 : 0.007) * dt;
       // the long pull: held straight, the old engine keeps winding up toward the top end, slowly;
       // laid over in a bend, the speed bleeds back toward a cornering pace
       const straight = 1 - smooth(0.3, 0.7, Math.abs(P.lean)), bend = smooth(0.62, 0.95, Math.abs(P.lean)); // light direction changes keep the pull; only a hard bend bleeds speed
-      if (S.auto && !braking && !P.stalled && !P.dead) { const top = maxNow * 0.96; if (vf > cruiseNow * 0.85 && vf < top) vf += (horse?2.8:3.7) * straight * (1 - vf / top) * (P.onRoad ? 1.3 : 1) * dt; }
+      if (S.auto && !braking && !P.stalled && !P.dead) { const top = maxNow * 0.96; if (vf > cruiseNow * 0.85 && vf < top) vf += (horse?3.6:3.7) * straight * (1 - vf / top) * (P.onRoad ? 1.3 : 1) * dt; }
       if (vf > S.cruise * 1.3) vf -= (vf - S.cruise * 1.3) * 0.55 * bend * dt;
+      if(horse){
+        let angle=0;if(route.path){const dir=P.vel.x*route.tx+P.vel.z*route.tz>=0?1:-1,a=NAV.ahead(route.path,route.s,clamp(speed*1.7,35,90),dir);angle=Math.abs(Math.atan2(route.tx*dir*a.tz-route.tz*dir*a.tx,route.tx*dir*a.tx+route.tz*dir*a.tz));}
+        const want=maxNow*(1-.16*smooth(.12,.62,angle));P.cornerPace=lerp(P.cornerPace??maxNow,want,1-Math.exp(-(want<(P.cornerPace??maxNow)?1.1:2)*dt));
+        if(vf>P.cornerPace)vf-=(vf-P.cornerPace)*(1-Math.exp(-1.6*dt));
+      }
       if (vf > maxNow) vf -= (vf - maxNow) * 1.5 * dt;
       if (vf < S.minSpeed) vf = lerp(vf, S.minSpeed, 1 - Math.exp(-3 * dt));
       if (P.drifting) {
@@ -3915,7 +3977,7 @@ function horseRoadAffinity(hw,steer,dt){
   P.routeOffset=clamp(P.routeOffset,-hw.half+2.2,hw.half-2.2);
   const direction=Math.sin(P.yaw)*hw.nz-Math.cos(P.yaw)*hw.nx>=0?1:-1;
   const lookDistance=Math.max(12,Math.hypot(P.vel.x,P.vel.z)*.32);
-  if(hw.path){const look=TOURS.at(hw.path,hw.s+direction*lookDistance);ty=Math.atan2(look.tx*direction,look.tz*direction);}
+  if(hw.path){const look=NAV.ahead(hw.path,hw.s,lookDistance,direction);ty=Math.atan2(look.tx,look.tz);}
   else{
     const look=rideRoute(hw.cx+Math.sin(ty)*lookDistance,hw.cz+Math.cos(ty)*lookDistance,P.pos.y);
     let next=Math.atan2(look.nz,-look.nx);if(Math.cos(next-ty)<0)next+=Math.PI;
@@ -4305,9 +4367,9 @@ function vignette(v) { vigLevel = Math.max(vigLevel, v); }
 const routeHeat = () => biomeMode === 'journey' ? lowlandZone(P.pos.z / funnel(P.pos.x)) * smooth(1500, 5000, P.pos.x) + 0.35 * (1 - smooth(1500, 5000, P.pos.x)) : 0.5;
 function updateEncounters(dt){
   const road=rideRoute(P.pos.x,P.pos.z,P.pos.y);let bend=0;
-  if(road.path){const dir=P.vel.x*road.tx+P.vel.z*road.tz>=0?1:-1,a=TOURS.at(road.path,road.s+dir*clamp(P.vel.length()*.75,45,110));bend=Math.atan2(road.tx*a.tz-road.tz*a.tx,road.tx*a.tx+road.tz*a.tz);}
+  if(road.path){const dir=P.vel.x*road.tx+P.vel.z*road.tz>=0?1:-1,a=NAV.ahead(road.path,road.s,clamp(P.vel.length()*.75,45,110),dir);bend=Math.atan2(road.tx*dir*a.tz-road.tz*dir*a.tx,road.tx*dir*a.tx+road.tz*dir*a.tz);}
   let opening=Math.abs(bend)<.28;
-  if(road.path){const dir=P.vel.x*road.tx+P.vel.z*road.tz>=0?1:-1;for(const distance of [220,440,650]){const a=TOURS.at(road.path,road.s+dir*distance),turn=Math.abs(Math.atan2(road.tx*a.tz-road.tz*a.tx,road.tx*a.tx+road.tz*a.tz));if(turn>.34||a.y-P.pos.y>distance*.18)opening=false;}}
+  if(road.path){const dir=P.vel.x*road.tx+P.vel.z*road.tz>=0?1:-1;for(const distance of [220,440,650]){const a=NAV.ahead(road.path,road.s,distance,dir),turn=Math.abs(Math.atan2(road.tx*dir*a.tz-road.tz*dir*a.tx,road.tx*dir*a.tx+road.tz*dir*a.tz));if(turn>.34||a.y-P.pos.y>distance*.18)opening=false;}}
   WindEncounters.advance(encounter,dt,{opening,enabled:shellsOn,dead:P.dead,sheltered:P.inTunnel,region:musicRegion(),hull:P.hull,bend,cleared:encounter.phase==='combat'&&!forms.some(f=>!f.peace&&!f.scout&&f.phase!=='leave')});
   if(encounter.phase==='scenic'&&encounter.elapsed>5&&opening&&encounter.scoutCycle!==encounter.cycle&&!P.inTunnel&&shellsOn&&!P.dead){spawnFormation('scout');encounter.scoutCycle=encounter.cycle;}
   if(encounter.event==='warning'){
@@ -4577,7 +4639,7 @@ function spawnFormation(forceMode) {
   const side = mode === 'flyby' ? (Math.random() < 0.5 ? -1 : 1) * (700 + Math.random() * 300) : (Math.random() - 0.5) * 24;
   const dist = mode==='scout'?390:mode === 'assault' ? 690 : mode === 'pass' ? 1400 : mode === 'flyby' ? 450 + Math.random() * 700 : -420;
   const road=score?rideRoute(P.pos.x,P.pos.z,P.pos.y):null,dir=road&&road.tx*fx+road.tz*fz<0?-1:1;
-  const approach=road?.path?TOURS.at(road.path,road.s+dir*dist):null;
+  const approach=road?.path?NAV.ahead(road.path,road.s,dist,dir):null;
   const pos = new V3((approach?.x??P.pos.x+fx*dist)-fz*side,0,(approach?.z??P.pos.z+fz*dist)+fx*side);
   pos.y = surfaceAt(pos.x, pos.z) + (score?score.altitude:mode === 'pass' ? 70 + Math.random() * 30 : mode === 'flyby' ? 60 + Math.random() * 90 : 34 + Math.random() * 20);
   // flybys cross your path far off, slowly, like birds; they never fire
@@ -4591,8 +4653,8 @@ function spawnFormation(forceMode) {
     const x=d.x,y=d.y,z=d.z;d.set(pos.x-fz*x+fx*z,pos.y+y,pos.z+fx*x+fz*z);d.slot=i;f.drones.push(d);}
   if(f.score?.sentry){
     const road=rideRoute(P.pos.x,P.pos.z,P.pos.y),dir=road.tx*fx+road.tz*fz>=0?1:-1;
-    const a=road.path?TOURS.at(road.path,road.s+dir*730):null;
-    const x=a?.x??P.pos.x+fx*730,z=a?.z??P.pos.z+fz*730,tx=a?a.tx*dir:fx,tz=a?a.tz*dir:fz;
+    const a=road.path?NAV.ahead(road.path,road.s,730,dir):null;
+    const x=a?.x??P.pos.x+fx*730,z=a?.z??P.pos.z+fz*730,tx=a?a.tx:fx,tz=a?a.tz:fz;
     const side=encounter.cycle%2?1:-1,offset=(road.half||22)+10,sx=x-tz*offset*side,sz=z+tx*offset*side;
     const floor=surfaceAt(sx,sz),deck=a?.y??('loop'in road?routeY(road,x):deckAt(x,z));
     const nearTour=tourAt(sx,sz),nearRail=railway(sx,sz),railMargin=nearRail.d-nearRail.half,nearHW=highway(sx,sz);
@@ -4609,7 +4671,7 @@ function spawnFormation(forceMode) {
 }
 // One patrol closes from ahead: geometric missile salvos, a bow window, then short close-range bursts.
 const AS_HOLD = 510, AS_REL = 124, AS_TIME = 36;
-const PATTERN_NAMES = ['風の格子','扇の航跡','天の輪','五本の流れ','螺旋','二重の門','二重の菱形','六角の星','折線の織物'];
+const PATTERN_NAMES = ['風の格子','扇の航跡','天の輪','五本の流れ','螺旋','二重の門','二重の菱形','六角の星','折線の織物','稜線の連なり','二筋の風紋','階段の航跡'];
 const AS_COLS = [[1,.68,.3],[.54,.82,.95],[1,.48,.27],[.77,.88,.58],[.78,.69,.93]];
 function assaultMove(f,dt,fx,fz,hs){
   f.age+=dt;
@@ -4619,7 +4681,7 @@ function assaultMove(f,dt,fx,fz,hs){
   if(f.phase==='leave'){tmp.set(P.vel.x+fx*60,28,P.vel.z+fz*60);f.vel.lerp(tmp,1-Math.exp(-2*dt));return;}
   // Close along the road, including its curves; never orbit or fire from the rider's rear.
   const road=rideRoute(P.pos.x,P.pos.z,P.pos.y);let tx=P.pos.x+fx*Math.max(55,f.ahead),tz=P.pos.z+fz*Math.max(55,f.ahead);
-  if(road.path&&road.d<road.half+8){const dir=P.vel.x*road.tx+P.vel.z*road.tz>=0?1:-1,a=TOURS.at(road.path,road.s+dir*Math.max(55,f.ahead));tx=a.x;tz=a.z;}
+  if(road.path&&road.d<road.half+8){const dir=P.vel.x*road.tx+P.vel.z*road.tz>=0?1:-1,a=NAV.ahead(road.path,road.s,Math.max(55,f.ahead),dir);tx=a.x;tz=a.z;}
   const closing=f.scout?15:vehKey==='horse'?23:48,forward=Math.max(0,hs-closing);
   tmp.set(fx*forward+(tx-f.pos.x)*2,(surfaceAt(tx,tz)+(f.score?.altitude??22)-f.pos.y)*2,fz*forward+(tz-f.pos.z)*2);
   f.vel.lerp(tmp,1-Math.exp(-3*dt));
@@ -4643,7 +4705,8 @@ function assaultVolley(f){
   const pat=f.pat++%PATTERN_NAMES.length;encounterPattern=f.pat;const gap=WindPatrolScore.gap(f.salvos||0);
   // Every motor lights up on a visible geometric edge. Aim is frozen at launch, never homing.
   const points=[],add=(x,y,delay=0)=>points.push({x,y,delay});
-  if(pat===0||pat===5){for(let row=0;row<(pat===5?2:1);row++)for(let k=-9;k<=9;k++)if(Math.abs(k*5.4-gap)>5.5)add(k*5.4,0,row*.48);}
+  if(pat>=9)points.push(...WindPatrolScore.flourish(pat,gap));
+  else if(pat===0||pat===5){for(let row=0;row<(pat===5?2:1);row++)for(let k=-9;k<=9;k++)if(Math.abs(k*5.4-gap)>5.5)add(k*5.4,0,row*.48);}
   else if(pat===1){for(let k=-9;k<=9;k++)add(k*5.8,Math.abs(k)*.22);}
   else if(pat===3){for(let row=0;row<4;row++)for(const x of [-14,-7,0,7,14])add(x,0,row*.18);}
   else if(pat===4){for(let k=0;k<28;k++)add(Math.cos(k*.45)*30,Math.sin(k*.45)*7,k*.045);}
@@ -5355,16 +5418,16 @@ const PALC = BKEYS.map((k) => { const b = BIOMES[k]; return { top: new THREE.Col
 const COLK = ['top', 'hor', 'bot', 'sunCol', 'hemiSky', 'hemiGround', 'sunLight', 'cloud', 'dust'];
 const _wp = newW(); let curDom = -1, domHold = 0;
 const MOODS = [
-  { top: new THREE.Color(0x9d89ac), hor: new THREE.Color(0xd6c8c0), sun: new THREE.Color(0xffd0bc) }, // rose dawn
-  { top: new THREE.Color(0x6498b9), hor: new THREE.Color(0xdad4bf), sun: new THREE.Color(0xfff0c8) }, // pale gold
-  { top: new THREE.Color(0xa47c91), hor: new THREE.Color(0xd8c6af), sun: new THREE.Color(0xffc49a) }, // amber dusk
-  { top: new THREE.Color(0x8d80b3), hor: new THREE.Color(0xd1c9d0), sun: new THREE.Color(0xf0d8ff) }, // lilac
-  { top: new THREE.Color(0x526e9f), hor: new THREE.Color(0xc3cbd0), sun: new THREE.Color(0xdfe8ff) }, // blue hour
-  { top: new THREE.Color(0x679d9f), hor: new THREE.Color(0xccd7ce), sun: new THREE.Color(0xe0fff4) }, // teal mist
-  { top: new THREE.Color(0x8fa3a0), hor: new THREE.Color(0xe2e6da), sun: new THREE.Color(0xf4f2e0) }, // green-grey haze
-  { top: new THREE.Color(0x7f8fa8), hor: new THREE.Color(0xf0d6c4), sun: new THREE.Color(0xffe2cc) }, // faded peach over slate
-  { top: new THREE.Color(0x9aa8bc), hor: new THREE.Color(0xe8ecf0), sun: new THREE.Color(0xf4f8ff) }, // cold silver
-  { top: new THREE.Color(0x6e6a9e), hor: new THREE.Color(0xf0d4a8), sun: new THREE.Color(0xffd89a) }, // violet with a gold horizon
+  { top: new THREE.Color(0xb279aa), hor: new THREE.Color(0xd6c8c0), sun: new THREE.Color(0xffd0bc) }, // rose dawn
+  { top: new THREE.Color(0x459dbf), hor: new THREE.Color(0xdad4bf), sun: new THREE.Color(0xfff0c8) }, // pale gold
+  { top: new THREE.Color(0xbe7867), hor: new THREE.Color(0xd8c6af), sun: new THREE.Color(0xffc49a) }, // amber dusk
+  { top: new THREE.Color(0x9771c4), hor: new THREE.Color(0xd1c9d0), sun: new THREE.Color(0xf0d8ff) }, // lilac
+  { top: new THREE.Color(0x3c62a3), hor: new THREE.Color(0xc3cbd0), sun: new THREE.Color(0xdfe8ff) }, // blue hour
+  { top: new THREE.Color(0x479f9e), hor: new THREE.Color(0xccd7ce), sun: new THREE.Color(0xe0fff4) }, // teal mist
+  { top: new THREE.Color(0x7ca99c), hor: new THREE.Color(0xe2e6da), sun: new THREE.Color(0xf4f2e0) }, // green-grey haze
+  { top: new THREE.Color(0x648cb5), hor: new THREE.Color(0xf0d6c4), sun: new THREE.Color(0xffe2cc) }, // faded peach over slate
+  { top: new THREE.Color(0x8bb5d5), hor: new THREE.Color(0xe8ecf0), sun: new THREE.Color(0xf4f8ff) }, // cold silver
+  { top: new THREE.Color(0x755db3), hor: new THREE.Color(0xf0d4a8), sun: new THREE.Color(0xffd89a) }, // violet with a gold horizon
 ];
 const moodTop = new THREE.Color(), moodHor = new THREE.Color(), moodSun = new THREE.Color();
 const SUN_PERIOD = 540;
@@ -5393,9 +5456,9 @@ function updatePalette(dt, snap) {
   // mood cycle (about 8 minutes): rose dawn, pale gold, lilac, teal mist
   // each stretch of land keeps its own sky, drifting slowly with the hour: ride on and the light changes with the place
   const place = vnoise(P.pos.x / 6500 + 3.7, P.pos.z / 6500 - 1.3, 97) * MOODS.length * 1.6 + vnoise(P.pos.x / 2200, P.pos.z / 2200, 98) * 1.2;
-  const mp = ((place + t / 52) % MOODS.length + MOODS.length) % MOODS.length, mi = Math.floor(mp), mf = smooth(0, 1, mp - mi), A = MOODS[mi], B = MOODS[(mi + 1) % MOODS.length];
+  const mp = ((place + t / 46) % MOODS.length + MOODS.length) % MOODS.length, mi = Math.floor(mp), mf = smooth(0, 1, mp - mi), A = MOODS[mi], B = MOODS[(mi + 1) % MOODS.length];
   moodTop.copy(A.top).lerp(B.top, mf); moodHor.copy(A.hor).lerp(B.hor, mf); moodSun.copy(A.sun).lerp(B.sun, mf);
-  const mk = 0.57 + 0.22 * vnoise(P.pos.x / 4000 - 8.1, P.pos.z / 4000 + 2.2, 99);
+  const mk = 0.42 + 0.18 * vnoise(P.pos.x / 4000 - 8.1, P.pos.z / 4000 + 2.2, 99);
   skyMat.uniforms.top.value.copy(pal.top).lerp(moodTop, mk); skyMat.uniforms.hor.value.copy(pal.hor).lerp(moodHor, mk); skyMat.uniforms.bot.value.copy(pal.bot).lerp(moodHor, mk * 0.6);
   skyMat.uniforms.sunCol.value.copy(pal.sunCol).lerp(moodSun, mk); skyMat.uniforms.sunDir.value.copy(pal.sunDir).normalize();
   skyMat.uniforms.top.value.lerp(HIGH_TOP, altK * 0.55); skyMat.uniforms.hor.value.lerp(HIGH_HOR, altK * 0.4);
@@ -5438,12 +5501,13 @@ function updateVisuals(dt) {
     const pressure=shellsOn&&forms.some(f=>!f.peace&&f.pos.distanceToSquared(P.pos)<1100*1100)?1:0;
     let previewBend=0;
     if(cameraRoad?.path){const dir=Math.sin(P.yaw)*cameraRoad.tx+Math.cos(P.yaw)*cameraRoad.tz>=0?1:-1;
-      const ahead=TOURS.at(cameraRoad.path,cameraRoad.s+dir*clamp(speed*.9,35,110));
-      const angle=Math.atan2(ahead.tx*dir,ahead.tz*dir)-P.yaw;previewBend=Math.atan2(Math.sin(angle),Math.cos(angle))*.5;}
-    const viewPlay=WindTravelCamera.advance(travelCam,dt,{speed,
+      const ahead=NAV.ahead(cameraRoad.path,cameraRoad.s,clamp(speed*.9,35,110),dir);
+      const angle=Math.atan2(ahead.tx,ahead.tz)-P.yaw;previewBend=Math.atan2(Math.sin(angle),Math.cos(angle))*.5;}
+    const lakeInterest=cameraRoad?.path?.id==='lake'?((Math.cos(P.yaw)*(LK.x-P.pos.x)-Math.sin(P.yaw)*(LK.z*funnel(P.pos.x)-P.pos.z))/Math.max(1,Math.hypot(LK.x-P.pos.x,LK.z*funnel(P.pos.x)-P.pos.z))):0;
+    const viewPlay=WindTravelCamera.advance(travelCam,dt,{speed,interest:reducedJourneyMotion?0:lakeInterest,
       threat:pressure,bend:previewBend,
       steer:Math.max(Math.abs(inp.jx),Math.abs(inp.kx)),yawRate:P.yawRate,
-      blocked:vehKey!=='horse'||!cameraRoad||cameraRoad.half-cameraRoad.d<4.5||P.inTunnel||!P.grounded||P.dead||P.stalled||P.grind||P.invuln>0||dashPunch>.02||Math.abs(P.vel.y)>8||
+      blocked:bow.id!==null||bow.recoil>.01||vehKey!=='horse'||!cameraRoad||cameraRoad.half-cameraRoad.d<4.5||P.inTunnel||!P.grounded||P.dead||P.stalled||P.grind||P.invuln>0||dashPunch>.02||Math.abs(P.vel.y)>8||
         (shellsOn&&P.danger>.15)||forms.some(f=>!f.peace&&f.pos.distanceToSquared(P.pos)<1100*1100)});
     tmp.set(P.vel.x, 0, P.vel.z);
     if (tmp.lengthSq() > 9) tmp.normalize(); else tmp.copy(fwd);
@@ -6207,12 +6271,11 @@ function frame(now) {
 setVehicle(vehKey); applyLens();
 placeHome(0); buildHome(); buildFeaturedVista(); updatePalette(0, true); refreshCards();
 requestAnimationFrame(frame);
-window.__wl = { get paused(){return paused;}, climate:WindJourneyClimate,get lakeJourney(){return lakeJourney;},flowEffects,riding: WindHorseRiding, musicRegion, setVehicle, get vehicle(){return vehKey;}, tours: TOURS, tourAt, travelFeatured, get featured() { return featured; }, performance: { streaming: streamStats, quality }, archery:bow, combat: { encounter,missiles,hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, patternNames: PATTERN_NAMES, relativeSpeed: AS_REL, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
+window.__wl = { get paused(){return paused;}, climate:WindJourneyClimate,get lakeJourney(){return lakeJourney;},flowEffects,riding: WindHorseRiding, musicRegion, setVehicle, get vehicle(){return vehKey;}, tours: TOURS, tourAt, travelFeatured, get featured() { return featured; }, guidance:NAV, scenicJourney, performance: { streaming: streamStats, quality }, archery:bow, combat: { encounter,missiles,hitRadius: HIT_RADIUS, grazeRadius: GRAZE_RADIUS, patternNames: PATTERN_NAMES, relativeSpeed: AS_REL, get bullets() { let n = 0; for (const life of bLife) if (life > 0) n++; return n; } }, rebuildAll, TURRET, setTurret, deckAt, rawHeight, heightAt, hwZ, hwZd, highway, halfW, funnel, GOAL, X_GOAL, BASE_X, placeHome, placeAt, BASINS, STATIONS, BREAKS, LOOPS, railZ, railZd, railY, railway, loopZ, loopY, rideRoute, stationShelter, randomRoadSpot, stepPhysics, get cpA() { return cpA; }, spawnF: spawnFormation, get forms() { return forms; }, get colliders() { return colliders; }, ground, P, inp, scene, player, shadow, trail, scarf, seedPts, dustPts, speedLines, get shells() { return shells; }, get S() { return S; }, get finds() { return finds; }, get chunks() { return chunks; }, get landmarks() { return landmarks; }, get started() { return started; }, loadStep: () => updateChunks(false) };
 // A lazy connection lets the menu's independent BGM bus reuse the game's audio clock.
 window.__wlAudio = { getContext() { sfx.init(); return sfx.context; }, getDestination() { sfx.init(); return sfx.output; }, get soundOn() { return sfx.on; } };
 })();
 </script>
-<script type="module" src="../music/game-music.mjs?v=20261026-variety" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
+<script type="module" src="../music/game-music.mjs?v=20261029-voyage" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
 </body>
 </html>
-

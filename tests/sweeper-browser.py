@@ -25,7 +25,7 @@ try:
   report['phrases']=page.evaluate('''()=>{const w=__wl,q=__wingQA,out=[];q.paused=true;
    for(const route of ['desert','mountain','lake','silk']){
     w.travelFeatured(route);q.clearDrones();Object.assign(w.combat.encounter,{phase:'combat',duration:32,elapsed:0,cycle:0});w.spawnF('assault');const f=w.forms.find(f=>!f.peace),d=f.drones.find(d=>d.sweeper),s=d.sweeper;w.P.invuln=1000;let min=Infinity,max=-Infinity;const phases=[],events=[];
-    if(!d||f.launchers.includes(d)||f.n!==5)throw Error('The wing did not replace one launcher');
+    if(!d||f.launchers.includes(d)||f.n!==6)throw Error('The wing did not replace one launcher');
     for(let i=0;i<30*20;i++){
      const previous=w.P.pos.clone();for(let j=0;j<6;j++)w.stepPhysics(1/120);q.updateEncounters(.05);q.updateThreat(.05);q.updateDrones(.05,previous);q.updateArchery(.05);q.updateVisuals(.05);if(i%3===0)w.loadStep();
      if(['windup','dive'].includes(s.phase)&&f.cue)throw Error('A launcher tell overlapped the interceptor');if(!phases.includes(s.phase))phases.push(s.phase);if(s.event&&!events.some(e=>e.event===s.event))events.push({event:s.event,time:i*.05});

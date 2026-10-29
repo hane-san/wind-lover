@@ -2,7 +2,7 @@ import test from 'node:test';import assert from 'node:assert/strict';
 await import('../world/patrol-score.js');const score=globalThis.WindPatrolScore;
 test('small patrols use distinct sky heights and retain aerial alternatives to unsafe ground sites',()=>{
  for(let cycle=0;cycle<12;cycle++){
-  const p=score.plan(cycle);assert.ok(p.total>=5&&p.total<=6);assert.equal(p.sky+(p.sentry?1:0),p.total);
+  const p=score.plan(cycle);assert.ok(p.total>=6&&p.total<=7);assert.equal(p.sky+(p.sentry?1:0),p.total);
   assert.equal(p.slots.length,p.sky);assert.ok(new Set(p.slots.map(s=>s.height)).size>=2);
   assert.ok(p.slots.some(s=>s.depth< -50));assert.ok(p.altitude+p.slots[1].height>=85);
   const fallback=score.plan(cycle,false);assert.equal(fallback.sky,p.total);assert.equal(fallback.slots.length,p.total);
@@ -44,4 +44,10 @@ test('regional patrols adapt to the skyline without increasing the number or cha
   assert.ok(p.slots.every(x=>Number.isFinite(x.height+x.side)&&Math.abs(x.side)<=60));assert.ok(p.altitude+p.slots[0].height>10);
  }
  assert.ok(score.plan(0,true,.5,'canyon').altitude<score.plan(0).altitude);
+});
+test('new missile ribbons keep a committed dodge lane, bounded size and a readable stagger',()=>{
+ for(const pattern of [9,10,11])for(const gap of [-7,7]){
+  const p=score.flourish(pattern,gap);assert.ok(p.length>15&&p.length<60);assert.ok(p.some(q=>q.delay>0));
+  for(const q of p){assert.ok(Math.abs(q.x-gap)>5.5||Math.abs(q.y)>2.5);assert.ok(Math.abs(q.x)<=60&&Math.abs(q.y)<15&&q.delay>=0&&q.delay<1);}
+ }
 });

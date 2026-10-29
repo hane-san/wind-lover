@@ -1,3 +1,4 @@
+import { EXPEDITION_TRACKS,buildExpeditionScore } from './voyage-score.mjs?v=20261029-voyage';
 import { TRACKS as originals, buildScore as buildOriginal } from './scores.mjs?v=20261022';
 
 // Original chamber arrangements: modal falling phrases, held strings and unfilled bars.
@@ -21,10 +22,11 @@ export const RIDING_TRACKS=Object.freeze([
  {id:'railbound-heart',title:'廃線の先へ',source:'rust-horizon',bpm:116,energy:'brave',lead:'warm',taste:'116 BPM · 郷愁を帯びたシンセの疾走'},
  {id:'tian-shan-charge',title:'天山に響く角笛',source:'tian-shan-pass',bpm:112,energy:'brave',lead:'horn',taste:'112 BPM · 角笛と弦、峠を越える三拍子'},
  {id:'skyward-current',title:'星を追う航跡',source:'glass-current',bpm:148,energy:'brave',lead:'keys',taste:'148 BPM · 浮遊する旋律と軽いブレイクビーツ'},
-].map(t=>Object.freeze({...originals.find(o=>o.id===t.source),...t,arrangement:'riding'})));
+].map(t=>Object.freeze({...originals.find(o=>o.id===t.source),...t,arrangement:'riding'})).concat(EXPEDITION_TRACKS));
 export const TRACKS=Object.freeze([...chamber,...RIDING_TRACKS]);
 
 export function buildScore(id) {
+  if(EXPEDITION_TRACKS.some(t=>t.id===id))return buildExpeditionScore(id);
   const riding=RIDING_TRACKS.find(t=>t.id===id);
   if(riding){
     const source=buildOriginal(riding.source);

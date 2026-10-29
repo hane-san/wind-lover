@@ -1,5 +1,5 @@
-import { createJourneyMusic, TRACKS } from './journey-music.mjs?v=20261026-variety';
-import { createRoutePlaylist } from './route-playlist.mjs?v=20261026-variety';
+import { createJourneyMusic, TRACKS } from './journey-music.mjs?v=20261029-voyage';
+import { createRoutePlaylist } from './route-playlist.mjs?v=20261029-voyage';
 
 const settings = document.querySelector('#musicSettings');
 const toggle = document.querySelector('#musicToggle');

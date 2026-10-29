@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { ROUTE_POOLS, chooseRouteTrack, createRoutePlaylist } from '../music/route-playlist.mjs';
 import { TRACKS } from '../music/quiet-score.mjs';
 
-test('every landscape has six playable candidates; re-entry avoids the previous song', () => {
+test('every landscape has nine playable candidates; re-entry avoids the previous song', () => {
   for (const [region, pool] of Object.entries(ROUTE_POOLS)) {
-    assert.equal(new Set(pool).size, 6);
+    assert.equal(new Set(pool).size, 9);
     for (const previous of pool) for(let i=0;i<100;i++) {
       const next = chooseRouteTrack(region, previous, () => i/100);
       assert.ok(pool.includes(next)); assert.notEqual(next, previous);

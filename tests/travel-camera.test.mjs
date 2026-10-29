@@ -25,3 +25,11 @@ test('camera boom stops in front of walls and lintels, including rotated boxes',
  assert.equal(camera.boomFraction(target,eye,[{...wall,bottom:8}]),1);
  assert.ok(camera.boomFraction(target,eye,[{...wall,c:Math.SQRT1_2,s:Math.SQRT1_2}])<.6);
 });
+test('a lake glance enters slowly, stays tiny and yields to reins, danger or drawing',()=>{
+ for(const fps of [20,60,120]){
+  const s=camera.create();for(let i=0;i<fps*2;i++)camera.advance(s,1/fps,{speed:35,interest:1});assert.equal(s.look,0);
+  for(let i=0;i<fps*8;i++)camera.advance(s,1/fps,{speed:35,interest:1});assert.ok(s.look>1.3&&s.look<=1.45);assert.equal(s.side,0);assert.equal(s.pull,0);assert.equal(s.rise,0);
+  for(let i=0;i<fps*.5;i++)camera.advance(s,1/fps,{speed:35,interest:1,blocked:true});assert.ok(Math.abs(s.look)<.015);assert.equal(s.clock,0);
+  for(let i=0;i<fps*5;i++)camera.advance(s,1/fps,{speed:35,interest:-1,steer:.2});assert.ok(Math.abs(s.look)<.001);
+ }
+});

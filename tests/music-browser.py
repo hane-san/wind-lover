@@ -32,6 +32,7 @@ try:
     page.add_init_script('''
       localStorage.setItem('windlover.shells','false');
       window.audioProbe={contexts:[],starts:[],renders:0,releases:[],holdRender:false};
+      const nativeFetch=window.fetch;window.fetch=async(...args)=>{const response=await nativeFetch(...args);return audioProbe.holdRender&&String(args[0]).includes('glass-current.ogg')?new Promise(resolve=>audioProbe.releases.push(()=>resolve(response))):response;};
       const render=OfflineAudioContext.prototype.startRendering;OfflineAudioContext.prototype.startRendering=function(){audioProbe.renders++;const job=render.call(this);return audioProbe.holdRender?new Promise(resolve=>audioProbe.releases.push(()=>job.then(resolve))):job;};
       const Native=window.AudioContext,connect=AudioNode.prototype.connect,start=AudioBufferSourceNode.prototype.start;
       window.AudioContext=class extends Native{constructor(...args){super(...args);this.capture=this.createMediaStreamDestination();audioProbe.contexts.push(this);}createBuffer(...args){const b=super.createBuffer(...args);if(args[0]===1&&args[1]===this.sampleRate*2)this.noiseLoop=b;return b;}};
@@ -43,8 +44,8 @@ try:
     page.wait_for_function('window.__wl && window.__wlMusic',timeout=120000)
     assert page.evaluate('__wlMusic.state.enabled && audioProbe.contexts.length===0')
     assert len(requests)==0,'Default-on BGM must wait for a user gesture'
-    assert page.locator('#musicTrack option').count()==17
-    page.route('**/assets/music/quiet/*.ogg',lambda r:r.continue_() if any(id in r.request.url for id in ['dune-riders','railbound-heart','tian-shan-charge','skyward-current']) else r.fulfill(body=b'invalid codec',content_type='audio/ogg'))
+    assert page.locator('#musicTrack option').count()==23
+    page.route('**/assets/music/quiet/*.ogg',lambda r:r.fulfill(body=b'invalid codec',content_type='audio/ogg') if any(id in r.request.url for id in ['rust-horizon']) else r.continue_())
     page.locator('#btnGo').click(timeout=120000)
     page.wait_for_function('__wl.P.dist>2',timeout=60000)
     page.locator('#btnMenu').click()
@@ -71,7 +72,7 @@ try:
     page.select_option('#musicTrack','glass-current');page.wait_for_function('__wlMusic.state.status==="switching"')
     page.wait_for_timeout(400)
     assert page.evaluate('__wlMusic.inspect().playingTrack==="rust-horizon" && __wlMusic.inspect().voices===1')
-    assert page.evaluate('audioProbe.releases.length>0'), 'The requested arrangement was not prepared'
+    assert page.evaluate('audioProbe.releases.length>0'), 'The requested loop download was not held'
     page.evaluate('audioProbe.holdRender=false;audioProbe.releases.splice(0).forEach(f=>f())')
     page.wait_for_function('__wlMusic.inspect().playingTrack==="glass-current"')
     page.wait_for_timeout(1100)
@@ -81,7 +82,7 @@ try:
     page.evaluate('''()=>{const chunks=[];const r=new MediaRecorder(audioProbe.contexts[0].capture.stream,{mimeType:'audio/webm;codecs=opus'});r.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};window.musicRecording={r,chunks,stopped:new Promise(resolve=>r.onstop=resolve)};r.start();}''')
     page.wait_for_timeout(600)
     page.evaluate('''()=>{const end=performance.now()+1600;while(performance.now()<end){};}''')
-    for track in ['dune-riders','tian-shan-charge','railbound-heart','skyward-current','blue-viaduct','rust-horizon']:
+    for track in ['turquoise-cavalcade','pass-of-thunder','steppe-signal','seven-red-cliffs','cities-in-the-wind','saffron-riders','blue-viaduct','rust-horizon']:
       page.select_option('#musicTrack',track)
       page.wait_for_function('(id)=>__wlMusic.inspect().playingTrack===id',arg=track,timeout=60000)
       page.wait_for_timeout(1100)
