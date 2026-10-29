@@ -1,5 +1,5 @@
 import { createJourneyMusic, TRACKS } from './journey-music.mjs?v=20261029-monsoon';
-import { createRoutePlaylist } from './route-playlist.mjs?v=20261029-monsoon';
+import { createRoutePlaylist } from './route-playlist.mjs?v=20261029-regional';
 
 const settings = document.querySelector('#musicSettings');
 const toggle = document.querySelector('#musicToggle');
@@ -52,15 +52,16 @@ document.addEventListener('click', event => {
 window.addEventListener('wl:music-region', event => {
   if (window.__wl?.started) playlist.enter(event.detail.region, event.detail.visit);
 });
-// Require a stable region for 12 seconds whilst driving, so boundary noise cannot churn songs.
-let candidate = null, since = 0;
-setInterval(() => {
-  if (!window.__wl?.started || window.__wl.paused || window.__wl.P.dead || document.hidden) return;
-  const region = window.__wl.musicRegion();
-  if(candidate !== region) { candidate = region; since = performance.now(); }
-  else if(performance.now() - since >= 12000) playlist.enter(region);
-  playlist.tick({phase:window.__wl.combat.encounter.phase});
-}, 3000);
+// Short scenic chapters announce themselves after two seconds; longer journeys retain their debounce.
+let candidate=null,since=0;
+setInterval(()=>{
+  const world=window.__wl;
+  if(!world?.started||world.paused||world.P.dead||document.hidden){candidate=null;return;}
+  const region=world.musicRegion(),sampler=region.startsWith('monsoon-');
+  if(candidate!==region){candidate=region;since=performance.now();}
+  else if(performance.now()-since>=(sampler?2000:12000))playlist.enter(region);
+  playlist.tick({phase:world.combat.encounter.phase,moving:Math.hypot(world.P.vel.x,world.P.vel.z)>3});
+},1000);
 show(music.state); settings.disabled = false;
 window.__wlMusic = music;
 window.__wlPlaylist = playlist;

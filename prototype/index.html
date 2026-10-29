@@ -364,10 +364,10 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 </section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="../world/monsoon-world.js?v=20261029-monsoon"></script>
+<script src="../world/monsoon-world.js?v=20261029-regional"></script>
 <script src="../world/scenic-journey.js?v=20261029-voyage"></script>
 <script src="../world/route-guidance.js?v=20261029-voyage"></script>
-<script src="../world/featured-routes.js?v=20261029-monsoon"></script>
+<script src="../world/featured-routes.js?v=20261029-regional"></script>
 <script src="../world/horse-riding.js?v=20261024-bow"></script>
 <script src="../world/horse-gait.js?v=20261024-phrase"></script>
 <script src="../world/horse-sound.js?v=20261024-phrase"></script>
@@ -771,6 +771,7 @@ function deckAt(x, z) {
   return Math.max(big * amp * 0.9 * (1 - 0.5 * gk) + off + 2 + relief(x, z), WATER + 6);
 }
 function heightAt(x, z) {
+  if(realm==='monsoon')return MON.terrain(x,z);
   let h = rawHeight(x, z);
   const hw = highway(x, z);
   if (hw.d < 190) {
@@ -884,7 +885,8 @@ function stationShelter(x, z, y) {
   return false;
 }
 const canopyPanel = (s, panel) => panel === 2 || panel === 3 || hash(s.x, panel, 611) > 0.46;
-function tintLand(colour, offset, x, z, weights, height) {
+function tintLand(colour, offset, x, z, weights, height, slope=0) {
+  if(realm==='monsoon'){const c=MON.colour(x,z,slope);for(let k=0;k<3;k++)colour[offset+k]=c[k];return;}
   const patch=vnoise(x/620,z/620,987),wash=vnoise(x/1650,z/1650,988),fine=vnoise(x/130,z/130,989);
   let ice=0,meadow=0;
   for(let b=0;b<NB;b++) {const k=BKEYS[b];ice+=weights[b]*(k==='snow'?1:['tianshan','pamir'].includes(k)?.28:0);meadow+=weights[b]*(['steppe','issyk','karakol','fergana','issykS'].includes(k)?1:0);}
@@ -931,6 +933,7 @@ function ground(x, z, y) {
   const hx = heightAt(x + e, z) - heightAt(x - e, z), hz = heightAt(x, z + e) - heightAt(x, z - e);
   GI.n.set(-hx, 2 * e, -hz).normalize(); GI.water = false; GI.roof = false;
   if (WATER > h) { h = WATER; GI.n.set(0, 1, 0); GI.water = true; }
+  if(realm==='monsoon'){const water=MON.waterAt(x,z);if(water!==null&&water>h){h=water;GI.n.set(0,1,0);GI.water=true;}}
   if (y !== undefined) {
     const hw = highway(x, z);
     if (hw.d < HW_HALF + 0.6) {
@@ -1377,7 +1380,7 @@ function* terrainSteps(ch) {
         let v2 = lerp(c[k], hi[k], th); v2 = lerp(v2, rk[k], tr); v2 = lerp(v2, sh[k], ts);
         col[v * 3 + k] = v2 * shadeK;
       }
-      tintLand(col,v*3,x,z,w,y);
+      tintLand(col,v*3,x,z,w,y,slope);
       ageLand(col, v * 3);
     }
     yield;
@@ -2318,29 +2321,30 @@ function buildCanyon(ch){
 }
 function buildFeaturedRoad(ch) {
   if (biomeMode !== 'journey') return;
-  const road = new Merger(), stone = new Merger(), paint = new THREE.Color(0xcfc6ad), asphalt = new THREE.Color(0x646461),snowRoad=new THREE.Color(0xb0b9bd),roadStart=new THREE.Color(),roadEnd=new THREE.Color(),roadMix=new THREE.Color();
+  const road = new Merger(), stone = new Merger(), paint = new THREE.Color(0xcfc6ad), asphalt = new THREE.Color(0x646461),snowRoad=new THREE.Color(0xb0b9bd),roadStart=new THREE.Color(),roadEnd=new THREE.Color(),roadMix=new THREE.Color(),vergeStart=new THREE.Color(),vergeEnd=new THREE.Color();
   const vertex = (p, side, up = .14) => new V3(p.x + p.nx * side, p.y + up, p.z + p.nz * side);
   for (const path of TOURS.paths) for (const seg of path.segments) {
     const a = seg.a, b = seg.b, x = (a.x + b.x) / 2, z = (a.z + b.z) / 2;
     if (Math.floor(x / CH) !== ch.cx || Math.floor(z / CH) !== ch.cz) continue;
     const h = seg.half, yaw = Math.atan2(seg.tx, seg.tz), y = (a.y + b.y) / 2, mode = path.id === 'mountain' ? TOURS.tunnel(x) : null,roof=TOURS.hasPanel(seg),roofY=TOURS.shelterHeight;
-    const strip = (off,width,up,colour,gradient=0) => {
-      const p=vertex(a,off+width,up),q=vertex(a,off-width,up),r=vertex(b,off+width,up),s=vertex(b,off-width,up);
-      if(gradient){for(const [v,c]of [[p,roadStart],[r,roadEnd],[q,roadStart],[q,roadStart],[r,roadEnd],[s,roadEnd]]){road.p.push(v.x,v.y,v.z);road.c.push(c.r*gradient,c.g*gradient,c.b*gradient);}}
+    const strip = (off,width,up,colour,gradient=0,verge=false,endOff=off,endWidth=width) => {
+      const p=vertex(a,off+width,up),q=vertex(a,off-width,up),r=vertex(b,endOff+endWidth,up),s=vertex(b,endOff-endWidth,up);
+      if(gradient){const A=verge?vergeStart:roadStart,B=verge?vergeEnd:roadEnd;for(const [v,c]of [[p,A],[r,B],[q,A],[q,A],[r,B],[s,B]]){road.p.push(v.x,v.y,v.z);road.c.push(c.r*gradient,c.g*gradient,c.b*gradient);}}
       else {road.tri(p,r,q,colour);road.tri(q,r,s,colour);}
     };
     const ice=path.id==='mountain'?WindJourneyClimate.mountain(x,z,y).snow:0;asphalt.setHex(0x646461).lerp(snowRoad,ice*.25);
     const sampler=path.id==='monsoon'?MON.stage(x,z):null;
-    if(sampler){const start=MON.stage(a.x,a.z),end=MON.stage(b.x,b.z);roadStart.setHex(start.previous.road).lerp(roadMix.setHex(start.road),start.blend);roadEnd.setHex(end.previous.road).lerp(roadMix.setHex(end.road),end.blend);}
+    let startTrack=h,endTrack=h;
+    if(sampler){const start=MON.stage(a.x,a.z),end=MON.stage(b.x,b.z);startTrack=lerp(start.previous.track,start.track,start.blend);endTrack=lerp(end.previous.track,end.track,end.blend);roadStart.setHex(start.previous.road).lerp(roadMix.setHex(start.road),start.blend);roadEnd.setHex(end.previous.road).lerp(roadMix.setHex(end.road),end.blend);vergeStart.setHex(start.previous.verge).lerp(roadMix.setHex(start.verge),start.blend);vergeEnd.setHex(end.previous.verge).lerp(roadMix.setHex(end.verge),end.blend);}
     // Adjacent surfaces share edges; no coplanar shoulder overlay or depth flicker.
-    strip(0,sampler?h*.60:h,.14,asphalt,sampler?1:0);
-    if(sampler)for(const off of [-h*.80,h*.80])strip(off,h*.20,.14,asphalt,1.17);
-    for(const off of [-h+1,h-1]) strip(off,.11,.17,paint);
+    strip(0,startTrack,.14,asphalt,sampler?1:0,false,0,endTrack);
+    if(sampler)for(const side of [-1,1])strip(side*(startTrack+(h-startTrack)/2),(h-startTrack)/2,.14,asphalt,1,true,side*(endTrack+(h-endTrack)/2),(h-endTrack)/2);
+    if(!sampler||['bay','khaosan','donmueang'].includes(sampler.id))for(const off of [-h+1,h-1])strip(off,.11,.17,paint);
     if((!sampler||['bay','khaosan','donmueang'].includes(sampler.id))&&Math.floor(seg.s/24)%2===0) strip(0,.12,.17,paint);
     const prev = path.segments[Math.max(0,seg.index-1)];
     for(const side of [-1,1]) {
       // Weathered verge markers give speed parallax without walls through a dodge corridor.
-      if(Math.floor(seg.s/24)%3===0 && !mode) {
+      if(Math.floor(seg.s/24)%3===0 && !mode && (!sampler||['bay','khaosan','donmueang'].includes(sampler.id))) {
         const px=x-seg.tz*side*(h+1.8),pz=z+seg.tx*side*(h+1.8);
         stone.add(G.box,M(px,y+.7,pz,yaw,.22,1.4,.22),0xa9a597);
       }
@@ -6368,6 +6372,6 @@ window.__wl = { get paused(){return paused;}, climate:WindJourneyClimate,get lak
 window.__wlAudio = { getContext() { sfx.init(); return sfx.context; }, getDestination() { sfx.init(); return sfx.output; }, get soundOn() { return sfx.on; } };
 })();
 </script>
-<script type="module" src="../music/game-music.mjs?v=20261029-monsoon" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
+<script type="module" src="../music/game-music.mjs?v=20261029-regional" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
 </body>
 </html>

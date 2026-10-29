@@ -9,7 +9,7 @@ const R=context.WindRoutes,M=context.WindMonsoon,before=R.paths.length,path=M.in
 test('the optional 8km sampler installs once, with a closed 60m road and six reachable scenes',()=>{
  assert.equal(R.paths.length,before+1);assert.equal(M.install(R),path);assert.equal(R.paths.length,before+1);assert.ok(path.length>8000&&path.length<8300);
  assert.equal(path.closed,true);assert.deepEqual(path.points[0],path.points.at(-1));assert.equal(path.realm,'monsoon');
- const seen=new Set();for(let s=0;s<path.length;s+=11){const p=R.at(path,s),r=R.nearest(p.x,p.z),stage=M.stage(p.x,p.z);seen.add(stage.id);assert.equal(r.path,path);assert.ok(r.d<1e-6);assert.equal(r.half,30);assert.ok(Math.abs(r.grade)<.005);assert.ok(Number.isFinite(M.terrain(p.x,p.z)));}
+ const seen=new Set();for(let s=0;s<path.length;s+=11){const p=R.at(path,s),r=R.nearest(p.x,p.z),stage=M.stage(p.x,p.z);seen.add(stage.id);assert.equal(r.path,path);assert.ok(r.d<1e-6);assert.equal(r.half,30);assert.ok(Math.abs(r.grade)<.10);assert.ok(Number.isFinite(M.terrain(p.x,p.z)));}
  assert.equal(seen.size,6);
 });
 test('short-region palettes blend across every seam, including the loop seam',()=>{
@@ -18,5 +18,18 @@ test('short-region palettes blend across every seam, including the loop seam',()
 });
 test('the coast slopes below the water rather than sharing a coplanar ocean floor',()=>{
  const z=R.at(path,path.length*.94),ocean=M.terrain(M.CX+(z.x-M.CX)*1.7,z.z*1.7);assert.ok(ocean< -30);
- for(let a=0;a<6.28;a+=.2){let previous=null;for(let r=1;r<1.75;r+=.001){const h=M.terrain(M.CX+M.RX*r*Math.cos(a),M.RZ*r*Math.sin(a));assert.ok(Number.isFinite(h));if(previous!==null)assert.ok(Math.abs(h-previous)<.8,'An off-road hill or coast has a discontinuous step');previous=h;}}
+ for(let a=0;a<6.28;a+=.2){let previous=null;for(let r=1;r<1.75;r+=.001){const h=M.terrain(M.CX+M.RX*r*Math.cos(a),M.RZ*r*Math.sin(a));assert.ok(Number.isFinite(h));const next=M.terrain(M.CX+M.RX*(r+.000001)*Math.cos(a),M.RZ*(r+.000001)*Math.sin(a));assert.ok(Math.abs(next-h)<.04,'A quay or cliff is discontinuous at a millimetre step');previous=h;}}
+});
+test('farms, inland plains and coastal escarpments have different physical geography',()=>{
+ assert.equal(M.plots.length,72);assert.deepEqual(new Set(M.plots.map(p=>p.kind)),new Set(['rice','gold','dry']));
+ for(const p of M.plots)assert.ok(Math.abs(M.terrain(p.x,p.z)-p.floor)<.01);
+ const coast=M.pose(R,path.length*.9,500),sea=M.pose(R,path.length*.9,-500),delta=M.pose(R,path.length*.6,500),forest=M.pose(R,path.length*.4,500);
+ assert.ok(M.terrain(coast.x,coast.z)-M.terrain(sea.x,sea.z)>170);assert.ok(M.terrain(delta.x,delta.z)<22);assert.ok(M.terrain(forest.x,forest.z)<40);
+ const heights=path.points.map(p=>p.y);assert.ok(Math.max(...heights)-Math.min(...heights)>39);
+ assert.ok(M.patches.some(p=>p.kind==='bridge-water'));assert.ok(M.patches.filter(p=>p.kind==='moat').length===4);
+});
+
+test('local canals and paddies share their rendered water level with physical ground queries',()=>{
+ for(const p of M.patches.filter(p=>p.water!==null))assert.equal(M.waterAt(p.x,p.z),p.water);
+ for(const p of M.plots.filter(p=>p.kind==='dry'))assert.equal(M.waterAt(p.x,p.z),null);
 });

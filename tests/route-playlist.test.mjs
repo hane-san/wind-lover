@@ -45,18 +45,29 @@ test('complete phrases rotate without repeats only in a playing, quiet journey; 
 
 test('regional automatic selection mixes quiet and brave music without consecutive brave pieces',async()=>{
  const brave=new Set(TRACKS.filter(t=>t.energy==='brave').map(t=>t.id));
- for(const region of Object.keys(ROUTE_POOLS)){
+ for(const region of Object.keys(ROUTE_POOLS).filter(id=>!id.startsWith('monsoon-'))){
   const ids=[],music={state:{track:'rust-horizon'},select(id){this.state.track=id;ids.push(id);return Promise.resolve(true);}};
   const list=createRoutePlaylist(music,{storage:null,random:()=>.97});for(let i=0;i<20;i++)await list.enter(region,true);
   assert.equal(brave.has(ids[0]),false);assert.ok(ids.filter(id=>brave.has(id)).length>=6);for(let i=1;i<ids.length;i++)assert.ok(!(brave.has(ids[i-1])&&brave.has(ids[i])));
  }
 });
 
-test('rapid sampler scenery changes preserve the current phrase, whilst explicit warps crossfade',async()=>{
- const selected=[],music={state:{track:'rust-horizon',status:'playing'},select(id){selected.push(id);this.state.track=id;return Promise.resolve(true)}};
- const list=createRoutePlaylist(music,{storage:null,random:()=>0});await list.enter('monsoon-bay',true);const initial=music.state.track;
- for(const zone of ['edo','angkor','khaosan','donmueang','straits'])assert.equal(await list.enter('monsoon-'+zone),false);
- assert.equal(selected.length,1);assert.equal(music.state.track,initial);assert.equal(list.region,'monsoon-straits');
- await list.enter('monsoon-edo',true);assert.equal(selected.length,2);assert.notEqual(music.state.track,initial);
- await list.enter('lake');assert.equal(selected.length,3);
+test('sampler boundaries play their own themes after a minimum dwell, with smooth fades',async()=>{
+ const selected=[];let age=0;const music={state:{track:'rust-horizon',status:'playing'},inspect:()=>({playingSeconds:age}),select(id,options){selected.push({id,options});this.state.track=id;age=0;return Promise.resolve(true)}};
+ const list=createRoutePlaylist(music,{storage:null,random:()=>0});await list.enter('monsoon-bay',true);assert.equal(music.state.track,'bay-glass');
+ const themes={edo:'sunset-reins',angkor:'lotus-stone',khaosan:'khaosan-afterlight',donmueang:'runway-swallow',straits:'straits-tide'};
+ for(const [zone,id]of Object.entries(themes)){
+  await list.enter('monsoon-'+zone);age=13;assert.equal(await list.tick({phase:'combat'}),false);age=14;
+  assert.equal(await list.tick({active:false}),false);assert.equal(await list.tick({moving:false}),false);
+  assert.equal(await list.tick({phase:'combat'}),true);assert.equal(music.state.track,id);assert.equal(list.pendingRegion,null);
+ }
+ assert.equal(selected.length,6);assert.ok(selected.every(c=>c.options.fade===3));
+ age=37.9;assert.equal(await list.tick(),false);age=38;assert.equal(await list.tick(),true);assert.notEqual(music.state.track,'straits-tide');
+ await list.setAutomatic(false);await list.enter('monsoon-bay');age=100;const n=selected.length;assert.equal(await list.tick(),false);assert.equal(selected.length,n);
+});
+test('boundary chatter queues only the latest sampler scene instead of repeatedly restarting audio',async()=>{
+ let age=0;const calls=[],music={state:{track:'bay-glass',status:'playing'},inspect:()=>({playingSeconds:age}),select(id){calls.push(id);this.state.track=id;age=0;return Promise.resolve(true)}};
+ const list=createRoutePlaylist(music,{storage:null});await list.enter('monsoon-bay',true);const initial=calls.length;
+ for(const zone of ['edo','bay','edo','angkor'])await list.enter('monsoon-'+zone);assert.equal(calls.length,initial);
+ age=14;music.state.status='switching';assert.equal(await list.tick(),false);music.state.status='playing';await list.tick();assert.equal(calls.at(-1),'lotus-stone');assert.equal(calls.length,initial+1);
 });
