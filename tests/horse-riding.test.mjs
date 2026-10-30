@@ -3,6 +3,13 @@ import assert from 'node:assert/strict';
 await import('../world/horse-riding.js');
 await import('../world/horse-gait.js');
 const riding=globalThis.WindHorseRiding,gait=globalThis.WindHorseGait;
+test('free reins yield in the middle, support a short dodge at the verge and allow a deliberate exit',()=>{
+  const centre=riding.guidance({steer:.75,held:.7,offset:2,half:28,outward:.2});
+  const idle=riding.guidance({offset:2,half:28}),edge=riding.guidance({steer:.75,held:.7,offset:27.4,half:28,outward:.2});
+  assert.ok(centre.gain<idle.gain*.2);assert.equal(centre.lateral,1);assert.ok(edge.gain>centre.gain*4);assert.ok(edge.lateral<.2);
+  const exit=riding.guidance({steer:.95,held:2.6,offset:27.4,half:28,outward:.2});assert.equal(exit.lateral,1);assert.ok(exit.gain<.2);
+  assert.equal(riding.guidance({braking:true}).gain,0);assert.ok(riding.headingWeight(.8)>.3);assert.ok(riding.headingWeight(.2)<.1);
+});
 test('rein reversals answer quickly and reserve one gathered lead change across frame rates',()=>{
   const results=[];
   for(const fps of [20,30,60,120]){

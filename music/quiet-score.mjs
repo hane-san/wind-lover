@@ -1,4 +1,4 @@
-import { ATLAS_TRACKS,buildAtlasScore } from './atlas-score.mjs?v=20261029-atlas';
+import { ATLAS_TRACKS,buildAtlasScore } from './atlas-score.mjs?v=20261030-atmosphere';
 import { EXPEDITION_TRACKS,buildExpeditionScore } from './voyage-score.mjs?v=20261029-monsoon';
 import { TRACKS as originals, buildScore as buildOriginal } from './scores.mjs?v=20261022';
 

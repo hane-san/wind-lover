@@ -55,7 +55,7 @@ test('regional automatic selection mixes quiet and brave music without consecuti
 test('sampler boundaries play their own themes after a minimum dwell, with smooth fades',async()=>{
  const selected=[];let age=0;const music={state:{track:'rust-horizon',status:'playing'},inspect:()=>({playingSeconds:age}),select(id,options){selected.push({id,options});this.state.track=id;age=0;return Promise.resolve(true)}};
  const list=createRoutePlaylist(music,{storage:null,random:()=>0});await list.enter('monsoon-bay',true);assert.equal(music.state.track,'bay-glass');
- const themes={edo:'sunset-reins',angkor:'lotus-stone',khaosan:'khaosan-afterlight',donmueang:'runway-swallow',straits:'straits-tide'};
+ const themes={edo:'crows-at-dusk',angkor:'stone-and-rain',khaosan:'khaosan-afterlight',donmueang:'runway-swallow',straits:'straits-tide'};
  for(const [zone,id]of Object.entries(themes)){
   await list.enter('monsoon-'+zone);age=13;assert.equal(await list.tick({phase:'combat'}),false);age=14;
   assert.equal(await list.tick({active:false}),false);assert.equal(await list.tick({moving:false}),false);
@@ -69,7 +69,7 @@ test('boundary chatter queues only the latest sampler scene instead of repeatedl
  let age=0;const calls=[],music={state:{track:'bay-glass',status:'playing'},inspect:()=>({playingSeconds:age}),select(id){calls.push(id);this.state.track=id;age=0;return Promise.resolve(true)}};
  const list=createRoutePlaylist(music,{storage:null});await list.enter('monsoon-bay',true);const initial=calls.length;
  for(const zone of ['edo','bay','edo','angkor'])await list.enter('monsoon-'+zone);assert.equal(calls.length,initial);
- age=14;music.state.status='switching';assert.equal(await list.tick(),false);music.state.status='playing';await list.tick();assert.equal(calls.at(-1),'lotus-stone');assert.equal(calls.length,initial+1);
+ age=14;music.state.status='switching';assert.equal(await list.tick(),false);music.state.status='playing';await list.tick();assert.equal(calls.at(-1),'stone-and-rain');assert.equal(calls.length,initial+1);
 });
 
 test('returning along an atlas road restores the district theme even when heard recently',async()=>{
@@ -77,4 +77,17 @@ test('returning along an atlas road restores the district theme even when heard 
  const list=createRoutePlaylist(music,{storage:null,random:()=>0});
  await list.enter('monsoon-shikoku',true);assert.equal(music.state.track,'indigo-gorge');
  for(const [region,theme]of [['kanazawa','rain-on-lattice'],['shikoku','indigo-gorge']]){await list.enter('monsoon-'+region);age=14;assert.equal(await list.tick(),true);assert.equal(music.state.track,theme);}
+});
+test('staying in a land alternates its local arrangements whilst manual music remains fixed',async()=>{
+ for(const region of Object.keys(ROUTE_POOLS).filter(id=>id.startsWith('monsoon-'))){
+  let age=0;const music={state:{track:'rust-horizon',status:'playing'},inspect:()=>({playingSeconds:age}),select(id){this.state.track=id;age=0;return Promise.resolve(true)}};
+  const list=createRoutePlaylist(music,{storage:null,random:()=>.99});await list.enter(region,true);const heard=new Set([music.state.track]);
+  for(let i=0;i<6;i++){age=38;await list.tick();heard.add(music.state.track);}assert.deepEqual(heard,new Set(ROUTE_POOLS[region].slice(0,2)));
+  await list.setAutomatic(false);const before=music.state.track;age=100;await list.tick();assert.equal(music.state.track,before);
+ }
+});
+test('arriving while the destination theme is playing preserves its live voice',async()=>{
+ const calls=[],music={state:{track:'rain-on-lattice',status:'playing'},select(id){calls.push(id);this.state.track=id;return Promise.resolve(true)}};
+ const list=createRoutePlaylist(music,{storage:null});await list.enter('monsoon-kanazawa',true);
+ assert.deepEqual(calls,[]);assert.equal(list.pendingRegion,null);
 });

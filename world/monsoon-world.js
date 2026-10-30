@@ -1,6 +1,6 @@
 /* A compressed fictional journey, with original geometry inspired by regional landscapes. */
 (() => {
- const CX=150000,RX=1500,RZ=1050,TAU=Math.PI*2,CELL=128;
+ const CX=150000,RX=1500*WindAtlas.SCALE,RZ=1050*WindAtlas.SCALE,TAU=Math.PI*2,CELL=128;
  const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v)),mix=(a,b,t)=>a+(b-a)*t;
  const smooth=(a,b,v)=>{const t=clamp((v-a)/(b-a));return t*t*(3-2*t);};
  const baseZones=[
@@ -19,7 +19,7 @@
   if(path)return path;const points=[],cum=[0];
   for(let i=0;i<=480;i++){const a=i/480*TAU,r=1+.035*Math.sin(a*3)+.018*Math.sin(a*7);points.push({x:CX+RX*r*Math.cos(a),z:RZ*r*Math.sin(a),y:0});if(i)cum.push(cum.at(-1)+Math.hypot(points[i].x-points[i-1].x,points[i].z-points[i-1].z));}
   for(let i=0;i<points.length;i++)points[i].y=roadHeight(cum[i]/cum.at(-1));points[480]={...points[0]};
-  path=routes.addCircuit('monsoon',points);Object.assign(path,{region:'monsoon',realm:'monsoon',name:'日本と南の海を巡る旅'});for(const seg of path.segments)seg.half=30;routes.indexReach(path,1300);atlas=WindAtlas.create(routes,path,nearMain,baseZones);zones=atlas.zones;
+  path=routes.addCircuit('monsoon',points);Object.assign(path,{region:'monsoon',realm:'monsoon',name:'日本と南の海を巡る旅'});for(const seg of path.segments)seg.half=34;routes.indexReach(path,1300);atlas=WindAtlas.create(routes,path,nearMain,baseZones);zones=atlas.zones;
   const patch=(s,off,hw,hd,kind,floor,water=null,site=null)=>{const p=site||pose(routes,s,off),q={...p,hw,hd,kind,floor,water,c:Math.cos(p.yaw),sn:Math.sin(p.yaw)};patches.push(q);const reach=Math.hypot(hw+24,hd+24);for(let x=Math.floor((q.x-reach)/CELL);x<=Math.floor((q.x+reach)/CELL);x++)for(let z=Math.floor((q.z-reach)/CELL);z<=Math.floor((q.z+reach)/CELL);z++){const key=x+','+z;if(!patchGrid.has(key))patchGrid.set(key,[]);patchGrid.get(key).push(q);}return q;};
   // Flooded and dry fields sit beside the riding corridor, with real shallow floors and banks.
   for(let s=path.length*.182,i=0;s<path.length*.322;s+=96,i++)for(const side of [-1,1])for(let row=0;row<3;row++){
@@ -83,8 +83,8 @@
    if(sy>.6){const r=routes.nearest(x,z,null,1000),hw=geo===G.box?sx/2:sx,hd=geo===G.box?sz/2:sz;if(r?.path.realm==='monsoon'&&y-sy/2<r.y+26&&!safeBox(x,z,yaw,hw,hd))return false;}
    (bright?light:stone).add(geo,M(x,y,z,yaw,sx,sy,sz),col);return true;
   };
-  const clear=(x,z,r=8)=>{const p=routes.nearest(x,z,null,1500);return !p||p.d>p.half+r+5;};
-  const safeBox=(x,z,yaw,hw,hd)=>{if(atlas.nodes.some(n=>n.plaza&&Math.hypot(x-n.x,z-n.z)<82+Math.hypot(hw,hd)))return false;const c=Math.cos(yaw),sn=Math.sin(yaw);for(const a of [-hw,0,hw])for(const b of [-hd,0,hd]){const p=routes.nearest(x+c*a+sn*b,z-sn*a+c*b,null,1500);if(p&&p.d<p.half+1)return false;}return true;};
+  const clear=(x,z,r=8)=>!routes.candidates(x,z).some(p=>p.d<p.half+r+5);
+  const safeBox=(x,z,yaw,hw,hd)=>{if(atlas.nodes.some(n=>n.plaza&&Math.hypot(x-n.x,z-n.z)<82+Math.hypot(hw,hd)))return false;const c=Math.cos(yaw),sn=Math.sin(yaw);for(const a of [-hw,0,hw])for(const b of [-hd,0,hd]){const candidates=routes.candidates(x+c*a+sn*b,z-sn*a+c*b);if(candidates.some(p=>p.d<p.half+1))return false;}return true;};
   const solid=(x,z,yaw,hw,hd,bottom,top)=>{if(safeBox(x,z,yaw,hw,hd))addSolid(x,z,yaw,hw,hd,bottom,top);};
   const block=(p,w,h,d,col,y=heightAt(p.x,p.z),collision=true)=>{if(collision&&!safeBox(p.x,p.z,p.yaw,w/2,d/2))return false;part(G.box,p.x,y+h/2,p.z,p.yaw,w,h,d,col);if(collision)addSolid(p.x,p.z,p.yaw,w/2,d/2,y,y+h);return true;};
   const move=(p,right=0,forward=0)=>({...p,x:p.x+Math.cos(p.yaw)*right+Math.sin(p.yaw)*forward,z:p.z-Math.sin(p.yaw)*right+Math.cos(p.yaw)*forward});
@@ -156,10 +156,10 @@
   }
   for(const side of [-1,1]){const p=move(temple,side*78,0);block(p,13,14,224,0x7d886e,ty+6);part(gable,p.x,ty+20,p.z,p.yaw,8,5,114,0x8b967c);solid(p.x,p.z,p.yaw,8,114,ty+20,ty+25);}
   const entrance=pose(routes,path.length*.382),ey=routes.at(path,path.length*.382).y;
-  for(const side of [-1,1]){const p=move(entrance,side*49);block(p,30,33,23,0x8a9276,ey);}
+  for(const side of [-1,1]){const p=move(entrance,side*54);block(p,30,33,23,0x8a9276,ey);}
   // Only these high beams span a road: 32m below them remain open, including the camera boom.
   const highBox=(p,w,h,d,y,col)=>{part(G.box,p.x,y+h/2,p.z,p.yaw,w,h,d,col);addSolid(p.x,p.z,p.yaw,w/2,d/2,y,y+h);};
-  highBox(entrance,129,5,25,ey+33,0x929a7e);
+  highBox(entrance,148,5,25,ey+33,0x929a7e);
   for(const [off,h,r]of [[0,43,20],[-37,24,12],[37,24,12]]){const p=move(entrance,off);for(let k=0;k<5;k++){const radius=r-k*r*.13,y=ey+38+k*h*.16;part(G.taper8,p.x,y+h*.10,p.z,p.yaw,radius,h*.20,radius,0x939b7f);addSolid(p.x,p.z,p.yaw,radius,radius,y,y+h*.20);}}
   // Bangkok: continuous shophouses, projecting signs, awnings, stalls and high lantern strings.
   for(let s=path.length*.508,i=0;s<path.length*.661;s+=39,i++)for(const side of [-1,1]){
@@ -195,5 +195,5 @@
   if(signs.p.length){const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(signs.p,3));geo.setAttribute('uv',new THREE.Float32BufferAttribute(signs.uv,2));geo.computeVertexNormals();const mesh=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({map:signTexture(THREE),side:THREE.DoubleSide}));Object.assign(mesh.userData,{monsoon:true,sceneryKind:'signs',sceneryStats:stats});parent.add(mesh);}
   gable.dispose();rice.dispose();frond.dispose();
  }
- globalThis.WindMonsoon=Object.freeze({get zones(){return zones;},install,near,stage,terrain,waterAt,colour,build,pose,get atlas(){return atlas;},departure:id=>atlas.departure(id),plazaAt:(x,z)=>atlas?.plazaAt(x,z),guide:(P,s,dt)=>atlas?.guide(P,s,dt),reset:P=>atlas?.reset(P),weather:(x,z,t)=>atlas.weather(x,z,t),get path(){return path;},get plots(){return plots;},get patches(){return patches;},CX,RX,RZ});
+ globalThis.WindMonsoon=Object.freeze({get zones(){return zones;},install,near,stage,terrain,waterAt,colour,build,pose,get atlas(){return atlas;},departure:id=>atlas.departure(id),surface:(x,z,feet)=>atlas?.surface(x,z,feet),plazaAt:(x,z)=>atlas?.plazaAt(x,z),guide:(P,s,dt)=>atlas?.guide(P,s,dt),reset:P=>atlas?.reset(P),weather:(x,z,t)=>atlas.weather(x,z,t),get path(){return path;},get plots(){return plots;},get patches(){return patches;},CX,RX,RZ});
 })();

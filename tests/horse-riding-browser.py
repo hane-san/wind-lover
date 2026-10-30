@@ -54,9 +54,9 @@ try:
     check(w.P.hull===3&&!w.P.dead,'Road collision during snaking '+route);check(minSpeed>initialSpeed*.85,'Reversal killed momentum');
     // Holding the rein must still let the player leave for the open country.
     const retained=w.rideRoute(w.P.pos.x,w.P.pos.z,w.P.pos.y).d;
-    w.inp.jx=1;for(let i=0;i<120*4;i++)w.stepPhysics(1/120);
-    const departure=w.rideRoute(w.P.pos.x,w.P.pos.z,w.P.pos.y).d;check(departure>18,'Horse locked to the road');
-    return {route,hops,landings,maxHeight,maxAir,maxOff,minSpeed,initialSpeed,retainedOffset:retained,departure,travelled:w.P.pos.distanceTo(start),trace};
+    w.inp.jx=1;let departure=0;for(let i=0;i<120*4;i++){w.stepPhysics(1/120);departure=Math.max(departure,w.rideRoute(w.P.pos.x,w.P.pos.z,w.P.pos.y).d);}
+    const endDeparture=w.rideRoute(w.P.pos.x,w.P.pos.z,w.P.pos.y).d;check(departure>18,'Horse locked to the road '+JSON.stringify({route,departure,retained,yaw:w.P.yaw,held:w.P.hold}));
+    return {route,hops,landings,maxHeight,maxAir,maxOff,minSpeed,initialSpeed,retainedOffset:retained,departure,endDeparture,travelled:w.P.pos.distanceTo(start),trace};
    }''',route)
    report['drives'].append(result);print('Ride:',json.dumps(result),flush=True)
   # Manual jump follows the same actual ground/air transition; holding does not repeatedly jump.

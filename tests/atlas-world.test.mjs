@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFileSync}from'node:fs';
-const context=vm.createContext({});for(const f of ['featured-routes','monsoon-atlas','monsoon-world'])vm.runInContext(readFileSync(new URL('../world/'+f+'.js',import.meta.url),'utf8'),context);
+const context=vm.createContext({});for(const f of ['featured-routes','regional-atmosphere','monsoon-atlas','monsoon-world'])vm.runInContext(readFileSync(new URL('../world/'+f+'.js',import.meta.url),'utf8'),context);
 const R=context.WindRoutes,M=context.WindMonsoon;M.install(R);const A=M.atlas;
 test('fourteen regional departures belong to one connected, branching road web',()=>{
  assert.equal(M.zones.length,14);assert.equal(A.roads.length,24);assert.equal(A.nodes.length,17);
@@ -12,6 +12,13 @@ test('roads meet at actual shared coordinates with smooth plaza decks and finite
   for(const seg of path.segments){assert.ok(seg.length>1&&seg.length<20);assert.ok(Math.abs(seg.grade)<.38,'A compressed climb became a wall');}
   if(a.plaza)assert.ok(Math.abs(R.at(path,60).y-a.y)<1e-8);if(b.plaza)assert.ok(Math.abs(R.at(path,path.length-60).y-b.y)<1e-8);
  }
+});
+test('a narrow joining road cannot hide the wider parent shoulder or lift a rider from below',()=>{
+ let checked=0;
+ for(const n of A.nodes.filter(n=>!n.plaza))for(let x=-80;x<=80;x+=5)for(let z=-80;z<=80;z+=5){
+  const px=n.x+x,pz=n.z+z,r=R.nearest(px,pz),wide=R.candidates(px,pz).find(v=>v.d<v.half-1&&r.d>r.half+.5);
+  if(!wide)continue;const surface=M.surface(px,pz,wide.y+.14);assert.ok(surface&&surface.d<=surface.half+.5);assert.equal(M.surface(px,pz,-100),null);checked++;
+ }assert.ok(checked>20);
 });
 test('landscape and weather colours stay continuous at interior district boundaries',()=>{
  const rgb=q=>[16,8,0].map(s=>(((q.previous.top>>s)&255)*(1-q.blend)+((q.top>>s)&255)*q.blend)/255);

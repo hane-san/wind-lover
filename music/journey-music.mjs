@@ -1,4 +1,4 @@
-import { TRACKS, buildScore } from './quiet-score.mjs?v=20261029-atlas';
+import { TRACKS, buildScore } from './quiet-score.mjs?v=20261030-atmosphere';
 import { buildScore as buildArchiveScore } from './scores.mjs?v=20261022';
 export { TRACKS, buildScore };
 
@@ -42,7 +42,7 @@ function drum(context, destination, event, at, noise) {
 }
 
 function note(context, destination, event, at, secondsPerBeat) {
-  if (['reed','bowed','lute','drone'].includes(event.voice)) return quietNote(context,destination,event,at,secondsPerBeat);
+  if (['reed','bowed','lute','drone','zither','wood'].includes(event.voice)) return quietNote(context,destination,event,at,secondsPerBeat);
   const pad = event.voice === 'pad', bass = event.voice === 'bass', pluck = ['glass','pluck','keys'].includes(event.voice);
   const duration = event.duration * secondsPerBeat, attack = event.voice==='horn'?.09:pad ? 0.65 : pluck ? 0.008 : 0.045, release = pad ? 1.6 : bass ? 0.095 : pluck ? 0.75 : 0.35;
   const env = envelope(context, at, duration, attack, release, event.velocity, pluck);
@@ -79,13 +79,13 @@ function note(context, destination, event, at, secondsPerBeat) {
 }
 
 function quietNote(context,destination,event,at,secondsPerBeat){
-  const kind=event.voice,pluck=kind==='lute',hz=frequency(event.midi);
-  const duration=event.duration*secondsPerBeat,release=pluck?2:kind==='reed'?1.2:2.4;
-  const env=envelope(context,at,duration,pluck?.018:kind==='reed'?.20:.85,release,event.velocity,pluck);
+  const kind=event.voice,pluck=['lute','zither','wood'].includes(kind),hz=frequency(event.midi);
+  const duration=event.duration*secondsPerBeat,release=kind==='wood'?.65:kind==='zither'?1.7:pluck?2:kind==='reed'?1.2:2.4;
+  const env=envelope(context,at,duration,kind==='wood'?.008:kind==='zither'?.012:pluck?.018:kind==='reed'?.20:.85,release,event.velocity,pluck);
   const filter=context.createBiquadFilter(),pan=context.createStereoPanner();
-  filter.type='lowpass';filter.frequency.value=kind==='drone'?480:kind==='bowed'?1250:kind==='reed'?2200:2600;filter.Q.value=.45;
+  filter.type='lowpass';filter.frequency.value=kind==='drone'?480:kind==='bowed'?1250:kind==='reed'?2200:kind==='zither'?3300:kind==='wood'?3800:2600;filter.Q.value=.45;
   filter.connect(env.gain);env.gain.connect(pan);pan.pan.value=event.pan;pan.connect(destination);
-  const harmonics=kind==='reed'?[[1,.72],[2,.2],[3,.055]]:kind==='lute'?[[1,.7],[2,.19],[3,.07]]:[[1,.54],[1.002,.32],[2,.075]];
+  const harmonics=kind==='zither'?[[1,.64],[2,.24],[3,.08],[4,.03]]:kind==='wood'?[[1,.73],[2.76,.18],[5.4,.045]]:kind==='reed'?[[1,.72],[2,.2],[3,.055]]:kind==='lute'?[[1,.7],[2,.19],[3,.07]]:[[1,.54],[1.002,.32],[2,.075]];
   for(const [ratio,level]of harmonics){
     const osc=context.createOscillator(),gain=context.createGain();osc.type=kind==='bowed'?'triangle':'sine';osc.frequency.value=hz*ratio;gain.gain.value=level;
     osc.connect(gain);gain.connect(filter);osc.start(at);osc.stop(env.end+.02);

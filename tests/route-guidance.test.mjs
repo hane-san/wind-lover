@@ -14,3 +14,13 @@ test('a crossing and subpixel nearest-distance noise cannot rotate the selected 
  assert.notEqual(N.choose(-16500,0,{preferred:branch.id,y:20.14,yaw:0,steer:.8}).path.id,branch.id);
  assert.equal(N.choose(-16500,0,{preferred:branch.id,y:200,yaw:Math.PI/2}),null);
 });
+test('a sampler dodge retains its occupied corridor until a deliberate branch or departure',()=>{
+ const wide={path:{id:'wide'},d:12,half:34,y:20,tx:1,tz:0},fork={path:{id:'fork'},d:2,half:28,y:20,tx:.8,tz:.6};
+ const guide=globalThis.WindRouteGuidance.install({paths:[],candidates:()=>[wide,fork]});
+ const options={preferred:'wide',y:20.14,yaw:Math.PI/2,steer:.8};
+ assert.equal(guide.choose(0,0,options),fork);
+ assert.equal(guide.choose(0,0,{...options,keepCorridor:true}),wide);
+ assert.equal(guide.choose(0,0,{...options,preferred:'fork',keepCorridor:true}),fork);
+ wide.d=35;assert.equal(guide.choose(0,0,{...options,keepCorridor:true}),fork);
+ assert.equal(guide.choose(0,0,{...options,y:200,keepCorridor:true}),null);
+});

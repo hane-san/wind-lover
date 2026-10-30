@@ -29,10 +29,12 @@
       }
       const p=sample(path,s);return {...p,tx:p.tx*direction,tz:p.tz*direction,direction};
     }
-    function choose(x,z,{preferred=null,y=0,yaw=0,steer=0}={}){
+    function choose(x,z,{preferred=null,y=0,yaw=0,steer=0,keepCorridor=false}={}){
       const intent=yaw-Math.max(-1,Math.min(1,steer))*.20,fx=Math.sin(intent),fz=Math.cos(intent);
       let best=null,score=Infinity;
-      for(const r of routes.candidates(x,z)){
+      const candidates=routes.candidates(x,z);
+      if(keepCorridor){const current=candidates.find(r=>r.path.id===preferred&&r.d<r.half+.5&&Math.abs(y-r.y-.14)<3&&Math.abs(r.tx*fx+r.tz*fz)>.55);if(current)return current;}
+      for(const r of candidates){
         const gap=Math.abs(y-r.y-.14);if(gap>7)continue;
         const alignment=Math.abs(r.tx*fx+r.tz*fz),stay=r.path.id===preferred&&Math.abs(steer)<.3?2.6:0;
         const rank=r.d+8*(1-alignment)+gap*.5-stay;

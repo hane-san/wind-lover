@@ -22,6 +22,8 @@ The latest sky/ground patrol choreography, ballistic missile trails, quieter spe
 
 The latest pace, connected look-ahead, restrained lakeside sightseeing, six/seven-target patrols, twelve missile figures and twenty-two-song score are specified in [VOYAGE-UPGRADE.md](VOYAGE-UPGRADE.md). Those values supersede older limits below.
 
+The latest free mounted reins, expanded fourteen-land atlas, regional sky/bird/surface treatment and 38-song score are specified in [FREE-REINS-AND-REGIONAL-SKIES.md](FREE-REINS-AND-REGIONAL-SKIES.md). These supersede the earlier constant horse road attachment and sampler dimensions.
+
 ## Core rules
 
 Per-vehicle FOV, height, pitch, sky/ground framing and distance can be explored in a paused camera preview or a full-screen comparison. The owner's high-follow view and two wider presets provide starting points. Defaults retain the existing composition, and wall/tunnel protection still takes precedence. See [CAMERA-TUNING.md](CAMERA-TUNING.md) for ranges, saving and checks.

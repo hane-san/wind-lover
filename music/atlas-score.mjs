@@ -1,4 +1,4 @@
-// Eight original regional themes. No borrowed melody, traditional recording or voice sample.
+// Original regional themes. No borrowed melody, traditional recording or voice sample.
 const pieces=[
  {id:'rain-on-lattice',title:'雨の格子と金の街',bpm:112,meter:4,bars:32,root:41,lead:'keys',reply:'glass',energy:'quiet',rhythm:'swing',motif:[24,19,22,26,29,26,22,17,19,24,22,14],steps:[0,.75,1.5,2.75,4,4.75,6,7.5,8,9.25,11,13.5],chords:[[0,3,7,10],[-5,2,5,9],[-2,2,5,9],[-7,0,4,7]],taste:'112 BPM · 雨の鍵盤と揺れる低音、現代金沢'},
  {id:'indigo-gorge',title:'藍の渓谷を越えて',bpm:126,meter:7,bars:16,root:43,lead:'reed',reply:'lute',energy:'brave',rhythm:'seven',motif:[12,19,17,24,22,19,14,17,26,24,19,12],steps:[0,.5,1.5,3,4,5,6.5,7,8.5,10,12,13],chords:[[0,7,12,17],[-5,2,9,14],[-2,5,10,17],[-7,0,7,14]],taste:'126 BPM · 3＋2＋2の笛と撥弦、四国の急流'},
@@ -8,6 +8,8 @@ const pieces=[
  {id:'reef-after-rain',title:'雨上がりの珊瑚航路',bpm:138,meter:4,bars:32,root:45,lead:'air',reply:'glass',energy:'brave',rhythm:'breaks',motif:[24,31,30,26,28,24,21,19,26,33,31,28],steps:[0,.5,1.5,3,4.5,5.5,7,8,9.5,11,12.5,14],chords:[[0,4,7,14],[-5,2,9,16],[-2,5,12,19],[-7,0,7,14]],taste:'138 BPM · 浮遊する笛とブレイク、沖縄の青い空'},
  {id:'birch-lake',title:'白樺と湖の風',bpm:104,meter:3,bars:32,root:40,lead:'reed',reply:'warm',energy:'quiet',rhythm:'north',motif:[19,14,12,17,19,24,22,17,12,10,14,19],steps:[0,1.5,3,4,5,6,7.5,9,10.5,12,13,14],chords:[[0,7,12,19],[-5,2,7,14],[-2,5,12,17],[-7,0,7,12]],taste:'104 BPM · 木のような笛と淡い脈動、北の森と湖'},
  {id:'karst-eagle',title:'石の高原を翔ける',bpm:132,meter:5,bars:24,root:38,lead:'horn',reply:'pluck',energy:'brave',rhythm:'five',motif:[12,19,24,22,17,15,19,26,27,24,19,14],steps:[0,.5,2,3.5,5,6,7.5,9,10,12,13.5,15],chords:[[0,7,14,19],[-4,3,10,15],[-7,0,7,14],[-2,5,12,17]],taste:'132 BPM · 五拍子の角笛と駆ける弦、ハジャンの岩稜'},
+ {id:'crows-at-dusk',title:'烏の帰る茜道',bpm:106,meter:4,bars:32,root:43,lead:'zither',reply:'reed',energy:'quiet',rhythm:'dusk',motif:[19,17,13,12,10,13,17,22,24,22,19,13],steps:[0,1.5,2.5,4.5,6,7.5,8.5,9.5,11,12.5,14,15],chords:[[0,5,7,12],[-5,0,5,10],[-2,3,8,12],[-7,0,5,10]],taste:'106 BPM · 琴を思わせる撥弦と遠い笛、江戸の茜道'},
+ {id:'stone-and-rain',title:'石の回廊に降る雨',bpm:118,meter:4,bars:32,root:41,lead:'wood',reply:'reed',energy:'brave',rhythm:'gallery',motif:[24,19,21,26,28,26,21,17,19,24,31,28],steps:[0,.5,1.5,3,4,5.5,7.5,8,9.5,11,12.5,14],chords:[[0,7,12,16],[-5,2,7,14],[-2,5,10,17],[-7,0,7,12]],taste:'118 BPM · 木琴の連なる音と低い太鼓、森の遺跡'},
 ];
 export const ATLAS_TRACKS=Object.freeze(pieces.map(p=>Object.freeze({...p,arrangement:'riding'})));
 export function buildAtlasScore(id){

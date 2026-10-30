@@ -20,5 +20,5 @@ try:
     if(rms<.04||rms>.08||peak>.7||join>.02||step>.13||minRMS<.002||Math.abs(a.buffer.duration-a.score.seconds)>.001||(!recordings&&a.buffer.sampleRate!==24000))throw Error('Invalid journey mix '+JSON.stringify({id:t.id,rms,peak,join,step,minRMS}));
     results.push({id:t.id,seconds:a.buffer.duration,rms,peak,join,maxStep:step,minHalfSecondRMS:minRMS,renderMs:performance.now()-start,bytes:a.bytes});
    }if(ctx)await ctx.close();return results;}''',args.recordings)
-  assert len(report)==36;print(json.dumps(report),flush=True);browser.close();print('PASS: thirty-six journey mixes, continuous tails, no clipping, bounded stereo buffers.')
+  assert len(report)==38;print(json.dumps(report),flush=True);browser.close();print('PASS: thirty-eight journey mixes, continuous tails, no clipping, bounded stereo buffers.')
 finally:server.shutdown();server.server_close()

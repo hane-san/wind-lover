@@ -1,6 +1,8 @@
 # A compact atlas of freely chosen journeys
 
-29 October 2026, latest follow-up. This extends the existing Japan/southern-seas sampler and supersedes its six-scene circuit as the only travel structure. The owner's priority is a dense, freely connected world of distinctive landscapes, without requiring real geographical positions. Riding, bow input, camera defaults, pace, damage and the original Central Asian journey remain shared with the approved version.
+**Latest follow-up:** [free reins and regional skies](FREE-REINS-AND-REGIONAL-SKIES.md) expands the atlas and strengthens its regional atmosphere. Dimensions and totals below record the initial atlas.
+
+29 October 2026, initial atlas. This extends the existing Japan/southern-seas sampler and supersedes its six-scene circuit as the only travel structure. The owner's priority is a dense, freely connected world of distinctive landscapes, without requiring real geographical positions. Riding, bow input, camera defaults, pace, damage and the original Central Asian journey remain shared with the approved version.
 
 ## Choosing a road
 

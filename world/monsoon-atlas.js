@@ -12,12 +12,13 @@
   {id:'ryukyu',name:'琉球・赤瓦と曲がる城壁',key:'aktau',x:250,z:-580,y:38,top:0x6e74a6,hor:0xe5b98f,ground:0x809060,road:0xbda77c,verge:0x9eab75,track:12},
   {id:'okinawa',name:'沖縄・珊瑚の海と港町',key:'issyk',x:760,z:-260,y:26,top:0x3d9fbd,hor:0xc4e9dc,ground:0x86aa71,road:0xc9ba90,verge:0xa9c592,track:13},
  ];
+ const SCALE=1.16;
  function create(routes,main,mainNear,oldZones){
-  const CX=150000,zones=oldZones.concat(additions.map(z=>({...z}))),nodes=[],roads=[],grid=new Map(),CELL=128;
-  for(let i=0;i<oldZones.length;i++){const p=routes.at(main,main.length*(i/6+.015));Object.assign(zones[i],{x:p.x,z:p.z,y:p.y,radius:460});}
-  for(const z of zones.slice(6)){z.x+=CX;z.radius=310;nodes.push({...z,edges:[],plaza:true});}
+  const CX=150000,zones=oldZones.concat(additions.map(z=>({...z}))).map(z=>({...z,...WindRegionalAtmosphere.profiles[z.id]})),nodes=[],roads=[],grid=new Map(),CELL=128;
+  for(let i=0;i<oldZones.length;i++){const p=routes.at(main,main.length*(i/6+.015));Object.assign(zones[i],{x:p.x,z:p.z,y:p.y,radius:460*SCALE});}
+  for(const z of zones.slice(6)){z.x=CX+z.x*SCALE;z.z*=SCALE;z.radius=310*SCALE;nodes.push({...z,edges:[],plaza:true});}
   const centre={id:'crossroads',name:'旅の交差点',x:CX,z:0,y:30,edges:[],plaza:true};nodes.push(centre);
-  function addRoad(id,points,a,b){const path=routes.addRoad(id,points,'monsoon');path.realm='monsoon';path.atlas=true;path.nodes=[a,b];for(const s of path.segments)s.half=25;roads.push(path);a.edges.push({path,dir:1,to:b});b.edges.push({path,dir:-1,to:a});return path;}
+  function addRoad(id,points,a,b){const path=routes.addRoad(id,points,'monsoon');path.realm='monsoon';path.atlas=true;path.nodes=[a,b];for(const s of path.segments)s.half=28;roads.push(path);a.edges.push({path,dir:1,to:b});b.edges.push({path,dir:-1,to:a});return path;}
   function link(a,b,index,startTangent=null){
    const dx=b.x-a.x,dz=b.z-a.z,d=Math.hypot(dx,dz),tx=dx/d,tz=dz/d,h=d*.27;
    const A=a,B={x:a.x+(startTangent?.tx??tx)*h,z:a.z+(startTangent?.tz??tz)*h,y:a.y+(startTangent?.grade||0)*h},C={x:b.x-tx*h,z:b.z-tz*h,y:b.y},D=b,points=[];
@@ -38,11 +39,20 @@
   function near(x,z){const fallback=mainNear(x,z);let best=null;for(const seg of grid.get(Math.floor(x/CELL)+','+Math.floor(z/CELL))||[]){const u=clamp(((x-seg.a.x)*seg.dx+(z-seg.a.z)*seg.dz)/(seg.length**2)),px=seg.a.x+seg.dx*u,pz=seg.a.z+seg.dz*u,d=Math.hypot(x-px,z-pz);if(!best||d<best.d)best={y:mix(seg.a.y,seg.b.y,u),d,s:seg.s+seg.length*u,side:(x-px)*-seg.tz+(z-pz)*seg.tx,path:seg.path};}if(!best)return{...fallback,path:main,mainS:fallback.s};best.y=mix(fallback.y,best.y,1-smooth(150,205,best.d));best.mainS=fallback.s;return best;}
   function stage(x,z){
    const nearest=[];for(let i=0;i<zones.length;i++){const q=zones[i],d=Math.hypot(x-q.x,z-q.z)/(q.radius||400),entry={q,d,i};let j=0;while(j<nearest.length&&nearest[j].d<d)j++;nearest.splice(j,0,entry);if(nearest.length>4)nearest.pop();}
-   const edge=nearest[3].d,raw=nearest.slice(0,3).map(a=>Math.max(.0000001,(edge-a.d)**2)),sum=raw.reduce((a,b)=>a+b,0),weights=raw.map((w,i)=>({zone:nearest[i].q,w:w/sum,index:nearest[i].i})),a=nearest[0].q,blend=weights[0].w,previous={...nearest[1].q};
+   const edge=nearest[3].d,raw=nearest.slice(0,3).map(a=>Math.max(.0000001,(edge-a.d)**4)),sum=raw.reduce((a,b)=>a+b,0),weights=raw.map((w,i)=>({zone:nearest[i].q,w:w/sum,index:nearest[i].i})),a=nearest[0].q,blend=weights[0].w,previous={...nearest[1].q};
    for(const key of ['top','hor','ground','road','verge']){let value=0;for(const shift of [16,8,0]){const c=weights.slice(1).reduce((n,v)=>n+((v.zone[key]>>shift)&255)*v.w,0)/Math.max(.000001,1-blend);value|=Math.round(c)<<shift;}previous[key]=value;}
-   previous.track=weights.slice(1).reduce((n,v)=>n+v.zone.track*v.w,0)/Math.max(.000001,1-blend);return{...a,index:nearest[0].i,previous,blend,weights,u:mainNear(x,z).s/main.length};
+   previous.ruts=weights.slice(1).reduce((n,v)=>n+v.zone.ruts*v.w,0)/Math.max(.000001,1-blend);previous.track=weights.slice(1).reduce((n,v)=>n+v.zone.track*v.w,0)/Math.max(.000001,1-blend);return{...a,index:nearest[0].i,previous,blend,weights,u:mainNear(x,z).s/main.length};
   }
   function plazaAt(x,z){let best=null,d=Infinity;for(const n of nodes.filter(n=>n.plaza)){const r=Math.hypot(x-n.x,z-n.z);if(r<96&&r<d){best=n;d=r;}}return best;}
+  function surface(x,z,feet=Infinity){
+   // The narrower branch must not hide the wider parent road's shoulder at a fork.
+   let best=null,score=Infinity;
+   for(const r of routes.candidates(x,z)){
+    if(r.path.realm!=='monsoon'||r.d>r.half+.5||feet<r.y-.8)continue;
+    const rank=Number.isFinite(feet)?Math.abs(feet-r.y-.14):-r.y;
+    if(rank<score){best=r;score=rank;}
+   }return best;
+  }
   function ground(h,x,z){const p=near(x,z),bridge=p.path===main&&Math.abs(p.s-main.length*.085)<75;
    let n=null,d=Infinity;for(const node of nodes)if(node.plaza){const r=Math.hypot(x-node.x,z-node.z);if(r<145&&r<d){n=node;d=r;}}
    if(n)h=mix(h,n.y-.45,1-smooth(105,145,d));
@@ -61,11 +71,7 @@
    if(id==='okinawa')return mix(24+wave,-38,smooth(100,340,(x-q.x)*.5-(z-q.z)*.85));
    return null;
   }
-  function weather(x,z,t){
-   const q=stage(x,z),weight=ids=>q.weights.filter(v=>ids.includes(v.zone.id)).reduce((n,v)=>n+v.w,0),rain=weight(['kanazawa','shikoku','hagiang']),north=weight(['ainu']),warm=weight(['edo','thai','ryukyu']),phase=q.weights.reduce((n,v)=>n+v.index*v.w,0),u=.5+.5*Math.sin(t/23+phase*.84),v=smooth(.15,.85,u),top=colour(q.previous.top,q.top,q.blend),hor=colour(q.previous.hor,q.hor,q.blend);
-   const wet=colour(0x408fba,0x7e85ac,rain),dusk=colour(0x7e579b,0x7e579b,0),cold=colour(0x8b92b1,0x8b92b1,0),low=colour(0xd8e8d1,0xf4af76,warm);
-   const a=wet.map((c,i)=>mix(mix(c,dusk[i],warm),cold[i],north));return{top:top.map((c,i)=>mix(c,a[i],v*.42)),hor:hor.map((c,i)=>mix(c,low[i],v*.38)),stars:Math.max(0,v-.72)*mix(.35,1.5,warm),cloud:.45+(.12+.18*rain)*v,elevation:mix(.52,mix(.30,.11,warm),v),fog:mix(5700,4500,rain)};
-  }
+  const weather=(x,z,t)=>WindRegionalAtmosphere.weather(stage(x,z),t);
   const waterPatches=[];
   const pond=(id,dx,dz,hw,hd,water,yaw=0)=>{const n=nodes.find(n=>n.id===id);waterPatches.push({x:n.x+dx,z:n.z+dz,yaw,hw,hd,water,floor:water-3,kind:id+'-water'});};
   pond('kanazawa',175,0,18,160,24,.35);pond('ainu',58,-212,120,85,27,-.266);
@@ -125,7 +131,7 @@
    stats.atlasNodes=nodes.length;stats.atlasRoads=roads.length;stats.regions=zones.length;
   }
   function drawMap(svg,position){
-   const NS='http://www.w3.org/2000/svg',point=p=>({x:260+(p.x-CX)*.15,y:185-p.z*.145}),el=(tag,attrs,parent=svg)=>{const n=document.createElementNS(NS,tag);for(const [key,v]of Object.entries(attrs))n.setAttribute(key,String(v));parent.append(n);return n;};
+   const NS='http://www.w3.org/2000/svg',point=p=>({x:260+(p.x-CX)*.15/SCALE,y:185-p.z*.145/SCALE}),el=(tag,attrs,parent=svg)=>{const n=document.createElementNS(NS,tag);for(const [key,v]of Object.entries(attrs))n.setAttribute(key,String(v));parent.append(n);return n;};
    svg.replaceChildren();svg.setAttribute('viewBox','0 0 520 370');svg.setAttribute('aria-label','14の土地とつながる道。丸を押すと移動します');
    for(const path of [main,...roads])el('polyline',{points:path.points.filter((p,i)=>i%4===0||i===path.points.length-1).map(p=>{const q=point(p);return q.x.toFixed(1)+','+q.y.toFixed(1)}).join(' '),fill:'none',stroke:path===main?'#d2c09c':'#8eaaa0','stroke-width':path===main?2:1.4,opacity:.8});
    const labels={bay:'豊洲',edo:'江戸',angkor:'アンコール',khaosan:'カオサン',donmueang:'空港',straits:'海峡',kanazawa:'金沢',shikoku:'四国',ainu:'アイヌ・湖',hagiang:'ハジャン',inner:'遺跡の奥',thai:'タイ水郷',ryukyu:'琉球',okinawa:'沖縄'};
@@ -145,7 +151,7 @@
    P.yaw+=clamp(angle*2.4,-1,1)*dt;P.assistLean=mix(P.assistLean,clamp(-angle*.20,-.22,.22),1-Math.exp(-8*dt));
    if(Math.hypot(P.pos.x-node.x,P.pos.z-node.z)>90&&Math.hypot(dx,dz)<65){P.routeTrack=edge.path.id;P.routeOffset=0;P.atlasTurn=null;}return true;
   }
-  return{zones,nodes,roads,waterPatches,build,mergeHeight:(x,z,y)=>{const p=mainNear(x,z);return mix(p.y,y,smooth(55,120,p.d));},near,stage,ground,plazaAt,departure,terrain,weather,guide,reset,drawMap};
+  return{zones,nodes,roads,waterPatches,build,mergeHeight:(x,z,y)=>{const p=mainNear(x,z);return mix(p.y,y,smooth(55,120,p.d));},near,stage,ground,plazaAt,surface,departure,terrain,weather,guide,reset,drawMap};
  }
- globalThis.WindAtlas=Object.freeze({create,additions});
+ globalThis.WindAtlas=Object.freeze({create,additions,SCALE});
 })();

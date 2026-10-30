@@ -2,6 +2,15 @@
 (() => {
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const follow=(a,b,k,dt)=>a+(b-a)*(1-Math.exp(-k*dt));
+  const smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
+  // Reins own the middle of the road. A soft verge guard yields to a deliberate departure.
+  function guidance({steer=0,held=0,offset=0,half=25,outward=0,braking=false}={}){
+    if(braking)return {gain:0,lateral:1,edge:0};
+    const input=smooth(.08,.7,Math.abs(steer)),leave=smooth(1.6,2.5,held)*smooth(.65,.9,Math.abs(steer));
+    const edge=smooth(half-8,half-.8,Math.abs(offset))*(1-leave);
+    return {gain:(4.8-4.3*input)*(1-.8*leave)+edge*3.8*smooth(.015,.25,outward),lateral:1-edge*.92,edge};
+  }
+  function headingWeight(held){return .055+.70*smooth(.32,1.35,held);}
   function create(){return {lateral:0,load:0,sign:0,held:0,cooldown:0,pending:0,kind:null,
     gather:0,flight:0,landing:0,lead:1,launch:null,wasGrounded:false};}
   function request(s,kind='bound'){
@@ -37,5 +46,5 @@
       neckYaw:-.14*s.load,neckRoll:.035*s.load,riderRoll:-.055*s.load,
       fold:air*(.56+.28*Math.max(0,rise)),lead:s.lead,load:s.load};
   }
-  globalThis.WindHorseRiding=Object.freeze({create,request,advance,pose});
+  globalThis.WindHorseRiding=Object.freeze({create,request,advance,pose,guidance,headingWeight});
 })();

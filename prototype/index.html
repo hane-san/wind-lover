@@ -364,12 +364,13 @@ details > summary { color: var(--muted); cursor: pointer; padding: 10px 0; }
 </section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="../world/monsoon-atlas.js?v=20261029-atlas"></script>
-<script src="../world/monsoon-world.js?v=20261029-atlas"></script>
+<script src="../world/regional-atmosphere.js?v=20261030-atmosphere"></script>
+<script src="../world/monsoon-atlas.js?v=20261030-atmosphere"></script>
+<script src="../world/monsoon-world.js?v=20261030-atmosphere"></script>
 <script src="../world/scenic-journey.js?v=20261029-voyage"></script>
-<script src="../world/route-guidance.js?v=20261029-voyage"></script>
-<script src="../world/featured-routes.js?v=20261029-atlas"></script>
-<script src="../world/horse-riding.js?v=20261024-bow"></script>
+<script src="../world/route-guidance.js?v=20261030-reins"></script>
+<script src="../world/featured-routes.js?v=20261030-atmosphere"></script>
+<script src="../world/horse-riding.js?v=20261030-reins"></script>
 <script src="../world/horse-gait.js?v=20261024-phrase"></script>
 <script src="../world/horse-sound.js?v=20261024-phrase"></script>
 <script src="../world/horse-wake.js?v=20261022-voyage"></script>
@@ -870,7 +871,7 @@ function rideRoute(x, z, y) {
   // At a crossing, stay on the deck under the feet in either direction of travel.
   const railGap=Math.abs(y-routeY(rw,x)-.16-HOVER),roadGap=Math.abs(y-deckAt(hw.cx,hw.cz)-.25-HOVER);
   const base = railGap<4&&(rw.d<hw.d||(rw.d<rw.half+2&&roadGap>6))?{...rw}:hw;
-  const tr = biomeMode==='journey'?(vehKey==='horse'&&NAV?NAV.choose(x,z,{preferred:P.routeTrack,y:y-HOVER,yaw:P.yaw,steer:inp.jx+inp.kx}):TOURS.nearest(x,z,Math.abs(inp.jx+inp.kx)<.3?P.routeTrack:null)):null;
+  const tr = biomeMode==='journey'?(vehKey==='horse'&&NAV?NAV.choose(x,z,{preferred:P.routeTrack,y:y-HOVER,yaw:P.yaw,steer:inp.jx+inp.kx,keepCorridor:realm==='monsoon'}):TOURS.nearest(x,z,Math.abs(inp.jx+inp.kx)<.3?P.routeTrack:null)):null;
   const baseGap=base===hw?roadGap:railGap;
   return tr&&tr.d<tr.half+95&&Math.abs(y-tr.y-HOVER)<7&&
     (tr.d-(tr.path.id===P.routeTrack&&Math.abs(inp.jx+inp.kx)<.3?1.5:0)<base.d||(tr.d<tr.half+1&&Math.abs(y-tr.y-HOVER)<3&&baseGap>6))?tr:base;
@@ -955,7 +956,7 @@ function ground(x, z, y) {
         GI.n.set(-rise, 1, 0).normalize();
       }
     }
-    const tr = tourAt(x, z);
+    const tr=realm==='monsoon'?MON.surface(x,z,y-HOVER):tourAt(x,z);
     if (tr && tr.d < tr.half + 0.5 && y >= tr.y - 0.25 && tr.y + 0.14 >= h - 0.05) { h = tr.y + 0.14; GI.n.set(-tr.grade * tr.tx, 1, -tr.grade * tr.tz).normalize(); GI.water = false; GI.roof = true; }
     for (let i = 0; i < colliders.length; i++) {
       const c = colliders[i];
@@ -969,7 +970,7 @@ function ground(x, z, y) {
     }
   }
   if (Number.isFinite(y)) {
-    const tr=tourAt(x,z);
+    const tr=realm==='monsoon'?MON.surface(x,z,y-HOVER):tourAt(x,z);
     if(tr&&tr.d<tr.half&&y>=tr.y-.25&&Math.abs(tr.y+.14-h)>.75&&Math.abs(y-HOVER-tr.y-.14)+.04<Math.abs(y-HOVER-h)) {h=tr.y+.14;GI.n.set(-tr.grade*tr.tx,1,-tr.grade*tr.tz).normalize();GI.water=false;GI.roof=true;}
   }
   GI.h = h; return GI;
@@ -1120,17 +1121,24 @@ const cloudTex = canvasTex(256, 128, (g, w, h) => {
 
 // sky
 const skyMat = new THREE.ShaderMaterial({
-  uniforms: { top: { value: new THREE.Color() }, hor: { value: new THREE.Color() }, bot: { value: new THREE.Color() }, sunCol: { value: new THREE.Color() }, sunDir: { value: new V3(0, 1, 0) },stars:{value:0},clock:{value:0} },
+  uniforms: { top: { value: new THREE.Color() }, hor: { value: new THREE.Color() }, bot: { value: new THREE.Color() }, sunCol: { value: new THREE.Color() }, sunDir: { value: new V3(0, 1, 0) },stars:{value:0},clock:{value:0},localSky:{value:0},cloudColour:{value:new THREE.Color()},cloudCover:{value:0},cloudForm:{value:0} },
   vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-  fragmentShader: `uniform vec3 top; uniform vec3 hor; uniform vec3 bot; uniform vec3 sunCol; uniform vec3 sunDir; uniform float stars;uniform float clock;varying vec3 vDir;
+  fragmentShader: `uniform vec3 top; uniform vec3 hor; uniform vec3 bot; uniform vec3 sunCol; uniform vec3 sunDir; uniform float stars;uniform float clock;uniform float localSky;uniform vec3 cloudColour;uniform float cloudCover;uniform float cloudForm;varying vec3 vDir;
     void main(){ vec3 d = normalize(vDir); float h = d.y; vec3 c = h > 0.0 ? mix(hor, top, pow(clamp(h,0.0,1.0), 0.55)) : mix(hor, bot, clamp(-h*4.0,0.0,1.0));
     float s = max(dot(d, normalize(sunDir)), 0.0); c += sunCol * (pow(s, 900.0) * 0.5 + pow(s, 14.0) * 0.12 + pow(s, 3.0) * 0.045);
     c = mix(c, hor * 1.04 + sunCol * 0.04, exp(-abs(h) * 16.0) * 0.55);
+    if(localSky>.5){
+      float drift=clock*.003;float broad=sin(d.x*11.0+d.z*7.0+drift)+.45*sin(d.x*23.0-d.z*19.0-drift*1.7);
+      float streak=sin(h*95.0+d.x*4.0+d.z*3.0+drift)*.32+broad*.25;
+      float billow=sin(d.x*19.0+sin(d.z*13.0)+drift)*.35+broad*.45;
+      float cloud=smoothstep(1.0-cloudCover,1.35-cloudCover,mix(streak,billow,cloudForm)) * smoothstep(.015,.12,h)*(1.0-smoothstep(.35,.75,h));
+      c=mix(c,cloudColour,cloud*.55);
+    }
     if(stars>.001){vec2 uv=vec2(atan(d.z,d.x)/6.2831853+.5,asin(clamp(d.y,-1.0,1.0))/3.14159265+.5)*vec2(360.0,180.0);
     vec2 cell=floor(uv);float rnd=fract(sin(dot(cell,vec2(127.1,311.7)))*43758.5453);
     float pin=(1.0-smoothstep(.045,.19,length(fract(uv)-.5)))*step(.970,rnd)*smoothstep(.04,.20,h);
     c+=vec3(.77,.86,1.0)*pin*stars*(.65+.25*sin(clock*.55+rnd*80.0));}
-    gl_FragColor = vec4(c, 1.0); ${journeyGrade} }`,
+    gl_FragColor = vec4(c, 1.0); ${journeyGrade} gl_FragColor.rgb=mix(gl_FragColor.rgb,c,localSky*.36); }`,
   side: THREE.BackSide, depthWrite: false,
 });
 const sky = new THREE.Mesh(new THREE.SphereGeometry(9000, 32, 16), skyMat);
@@ -2322,7 +2330,7 @@ function buildCanyon(ch){
 }
 function buildFeaturedRoad(ch) {
   if (biomeMode !== 'journey') return;
-  const road = new Merger(), stone = new Merger(), paint = new THREE.Color(0xcfc6ad), asphalt = new THREE.Color(0x646461),snowRoad=new THREE.Color(0xb0b9bd),roadStart=new THREE.Color(),roadEnd=new THREE.Color(),roadMix=new THREE.Color(),vergeStart=new THREE.Color(),vergeEnd=new THREE.Color();
+  const road = new Merger(), stone = new Merger(), paint = new THREE.Color(0xcfc6ad), asphalt = new THREE.Color(0x646461),snowRoad=new THREE.Color(0xb0b9bd),roadStart=new THREE.Color(),roadEnd=new THREE.Color(),roadMix=new THREE.Color(),vergeStart=new THREE.Color(),vergeEnd=new THREE.Color(),roadSavedStart=new THREE.Color(),roadSavedEnd=new THREE.Color();
   const vertex=(p,side,up=.14)=>{const x=p.x+p.nx*side,z=p.z+p.nz*side,y=p.rawY!==undefined?MON.atlas.mergeHeight(x,z,p.rawY):p.y;return new V3(x,y+up,z);};
   for (const path of TOURS.paths) for (const seg of path.segments) {
     const a = seg.a, b = seg.b, x = (a.x + b.x) / 2, z = (a.z + b.z) / 2;
@@ -2339,7 +2347,13 @@ function buildFeaturedRoad(ch) {
     let startTrack=h,endTrack=h;
     if(sampler){const start=MON.stage(a.x,a.z),end=MON.stage(b.x,b.z);startTrack=lerp(start.previous.track,start.track,start.blend);endTrack=lerp(end.previous.track,end.track,end.blend);roadStart.setHex(start.previous.road).lerp(roadMix.setHex(start.road),start.blend);roadEnd.setHex(end.previous.road).lerp(roadMix.setHex(end.road),end.blend);vergeStart.setHex(start.previous.verge).lerp(roadMix.setHex(start.verge),start.blend);vergeEnd.setHex(end.previous.verge).lerp(roadMix.setHex(end.verge),end.blend);}
     // Adjacent surfaces share edges; no coplanar shoulder overlay or depth flicker.
-    strip(0,startTrack,.14,asphalt,sampler?1:0,false,0,endTrack);
+    if(sampler){
+      const start=MON.stage(a.x,a.z),end=MON.stage(b.x,b.z),wear=q=>lerp(q.previous.ruts??0,q.ruts??0,q.blend),sa=wear(start),sb=wear(end),bands=[-1,-.68,-.44,-.20,.20,.44,.68,1],A=roadSavedStart.copy(roadStart),B=roadSavedEnd.copy(roadEnd);
+      for(let i=0;i<bands.length-1;i++){const lo=bands[i],hi=bands[i+1],rut=i===1||i===5,centre=(lo+hi)/2,width=(hi-lo)/2;
+        roadStart.copy(A).multiplyScalar(rut?1-.18*sa:1+.045*sa);roadEnd.copy(B).multiplyScalar(rut?1-.18*sb:1+.045*sb);
+        strip(centre*startTrack,width*startTrack,.14,asphalt,1,false,centre*endTrack,width*endTrack);
+      }roadStart.copy(A);roadEnd.copy(B);
+    }else strip(0,startTrack,.14,asphalt);
     if(sampler)for(const side of [-1,1])strip(side*(startTrack+(h-startTrack)/2),(h-startTrack)/2,.14,asphalt,1,true,side*(endTrack+(h-endTrack)/2),(h-endTrack)/2);
     if(!sampler||['bay','khaosan','donmueang'].includes(sampler.id))for(const off of [-h+1,h-1])strip(off,.11,.17,paint);
     if((!sampler||['bay','khaosan','donmueang'].includes(sampler.id))&&Math.floor(seg.s/24)%2===0) strip(0,.12,.17,paint);
@@ -2640,6 +2654,7 @@ function travelFeatured(id) {
 }
 
 const monsoonSkyTop=new THREE.Color(),monsoonSkyHor=new THREE.Color();
+const regionalBirds=WindRegionalAtmosphere.createBirds(THREE,scene);
 let returnDeparture='desert',returnVisit=null,gateUntil=0,gateQueued=false,gateArmed=true;
 function realmGate(){
  if(realm==='monsoon'){const p=TOURS.at(MON.path,90);return{x:p.x+p.tz*90,z:p.z-p.tx*90,to:'central'};}
@@ -3840,7 +3855,7 @@ function stepPhysics(dt) {
     // bike-like steering: the stick lays the machine over; the lean makes the turn (yaw = g·tan(lean)/v),
     // so the same lean carves a much wider arc at speed. Laying over takes time: that delay is the weight.
     const horse=vehKey==='horse',horseRoad=horse?rideRoute(P.pos.x,P.pos.z,P.pos.y):null;
-    const horseOnRoad=horseRoad&&horseRoad.d<horseRoad.half;
+    const horseOnRoad=horseRoad&&(realm==='monsoon'?Boolean(MON.surface(P.pos.x,P.pos.z,P.pos.y-HOVER)):horseRoad.d<horseRoad.half);
     const maxLean = Math.min(1.2, (horse&&horseOnRoad?.46:.8) * S.turn) * (P.drifting ? 1.25 : 1) * (P.tuck ? 0.85 : 1);
     // the lean rides a damped spring: it goes over with weight, overshoots a touch and settles, so the line sways
     const w0 = V.roll * (horse?2.05:1.55) * (P.drifting ? 1.3 : 1);
@@ -3850,7 +3865,7 @@ function stepPhysics(dt) {
     const vTurn = Math.pow(Math.max(Math.hypot(P.vel.x, P.vel.z), 10), 0.88);
     // a short input is mostly a sidestep: the heading only comes round as the input is held
     if (Math.abs(steer) > 0.15 && Math.sign(steer) === P.holdSign) P.hold += dt; else { P.hold = Math.max(0, P.hold - dt * 3); if (Math.abs(steer) > 0.15) { P.holdSign = Math.sign(steer); P.hold = 0; } }
-    const holdK = horse&&horseOnRoad?lerp(.035,.8,smooth(1.15,2.1,P.hold)):P.drifting ? 1 : lerp(0.16, 1, smooth(0.8, 2.3, P.hold));
+    const holdK = horse&&horseOnRoad?WindHorseRiding.headingWeight(P.hold):P.drifting ? 1 : lerp(0.16, 1, smooth(0.8, 2.3, P.hold));
     P.yawRate = clamp(-(P.grounded ? 33 : 27) * holdK * Math.tan(P.lean) / vTurn * (P.drifting ? 1.6 : 1), -2.2, 2.2);
     P.yaw += P.yawRate * dt;
     if(horse){
@@ -3864,7 +3879,7 @@ function stepPhysics(dt) {
     // the float: laid over, the machine first slides sideways while still pointing ahead, and the heading follows
     { const hsx = Math.hypot(P.vel.x, P.vel.z), swayT = P.grounded && !P.drifting && !P.dead ? steer * 10.8 * clamp((hsx - 8) / 30, 0, 1) : 0;
       P.sway += (swayT - P.sway) * (1 - Math.exp(-(Math.abs(swayT) > Math.abs(P.sway) ? 6.5 : 5.2) * dt)); }
-    if(horse){P.sway=P.horse.lateral;if(P.horse.launch)horseJump(P.horse.launch);}
+    if(horse){P.sway=P.horse.lateral*(P.reinVergeScale??1);if(P.horse.launch)horseJump(P.horse.launch);}
     fwd.set(Math.sin(P.yaw), 0, Math.cos(P.yaw));
 
     if (P.grounded) {
@@ -3889,7 +3904,7 @@ function stepPhysics(dt) {
       if (braking) vf = Math.max(0, vf - 24 * brakeAmt * dt);
       vf += S.tailwind * Math.max(0, fPl.x * windDir.x + fPl.z * windDir.z) * dt;
       const route = rideRoute(P.pos.x, P.pos.z, P.pos.y);
-      P.onRoad = (realm==='monsoon'&&Boolean(MON.plazaAt(P.pos.x,P.pos.z))) || roadDist(P.pos.x, P.pos.z) < 5 || route.d < route.half;
+      P.onRoad = (realm==='monsoon'&&Boolean(MON.plazaAt(P.pos.x,P.pos.z)||MON.surface(P.pos.x,P.pos.z,P.pos.y-HOVER))) || roadDist(P.pos.x, P.pos.z) < 5 || route.d < route.half;
       if (P.onRoad) vf += (horse?2.1:5) * dt;
       if (vf > cruiseNow) vf -= (vf - cruiseNow) * (P.onWater ? 0.02 : P.onRoad ? 0.003 : 0.007) * dt;
       // the long pull: held straight, the old engine keeps winding up toward the top end, slowly;
@@ -3978,7 +3993,7 @@ function stepPhysics(dt) {
 let roadPull = 0; // 0..1, how much the road is helping right now (also tightens grip)
 function roadAffinity(steer, dt) {
   roadPull = Math.max(0, roadPull - dt * 2);
-  P.assistLean *= Math.exp(-6 * dt);
+  P.assistLean *= Math.exp(-6 * dt);P.reinVergeScale=1;
   if ((!P.grounded && !(vehKey==='horse'&&P.hopping)) || P.drifting || P.grind || window.__noAssist) return;
   if(realm==='monsoon'&&vehKey==='horse'){
     if(P.braking){MON.reset(P);return;}
@@ -4056,7 +4071,7 @@ function horseRoadAffinity(hw,steer,dt){
   if(P.routeTrack!==key){P.routeTrack=key;P.routeOffset=off;}
   // Releasing the rein preserves the chosen line, including the final decimetres of the sidestep.
   if(Math.abs(steer)>.1)P.routeOffset=off+P.horse.lateral*.065;
-  P.routeOffset=clamp(P.routeOffset,-hw.half+2.2,hw.half-2.2);
+  P.routeOffset=clamp(P.routeOffset,-hw.half+4,hw.half-4);
   const direction=Math.sin(P.yaw)*hw.nz-Math.cos(P.yaw)*hw.nx>=0?1:-1;
   const lookDistance=Math.max(12,Math.hypot(P.vel.x,P.vel.z)*.32);
   if(hw.path){const look=NAV.ahead(hw.path,hw.s,lookDistance,direction);ty=Math.atan2(look.tx,look.tz);}
@@ -4067,9 +4082,13 @@ function horseRoadAffinity(hw,steer,dt){
   }
   ty+=direction*Math.atan(clamp((off-P.routeOffset)/32,-.2,.2));
   const delta=Math.atan2(Math.sin(ty-P.yaw),Math.cos(ty-P.yaw));
-  // Holding towards the verge is an intentional departure; the open country remains reachable.
-  const leaving=Math.abs(steer)>.65&&P.hold>1.15&&Math.abs(off)>hw.half-3;
-  const rate=delta*(1-Math.exp(-(leaving?1:7.5)*dt));P.yaw+=rate;roadPull=1;
+  const lateralOut=(-Math.cos(P.yaw)*hw.nx+Math.sin(P.yaw)*hw.nz)*P.horse.lateral*Math.sign(off);
+  const outward=((P.vel.x*hw.nx+P.vel.z*hw.nz)*Math.sign(off)+lateralOut)/Math.max(8,P.vel.length());
+  const help=WindHorseRiding.guidance({steer,held:P.hold,offset:off,half:hw.half,outward,braking:P.braking});
+  // Sideways dodge motion meets a soft verge, whilst held reins can still enter open country.
+  const sideOut=lateralOut>0;
+  P.reinVergeScale=sideOut?help.lateral:1;
+  const rate=delta*(1-Math.exp(-help.gain*dt));P.yaw+=rate;roadPull=Math.min(1,help.gain/4.8);
   P.assistLean=lerp(P.assistLean,clamp(-rate/Math.max(dt,.001)*P.vel.length()/105,-.22,.22),1-Math.exp(-8*dt));
   return true;
 }
@@ -5581,10 +5600,11 @@ function updatePalette(dt, snap) {
   sun.color.copy(pal.sunLight).lerp(moodSun, mk * 0.6); sun.intensity = pal.sunI * .78 * lakeLight; sun.position.copy(pal.sunDir).normalize();
   for (const c of clouds) { c.material.color.copy(pal.cloud).lerp(moodHor,.25); c.material.opacity=lerp(.62,.17,lakeSky.night*lakeBlend); }
   for (const c of cloudSea) { c.material.color.copy(pal.cloud).lerp(moodHor, 0.3); c.material.opacity = altK * 0.85; c.visible = altK > 0.02; }
+  skyMat.uniforms.localSky.value=realm==='monsoon'?1:0;
   if(realm==='monsoon'){
     const zone=MON.stage(P.pos.x,P.pos.z),weather=MON.weather(P.pos.x,P.pos.z,t);
-    monsoonSkyTop.setRGB(...weather.top);monsoonSkyHor.setRGB(...weather.hor);skyMat.uniforms.top.value.lerp(monsoonSkyTop,.92);skyMat.uniforms.hor.value.lerp(monsoonSkyHor,.92);skyMat.uniforms.bot.value.lerp(monsoonSkyHor,.78);skyMat.uniforms.stars.value=weather.stars;scene.fog.color.copy(skyMat.uniforms.hor.value);renderer.setClearColor(scene.fog.color);scene.fog.near=320;scene.fog.far=weather.fog;waterMat.color.setHex(['okinawa','ryukyu','straits'].includes(zone.id)?0x419baf:0x659b9b);
-    pal.sunDir.set(.3,weather.elevation,-.7).normalize();skyMat.uniforms.sunDir.value.copy(pal.sunDir);sun.position.copy(pal.sunDir);sun.color.setHex(0xffeed6).lerp(lakeSkyMix.setHex(0xffbf8b),1-weather.elevation);skyMat.uniforms.sunCol.value.copy(sun.color);for(const c of clouds)c.material.opacity=weather.cloud;
+    monsoonSkyTop.setRGB(...weather.top);monsoonSkyHor.setRGB(...weather.hor);skyMat.uniforms.top.value.lerp(monsoonSkyTop,.92);skyMat.uniforms.hor.value.lerp(monsoonSkyHor,.92);skyMat.uniforms.bot.value.lerp(monsoonSkyHor,.78);skyMat.uniforms.stars.value=weather.stars;skyMat.uniforms.cloudColour.value.setRGB(...weather.cloudColour);skyMat.uniforms.cloudCover.value=weather.cover;skyMat.uniforms.cloudForm.value=weather.form;scene.fog.color.copy(skyMat.uniforms.hor.value);renderer.setClearColor(scene.fog.color);scene.fog.near=320;scene.fog.far=weather.fog;waterMat.color.setHex(['okinawa','ryukyu','straits'].includes(zone.id)?0x419baf:0x659b9b);
+    pal.sunDir.set(.3,weather.elevation,-.7).normalize();skyMat.uniforms.sunDir.value.copy(pal.sunDir);sun.position.copy(pal.sunDir);sun.color.setHex(0xffeed6).lerp(lakeSkyMix.setHex(0xffbf8b),1-weather.elevation);skyMat.uniforms.sunCol.value.copy(sun.color);for(const c of clouds){c.material.opacity=weather.cloud;c.material.color.setRGB(...weather.cloudColour);}
 
   }
   // announce a new land when it clearly takes over
@@ -5656,6 +5676,7 @@ function updateVisuals(dt) {
   const fov = clamp((portrait ? 66 : 52) + S.camFov + (started ? sf * (vehKey==='horse'?3.2:2) * S.fovKick + dashPunch * 0.8 : 0),30,120);
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = lerp(camera.fov, fov, 1 - Math.exp(-6 * cameraDt)); applyLens(); }
   sky.position.copy(camera.position);
+  regionalBirds.update(realm==='monsoon'?MON.stage(P.pos.x,P.pos.z):null,t,realm==='monsoon');
 
   const MD = models[vehKey], V = VEHICLES[vehKey];
   if(MD.legs) {
@@ -6383,6 +6404,6 @@ window.__wl = { get paused(){return paused;}, climate:WindJourneyClimate,get lak
 window.__wlAudio = { getContext() { sfx.init(); return sfx.context; }, getDestination() { sfx.init(); return sfx.output; }, get soundOn() { return sfx.on; } };
 })();
 </script>
-<script type="module" src="../music/game-music.mjs?v=20261029-atlas" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
+<script type="module" src="../music/game-music.mjs?v=20261030-atmosphere" onerror="document.getElementById('musicStatus').textContent='音楽を読み込めませんでした。再読み込みで試せます。'"></script>
 </body>
 </html>
